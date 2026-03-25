@@ -1,0 +1,30 @@
+# Environments
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+.npm/
+dist/
+build/
+out/
+.next/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Media and Large files
+*.mp4
+*.mov
+*.mkv
+*.sst
+backend/assets/
