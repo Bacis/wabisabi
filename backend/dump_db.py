@@ -3,8 +3,17 @@ from sqlalchemy.orm import sessionmaker
 import os
 import json
 from datetime import datetime
+from dotenv import load_dotenv
 
-DATABASE_URL = "postgresql://postgres.ydqppcwlufpenytdnmiy:sYwxr87jmd%40@aws-1-us-east-1.pooler.supabase.com:6543/postgres"
+load_dotenv()
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable is not set")
+
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 db = SessionLocal()
