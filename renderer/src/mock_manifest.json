@@ -1,0 +1,246 @@
+{
+  "has_background_music": true,
+  "base_video_filename": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/input_34726371-4987-46b0-9e69-2c1c2ec03d57.MOV",
+  "sequence": [
+    {
+      "timestamp_start": 0.0,
+      "text": "do",
+      "style": "style_2",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 1.059999942779541,
+      "text": "you",
+      "style": "style_1",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 1.2200000286102295,
+      "text": "know",
+      "style": "style_2",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 1.399999976158142,
+      "text": "what's",
+      "style": "style_2",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 1.7000000476837158,
+      "text": "the",
+      "style": "style_3",
+      "b_roll_search_term": "retro pop overload",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_5_retro_pop_overload.mp4"
+    },
+    {
+      "timestamp_start": 1.9800000190734863,
+      "text": "biggest",
+      "style": "style_3",
+      "b_roll_search_term": "retro pop stress",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_6_retro_pop_stress.mp4"
+    },
+    {
+      "timestamp_start": 2.2799999713897705,
+      "text": "frustration",
+      "style": "style_3",
+      "b_roll_search_term": "retro pop stress",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_6_retro_pop_stress.mp4"
+    },
+    {
+      "timestamp_start": 3.0399999618530273,
+      "text": "in",
+      "style": "style_2",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 3.559999942779541,
+      "text": "the",
+      "style": "style_2",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 3.799999952316284,
+      "text": "world",
+      "style": "style_2",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 4.039999961853027,
+      "text": "right",
+      "style": "style_3",
+      "b_roll_search_term": "retro pop urgency",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_11_retro_pop_urgency.mp4"
+    },
+    {
+      "timestamp_start": 4.420000076293945,
+      "text": "now",
+      "style": "style_3",
+      "b_roll_search_term": "retro pop urgency",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_11_retro_pop_urgency.mp4"
+    },
+    {
+      "timestamp_start": 5.559999942779541,
+      "text": "there's",
+      "style": "style_1",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 6.320000171661377,
+      "text": "just",
+      "style": "style_3",
+      "b_roll_search_term": "retro pop excess",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_14_retro_pop_excess.mp4"
+    },
+    {
+      "timestamp_start": 6.619999885559082,
+      "text": "too",
+      "style": "style_3",
+      "b_roll_search_term": "retro pop excess",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_14_retro_pop_excess.mp4"
+    },
+    {
+      "timestamp_start": 7.159999847412109,
+      "text": "much",
+      "style": "style_3",
+      "b_roll_search_term": "retro pop media flood",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_16_retro_pop_media_flood.mp4"
+    },
+    {
+      "timestamp_start": 7.539999961853027,
+      "text": "content",
+      "style": "style_3",
+      "b_roll_search_term": "retro pop media flood",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_16_retro_pop_media_flood.mp4"
+    },
+    {
+      "timestamp_start": 8.220000267028809,
+      "text": "too",
+      "style": "style_3",
+      "b_roll_search_term": "retro pop saturation",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_18_retro_pop_saturation.mp4"
+    },
+    {
+      "timestamp_start": 8.640000343322754,
+      "text": "much",
+      "style": "style_3",
+      "b_roll_search_term": "retro pop saturation",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_18_retro_pop_saturation.mp4"
+    },
+    {
+      "timestamp_start": 9.380000114440918,
+      "text": "yada",
+      "style": "style_2",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 9.9399995803833,
+      "text": "yada",
+      "style": "style_2",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 10.260000228881836,
+      "text": "bla",
+      "style": "style_2",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 10.619999885559082,
+      "text": "bla",
+      "style": "style_2",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 10.880000114440918,
+      "text": "bla",
+      "style": "style_2",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 11.260000228881836,
+      "text": "bla",
+      "style": "style_2",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 11.579999923706055,
+      "text": "bla",
+      "style": "style_1",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 12.0,
+      "text": "never",
+      "style": "style_3",
+      "b_roll_search_term": "retro pop infinity loop",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_27_retro_pop_infinity_loop.mp4"
+    },
+    {
+      "timestamp_start": 12.319999694824219,
+      "text": "ending",
+      "style": "style_3",
+      "b_roll_search_term": "retro pop infinity loop",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_27_retro_pop_infinity_loop.mp4"
+    },
+    {
+      "timestamp_start": 12.880000114440918,
+      "text": "never",
+      "style": "style_1",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 13.760000228881836,
+      "text": "ending",
+      "style": "style_3",
+      "b_roll_search_term": "retro pop infinity loop",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_29_retro_pop_infinity_loop.mp4"
+    }
+  ],
+  "style_config": {
+    "global_theme": "retro pop",
+    "style_1": {
+      "primaryColor": "#F3CAC7",
+      "backgroundColor": null,
+      "fontFamily": "Impact",
+      "fontWeight": 900,
+      "textTransform": "uppercase",
+      "textShadow": "4px 4px 0px #000000",
+      "textStroke": null
+    },
+    "style_2": {
+      "primaryColor": "#B4E0E3",
+      "backgroundColor": null,
+      "fontFamily": "Impact",
+      "fontWeight": 900,
+      "textTransform": "uppercase",
+      "textShadow": "4px 4px 0px #000000",
+      "textStroke": null
+    },
+    "style_3": {
+      "primaryColor": "#F7E8B5",
+      "backgroundColor": null,
+      "fontFamily": "Impact",
+      "fontWeight": 900,
+      "textTransform": "uppercase",
+      "textShadow": "4px 4px 0px #000000",
+      "textStroke": null
+    }
+  }
+}

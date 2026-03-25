@@ -1,0 +1,12 @@
+openai
+requests
+python-dotenv
+ffmpeg-python
+yt-dlp
+fastapi
+uvicorn[standard]
+sqlalchemy
+python-multipart
+pydantic
+supabase
+psycopg2-binary

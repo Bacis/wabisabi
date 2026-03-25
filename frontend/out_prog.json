@@ -1,0 +1,94 @@
+{
+  "framesRendered": 121,
+  "chunks": 0,
+  "done": false,
+  "encodingStatus": {
+    "framesEncoded": 0,
+    "combinedFrames": 0,
+    "timeToCombine": null
+  },
+  "timeToRenderFrames": null,
+  "costs": {
+    "accruedSoFar": 0.00354,
+    "displayCost": "$0.004",
+    "currency": "USD",
+    "disclaimer": "Estimated cost only. Does not include charges for other AWS services."
+  },
+  "renderId": "1xkgwf0hyx",
+  "renderMetadata": {
+    "startedDate": 1774411150529,
+    "totalChunks": 1,
+    "estimatedTotalLambdaInvokations": 2,
+    "estimatedRenderLambdaInvokations": 1,
+    "compositionId": "WabisabiManifest",
+    "siteId": "https://remotionlambda-useast1-rvopuqxbxi.s3.us-east-1.amazonaws.com/sites/wabisabi/index.html",
+    "codec": "h264",
+    "type": "video",
+    "imageFormat": "jpeg",
+    "inputProps": {
+      "type": "payload",
+      "payload": "{\"has_background_music\":true,\"base_video_filename\":\"https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/input_322958df-4139-40a5-aa83-1056b30dc44f.MOV\",\"sequence\":[{\"timestamp_start\":0,\"text\":\"do\",\"style\":\"style_basic\",\"b_roll_search_term\":null,\"local_b_roll_path\":null},{\"timestamp_start\":1.05999994277954,\"text\":\"you\",\"style\":\"style_basic\",\"b_roll_search_term\":null,\"local_b_roll_path\":null},{\"timestamp_start\":1.22000002861023,\"text\":\"know\",\"style\":\"style_basic\",\"b_roll_search_term\":null,\"local_b_roll_path\":null},{\"timestamp_start\":1.39999997615814,\"text\":\"what's\",\"style\":\"style_basic\",\"b_roll_search_term\":null,\"local_b_roll_path\":null},{\"timestamp_start\":1.70000004768372,\"text\":\"the\",\"style\":\"style_basic_white\",\"b_roll_search_term\":\"overwhelming crowd\",\"local_b_roll_path\":\"https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_322958df-4139-40a5-aa83-1056b30dc44f_5_overwhelming_crowd.mp4\"},{\"timestamp_start\":1.98000001907349,\"text\":\"biggest\",\"style\":\"style_basic_white\",\"b_roll_search_term\":\"frustrated person\",\"local_b_roll_path\":\"https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_322958df-4139-40a5-aa83-1056b30dc44f_6_frustrated_person.mp4\"},{\"timestamp_start\":2.27999997138977,\"text\":\"frustration\",\"style\":\"style_basic_white\",\"b_roll_search_term\":\"frustrated person\",\"local_b_roll_path\":\"https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_322958df-4139-40a5-aa83-1056b30dc44f_6_frustrated_person.mp4\"},{\"timestamp_start\":3.03999996185303,\"text\":\"in\",\"style\":\"style_basic\",\"b_roll_search_term\":null,\"local_b_roll_path\":null},{\"timestamp_start\":3.55999994277954,\"text\":\"the\",\"style\":\"style_basic\",\"b_roll_search_term\":null,\"local_b_roll_path\":null},{\"timestamp_start\":3.79999995231628,\"text\":\"world\",\"style\":\"style_basic\",\"b_roll_search_term\":null,\"local_b_roll_path\":null},{\"timestamp_start\":4.03999996185303,\"text\":\"right\",\"style\":\"style_basic\",\"b_roll_search_term\":null,\"local_b_roll_path\":null},{\"timestamp_start\":4.42000007629395,\"text\":\"now\",\"style\":\"style_basic\",\"b_roll_search_term\":null,\"local_b_roll_path\":null},{\"timestamp_start\":5.55999994277954,\"text\":\"there's\",\"style\":\"style_basic\",\"b_roll_search_term\":null,\"local_b_roll_path\":null},{\"timestamp_start\":6.32000017166138,\"text\":\"just\",\"style\":\"style_basic_white\",\"b_roll_search_term\":\"overflow\",\"local_b_roll_path\":\"https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_322958df-4139-40a5-aa83-1056b30dc44f_14_overflow.mp4\"},{\"timestamp_start\":6.61999988555908,\"text\":\"too\",\"style\":\"style_basic_white\",\"b_roll_search_term\":\"overflow\",\"local_b_roll_path\":\"https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_322958df-4139-40a5-aa83-1056b30dc44f_14_overflow.mp4\"},{\"timestamp_start\":7.15999984741211,\"text\":\"much\",\"style\":\"style_basic_white\",\"b_roll_search_term\":\"digital cloud\",\"local_b_roll_path\":\"https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_322958df-4139-40a5-aa83-1056b30dc44f_16_digital_cloud.mp4\"},{\"timestamp_start\":7.53999996185303,\"text\":\"content\",\"style\":\"style_basic_white\",\"b_roll_search_term\":\"digital cloud\",\"local_b_roll_path\":\"https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_322958df-4139-40a5-aa83-1056b30dc44f_16_digital_cloud.mp4\"},{\"timestamp_start\":8.22000026702881,\"text\":\"too\",\"style\":\"style_basic_white\",\"b_roll_search_term\":\"excess\",\"local_b_roll_path\":\"https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_322958df-4139-40a5-aa83-1056b30dc44f_18_excess.mp4\"},{\"timestamp_start\":8.64000034332275,\"text\":\"much\",\"style\":\"style_basic_white\",\"b_roll_search_term\":\"excess\",\"local_b_roll_path\":\"https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_322958df-4139-40a5-aa83-1056b30dc44f_18_excess.mp4\"},{\"timestamp_start\":9.38000011444092,\"text\":\"yada\",\"style\":\"style_basic_white\",\"b_roll_search_term\":null,\"local_b_roll_path\":null},{\"timestamp_start\":9.9399995803833,\"text\":\"yada\",\"style\":\"style_basic_white\",\"b_roll_search_term\":null,\"local_b_roll_path\":null},{\"timestamp_start\":10.2600002288818,\"text\":\"bla\",\"style\":\"style_basic_white\",\"b_roll_search_term\":null,\"local_b_roll_path\":null},{\"timestamp_start\":10.6199998855591,\"text\":\"bla\",\"style\":\"style_basic_white\",\"b_roll_search_term\":null,\"local_b_roll_path\":null},{\"timestamp_start\":10.8800001144409,\"text\":\"bla\",\"style\":\"style_basic_white\",\"b_roll_search_term\":null,\"local_b_roll_path\":null},{\"timestamp_start\":11.2600002288818,\"text\":\"bla\",\"style\":\"style_basic_white\",\"b_roll_search_term\":null,\"local_b_roll_path\":null},{\"timestamp_start\":11.5799999237061,\"text\":\"bla\",\"style\":\"style_basic_white\",\"b_roll_search_term\":\"infinity loop\",\"local_b_roll_path\":\"https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_322958df-4139-40a5-aa83-1056b30dc44f_26_infinity_loop.mp4\"},{\"timestamp_start\":12,\"text\":\"never\",\"style\":\"style_basic_white\",\"b_roll_search_term\":\"infinite loop\",\"local_b_roll_path\":\"https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_322958df-4139-40a5-aa83-1056b30dc44f_27_infinite_loop.mp4\"},{\"timestamp_start\":12.3199996948242,\"text\":\"ending\",\"style\":\"style_basic_white\",\"b_roll_search_term\":\"infinite loop\",\"local_b_roll_path\":\"https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_322958df-4139-40a5-aa83-1056b30dc44f_27_infinite_loop.mp4\"},{\"timestamp_start\":12.8800001144409,\"text\":\"never\",\"style\":\"style_basic_white\",\"b_roll_search_term\":\"endless scrolling\",\"local_b_roll_path\":\"https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_322958df-4139-40a5-aa83-1056b30dc44f_28_endless_scrolling.mp4\"},{\"timestamp_start\":13.7600002288818,\"text\":\"ending\",\"style\":\"style_basic_white\",\"b_roll_search_term\":\"endless cycle\",\"local_b_roll_path\":\"https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_322958df-4139-40a5-aa83-1056b30dc44f_29_endless_cycle.mp4\"}],\"style_config\":null}"
+    },
+    "lambdaVersion": "4.0.438",
+    "framesPerLambda": 1000,
+    "memorySizeInMb": 2048,
+    "region": "us-east-1",
+    "renderId": "1xkgwf0hyx",
+    "outName": {
+      "bucketName": "remotionlambda-useast1-rvopuqxbxi",
+      "key": "renders/wabisabi_export_1774411149807.mp4"
+    },
+    "privacy": "public",
+    "everyNthFrame": 1,
+    "frameRange": [
+      0,
+      472
+    ],
+    "audioCodec": null,
+    "deleteAfter": null,
+    "numberOfGifLoops": null,
+    "downloadBehavior": {
+      "type": "play-in-browser"
+    },
+    "audioBitrate": null,
+    "muted": false,
+    "metadata": null,
+    "functionName": "remotion-render-4-0-438-mem2048mb-disk2048mb-900sec",
+    "dimensions": {
+      "width": 1080,
+      "height": 1920
+    },
+    "rendererFunctionName": "remotion-render-4-0-438-mem2048mb-disk2048mb-900sec",
+    "scale": 1
+  },
+  "bucket": "remotionlambda-useast1-rvopuqxbxi",
+  "outputFile": null,
+  "timeToFinish": null,
+  "errors": [],
+  "fatalErrorEncountered": false,
+  "currentTime": 1774411281986,
+  "renderSize": 0,
+  "lambdasInvoked": 1,
+  "cleanup": {
+    "doneIn": null,
+    "minFilesToDelete": 0,
+    "filesDeleted": 0
+  },
+  "timeToFinishChunks": null,
+  "overallProgress": 0.3534883720930233,
+  "retriesInfo": [],
+  "outKey": null,
+  "outBucket": null,
+  "mostExpensiveFrameRanges": null,
+  "timeToEncode": null,
+  "outputSizeInBytes": null,
+  "estimatedBillingDurationInMilliseconds": 131456,
+  "combinedFrames": 0,
+  "timeToCombine": null,
+  "timeoutTimestamp": 1774412050526,
+  "type": "success",
+  "compositionValidated": 1774411150829,
+  "functionLaunched": 1774411150528,
+  "serveUrlOpened": 1774411150809,
+  "artifacts": []
+}

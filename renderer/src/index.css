@@ -1,0 +1,40 @@
+@import url('https://fonts.googleapis.com/css2?family=Anton&family=Gelasio:ital,wght@1,700&display=swap');
+
+body {
+  margin: 0;
+  background-color: black;
+  color: white;
+  font-family: 'Anton', sans-serif;
+}
+
+span {
+  margin: 0;
+  line-height: 1;
+}
+
+/* Base basic font */
+.style_basic_white {
+  font-family: 'Anton', sans-serif;
+  font-size: 120px;
+  text-transform: uppercase;
+  color: white;
+}
+
+/* Important thematic font - Magenta */
+.style_serif_white {
+  font-family: 'Gelasio', serif;
+  font-size: 150px;
+  font-style: italic;
+  font-weight: bold;
+  color: #FF00FF; /* Funky Magenta */
+}
+
+/* High-impact styling - Neon Yellow */
+.style_chaos_neon {
+  font-family: 'Gelasio', serif;
+  font-size: 180px;
+  font-weight: 900;
+  color: #FFE600; /* Funky Yellow */
+  text-transform: uppercase;
+  -webkit-text-stroke: 5px black;
+}
