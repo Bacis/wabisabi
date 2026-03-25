@@ -49,6 +49,7 @@ def process_video_pipeline(job_id: str, input_video: str, ref_image: str, user_p
         
         os.makedirs(os.path.join(backend_dir, "assets"), exist_ok=True)
         os.makedirs(renderer_public, exist_ok=True)
+        os.makedirs(renderer_src, exist_ok=True)
 
         job.progress = 10.0
         db.commit()
