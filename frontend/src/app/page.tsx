@@ -33,7 +33,8 @@ export default function Home() {
       formData.append("prompt", prompt);
 
       // 1. Start Python Pipeline
-      const response = await fetch("http://localhost:8000/api/generate", {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const response = await fetch(`${apiUrl}/api/generate`, {
         method: "POST",
         body: formData,
       });
@@ -44,7 +45,7 @@ export default function Home() {
       let manifest = null;
       while (!manifest) {
         await new Promise(resolve => setTimeout(resolve, 3000));
-        const statusRes = await fetch(`http://localhost:8000/api/jobs/${job_id}`);
+        const statusRes = await fetch(`${apiUrl}/api/jobs/${job_id}`);
         const statusData = await statusRes.json();
         
         if (statusData.status === "failed") throw new Error("Pipeline extraction failed.");
