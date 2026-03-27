@@ -22,8 +22,10 @@ class JobResponse(BaseModel):
 async def generate_video(
     background_tasks: BackgroundTasks,
     prompt: str = Form(""),
-    video: UploadFile = File(...),
-    ref_image: UploadFile = File(...),
+    connect_music: bool = Form(True),
+    external_videos_amount: int = Form(10),
+    videos: list[UploadFile] = File(...),
+    ref_images: list[UploadFile] = File(...),
     db: Session = Depends(get_db)
 ):
     # Retrieve API keys
@@ -51,39 +53,46 @@ async def generate_video(
     supabase = create_client(supabase_url, supabase_key)
     bucket_name = "wabisabi-assets"
     
-    # Upload video
-    video_ext = os.path.splitext(video.filename)[1]
-    input_video_filename = f"input_{new_job.id}{video_ext}"
-    video_bytes = await video.read()
-    supabase.storage.from_(bucket_name).upload(
-        path=input_video_filename,
-        file=video_bytes,
-        file_options={"content-type": video.content_type}
-    )
-    input_video_url = supabase.storage.from_(bucket_name).get_public_url(input_video_filename)
+    # Upload videos
+    input_video_urls = []
+    for i, v in enumerate(videos):
+        if v.filename:
+            v_ext = os.path.splitext(v.filename)[1]
+            v_filename = f"input_{new_job.id}_{i}{v_ext}"
+            v_bytes = await v.read()
+            supabase.storage.from_(bucket_name).upload(
+                path=v_filename,
+                file=v_bytes,
+                file_options={"content-type": v.content_type}
+            )
+            input_video_urls.append(supabase.storage.from_(bucket_name).get_public_url(v_filename))
         
-    # Save ref image if present
-    ref_image_url = None
-    if ref_image and ref_image.filename:
-        ref_ext = os.path.splitext(ref_image.filename)[1]
-        if not ref_ext:
-            ref_ext = ".jpg"  # Default extension if missing
-        ref_image_filename = f"ref_{new_job.id}{ref_ext}"
-        ref_bytes = await ref_image.read()
-        supabase.storage.from_(bucket_name).upload(
-            path=ref_image_filename,
-            file=ref_bytes,
-            file_options={"content-type": ref_image.content_type}
-        )
-        ref_image_url = supabase.storage.from_(bucket_name).get_public_url(ref_image_filename)
+    # Save ref images
+    ref_image_urls = []
+    if ref_images:
+        for i, r in enumerate(ref_images):
+            if r.filename:
+                r_ext = os.path.splitext(r.filename)[1]
+                if not r_ext:
+                    r_ext = ".jpg"  # Default extension if missing
+                r_filename = f"ref_{new_job.id}_{i}{r_ext}"
+                r_bytes = await r.read()
+                supabase.storage.from_(bucket_name).upload(
+                    path=r_filename,
+                    file=r_bytes,
+                    file_options={"content-type": r.content_type}
+                )
+                ref_image_urls.append(supabase.storage.from_(bucket_name).get_public_url(r_filename))
             
     # Add pipeline to background tasks
     background_tasks.add_task(
         process_video_pipeline,
         job_id=new_job.id,
-        input_video=input_video_url,
-        ref_image=ref_image_url,
+        input_videos=input_video_urls,
+        ref_images=ref_image_urls,
         user_prompt=prompt,
+        connect_music=connect_music,
+        external_videos_amount=external_videos_amount,
         pexels_key=pexels_key,
         openai_key=openai_key
     )
@@ -116,6 +125,7 @@ async def get_job_status(job_id: str, db: Session = Depends(get_db)):
             
         manifest = {
             "has_background_music": project.has_background_music,
+            "background_music_url": job.details.get("background_music_url") if job.details and isinstance(job.details, dict) else None,
             "base_video_filename": project.base_video_url,
             "sequence": [
                 {
@@ -133,6 +143,7 @@ async def get_job_status(job_id: str, db: Session = Depends(get_db)):
         "job_id": job.id,
         "status": job.status,
         "progress": job.progress,
+        "details": job.details,
         "created_at": job.created_at,
         "completed_at": job.completed_at,
         "error_message": job.error_message,

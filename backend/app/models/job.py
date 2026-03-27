@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, String, Float, DateTime, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import uuid
@@ -12,6 +12,7 @@ class RenderJob(Base):
     
     status = Column(String, default="pending") # pending, processing, completed, failed
     progress = Column(Float, default=0.0)
+    details = Column(JSON, nullable=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     completed_at = Column(DateTime, nullable=True)

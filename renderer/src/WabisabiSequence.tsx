@@ -1,5 +1,5 @@
 import React from 'react';
-import { Sequence, useVideoConfig, AbsoluteFill, OffthreadVideo, Audio, staticFile } from 'remotion';
+import { Sequence, useVideoConfig, AbsoluteFill, Video, Audio, staticFile } from 'remotion';
 import { Caption } from './components/Caption';
 import { BRoll } from './components/BRoll';
 
@@ -26,21 +26,22 @@ export type StyleConfig = {
 };
 
 interface WabisabiSequenceProps {
-  captions: CaptionData[];
+  sequence: CaptionData[];
   has_background_music?: boolean;
+  background_music_url?: string;
   style_config?: StyleConfig;
   base_video_filename?: string;
 }
 
-export const WabisabiSequence: React.FC<WabisabiSequenceProps> = ({ captions, has_background_music, style_config, base_video_filename }) => {
+export const WabisabiSequence: React.FC<WabisabiSequenceProps> = ({ sequence, has_background_music, background_music_url, style_config, base_video_filename }) => {
   const { fps } = useVideoConfig();
 
   // Group captions into phrases (max 5 words, or if pause > 0.6s)
   const phraseGroups: CaptionData[][] = [];
   let currentGroup: CaptionData[] = [];
 
-  for (let i = 0; i < captions.length; i++) {
-    const cap = captions[i];
+  for (let i = 0; i < sequence.length; i++) {
+    const cap = sequence[i];
     if (currentGroup.length === 0) {
       currentGroup.push(cap);
     } else {
@@ -85,11 +86,11 @@ export const WabisabiSequence: React.FC<WabisabiSequenceProps> = ({ captions, ha
     <AbsoluteFill style={{ backgroundColor: 'black' }}>
       {/* BACKGROUND AMBIENT MUSIC */}
       {has_background_music && (
-        <Audio src={staticFile("background_music.mp3")} volume={0.15} />
+        <Audio src={background_music_url || staticFile("background_music.mp3")} volume={0.15} />
       )}
       
       {/* BASE VIDEO LAYER + NATIVE AUDIO */}
-      <OffthreadVideo 
+      <Video 
         src={base_video_filename?.startsWith('http') ? base_video_filename : staticFile(base_video_filename || "input_video.MOV")}  
         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
       />

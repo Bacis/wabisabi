@@ -38,15 +38,9 @@ def extract_audio_query(user_prompt: str):
     except Exception:
         return None
 
-def setup_viral_music(renderer_public: str, user_prompt: str = None, local_music="assets/background_music.mp3"):
-    """Checks for a local background_music.mp3, or downloads a viral track from YouTube."""
-    pub_path = os.path.join(renderer_public, "background_music.mp3")
+def setup_viral_music(save_path: str, user_prompt: str = None):
+    """Downloads a viral track from YouTube to the specified save_path."""
     
-    if os.path.exists(local_music):
-        logging.info("Found local background_music.mp3. Using it for ambient track.")
-        shutil.copy2(local_music, pub_path)
-        return True
-        
     logging.info("Determining background music query...")
     
     query = None
@@ -69,7 +63,7 @@ def setup_viral_music(renderer_public: str, user_prompt: str = None, local_music
     
     ydl_opts = {
         'format': 'bestaudio/best',
-        'outtmpl': pub_path.replace('.mp3', ''),
+        'outtmpl': save_path.replace('.mp3', ''),
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
@@ -84,8 +78,8 @@ def setup_viral_music(renderer_public: str, user_prompt: str = None, local_music
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([query])
         logging.info("Viral track acquired successfully!")
-        return True
+        return save_path
     except Exception as e:
         logging.error(f"Failed to fetch viral audio from YouTube: {e}")
         
-    return False
+    return None

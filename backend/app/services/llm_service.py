@@ -14,17 +14,24 @@ def encode_image(image_path: str):
     with open(image_path, "rb") as image_file:
         return base64.b64encode(image_file.read()).decode('utf-8')
 
-def extract_style_config(image_path: str):
-    """Analyzes a reference image using GPT-4o Vision API to extract typographic and color styles."""
-    logging.info(f"Extracting style from reference image: {image_path}")
+def extract_style_config(image_paths: list[str]):
+    """Analyzes reference images using GPT-4o Vision API to extract typographic and color styles."""
+    logging.info(f"Extracting style from {len(image_paths)} reference images")
     
-    if image_path.startswith("http://") or image_path.startswith("https://"):
-        image_payload = { "url": image_path }
-    else:
-        base64_image = encode_image(image_path)
-        ext = os.path.splitext(image_path)[1].lower()
-        mime = "image/png" if ext == ".png" else "image/jpeg"
-        image_payload = { "url": f"data:{mime};base64,{base64_image}" }
+    content_parts = []
+    for image_path in image_paths:
+        if image_path.startswith("http://") or image_path.startswith("https://"):
+            image_payload = { "url": image_path }
+        else:
+            base64_image = encode_image(image_path)
+            ext = os.path.splitext(image_path)[1].lower()
+            mime = "image/png" if ext == ".png" else "image/jpeg"
+            image_payload = { "url": f"data:{mime};base64,{base64_image}" }
+            
+        content_parts.append({
+            "type": "image_url",
+            "image_url": image_payload
+        })
 
     try:
         response = client.chat.completions.create(
@@ -34,7 +41,7 @@ def extract_style_config(image_path: str):
                 {
                     "role": "system",
                     "content": (
-                        "You are an expert graphic designer and UI extractor. Your task is to analyze the provided design reference image "
+                        "You are an expert graphic designer and UI extractor. Your task is to analyze the provided design reference images "
                         "and extract ALL distinct typographic styles present, as well as the overall visual theme. "
                         "Return a strictly formatted JSON object where one key is 'global_theme' (a string describing the overall aesthetic theme of the image, e.g., 'cartoon animation', 'vintage film', 'cyberpunk'). "
                         "The other keys must be 'style_1', 'style_2', 'style_3' etc. (extract up to 3 distinct styles). "
@@ -49,12 +56,7 @@ def extract_style_config(image_path: str):
                 },
                 {
                     "role": "user",
-                    "content": [
-                        {
-                            "type": "image_url",
-                            "image_url": image_payload
-                        }
-                    ]
+                    "content": content_parts
                 }
             ]
         )

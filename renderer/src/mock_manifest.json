@@ -1,245 +1,1218 @@
 {
   "has_background_music": true,
-  "base_video_filename": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/input_34726371-4987-46b0-9e69-2c1c2ec03d57.MOV",
+  "base_video_filename": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/merged_ea2b5ea7-4d86-4832-8323-f280d638a0b8.mp4",
   "sequence": [
     {
       "timestamp_start": 0.0,
-      "text": "do",
-      "style": "style_2",
-      "b_roll_search_term": null,
-      "local_b_roll_path": null
-    },
-    {
-      "timestamp_start": 1.059999942779541,
-      "text": "you",
+      "text": "I'm",
       "style": "style_1",
       "b_roll_search_term": null,
       "local_b_roll_path": null
     },
     {
-      "timestamp_start": 1.2200000286102295,
-      "text": "know",
+      "timestamp_start": 0.5600000023841858,
+      "text": "so",
+      "style": "style_3",
+      "b_roll_search_term": "retro frustration",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_ea2b5ea7-4d86-4832-8323-f280d638a0b8_2_retro_frustration.mp4"
+    },
+    {
+      "timestamp_start": 0.8399999737739563,
+      "text": "fed",
+      "style": "style_3",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 1.2400000095367432,
+      "text": "up",
       "style": "style_2",
       "b_roll_search_term": null,
       "local_b_roll_path": null
     },
     {
       "timestamp_start": 1.399999976158142,
-      "text": "what's",
+      "text": "with",
       "style": "style_2",
       "b_roll_search_term": null,
       "local_b_roll_path": null
     },
     {
-      "timestamp_start": 1.7000000476837158,
+      "timestamp_start": 1.899999976158142,
+      "text": "running",
+      "style": "style_3",
+      "b_roll_search_term": "vintage repetition",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_ea2b5ea7-4d86-4832-8323-f280d638a0b8_5_vintage_repetition.mp4"
+    },
+    {
+      "timestamp_start": 1.899999976158142,
+      "text": "into",
+      "style": "style_3",
+      "b_roll_search_term": "vintage repetition",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_ea2b5ea7-4d86-4832-8323-f280d638a0b8_5_vintage_repetition.mp4"
+    },
+    {
+      "timestamp_start": 2.059999942779541,
       "text": "the",
       "style": "style_3",
-      "b_roll_search_term": "retro pop overload",
-      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_5_retro_pop_overload.mp4"
+      "b_roll_search_term": "vintage repetition",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_ea2b5ea7-4d86-4832-8323-f280d638a0b8_5_vintage_repetition.mp4"
     },
     {
-      "timestamp_start": 1.9800000190734863,
-      "text": "biggest",
+      "timestamp_start": 2.259999990463257,
+      "text": "same",
       "style": "style_3",
-      "b_roll_search_term": "retro pop stress",
-      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_6_retro_pop_stress.mp4"
+      "b_roll_search_term": "vintage repetition",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_ea2b5ea7-4d86-4832-8323-f280d638a0b8_5_vintage_repetition.mp4"
     },
     {
-      "timestamp_start": 2.2799999713897705,
-      "text": "frustration",
+      "timestamp_start": 2.640000104904175,
+      "text": "patterns",
       "style": "style_3",
-      "b_roll_search_term": "retro pop stress",
-      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_6_retro_pop_stress.mp4"
-    },
-    {
-      "timestamp_start": 3.0399999618530273,
-      "text": "in",
-      "style": "style_2",
       "b_roll_search_term": null,
       "local_b_roll_path": null
     },
     {
-      "timestamp_start": 3.559999942779541,
-      "text": "the",
-      "style": "style_2",
+      "timestamp_start": 3.0199999809265137,
+      "text": "over",
+      "style": "style_3",
       "b_roll_search_term": null,
       "local_b_roll_path": null
     },
     {
-      "timestamp_start": 3.799999952316284,
-      "text": "world",
-      "style": "style_2",
+      "timestamp_start": 3.5399999618530273,
+      "text": "and",
+      "style": "style_3",
       "b_roll_search_term": null,
       "local_b_roll_path": null
     },
     {
-      "timestamp_start": 4.039999961853027,
-      "text": "right",
+      "timestamp_start": 3.819999933242798,
+      "text": "over",
       "style": "style_3",
-      "b_roll_search_term": "retro pop urgency",
-      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_11_retro_pop_urgency.mp4"
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
     },
     {
-      "timestamp_start": 4.420000076293945,
-      "text": "now",
-      "style": "style_3",
-      "b_roll_search_term": "retro pop urgency",
-      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_11_retro_pop_urgency.mp4"
-    },
-    {
-      "timestamp_start": 5.559999942779541,
-      "text": "there's",
+      "timestamp_start": 3.9600000381469727,
+      "text": "again",
       "style": "style_1",
       "b_roll_search_term": null,
       "local_b_roll_path": null
     },
     {
-      "timestamp_start": 6.320000171661377,
-      "text": "just",
-      "style": "style_3",
-      "b_roll_search_term": "retro pop excess",
-      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_14_retro_pop_excess.mp4"
-    },
-    {
-      "timestamp_start": 6.619999885559082,
-      "text": "too",
-      "style": "style_3",
-      "b_roll_search_term": "retro pop excess",
-      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_14_retro_pop_excess.mp4"
-    },
-    {
-      "timestamp_start": 7.159999847412109,
-      "text": "much",
-      "style": "style_3",
-      "b_roll_search_term": "retro pop media flood",
-      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_16_retro_pop_media_flood.mp4"
-    },
-    {
-      "timestamp_start": 7.539999961853027,
-      "text": "content",
-      "style": "style_3",
-      "b_roll_search_term": "retro pop media flood",
-      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_16_retro_pop_media_flood.mp4"
-    },
-    {
-      "timestamp_start": 8.220000267028809,
-      "text": "too",
-      "style": "style_3",
-      "b_roll_search_term": "retro pop saturation",
-      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_18_retro_pop_saturation.mp4"
-    },
-    {
-      "timestamp_start": 8.640000343322754,
-      "text": "much",
-      "style": "style_3",
-      "b_roll_search_term": "retro pop saturation",
-      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_18_retro_pop_saturation.mp4"
-    },
-    {
-      "timestamp_start": 9.380000114440918,
-      "text": "yada",
-      "style": "style_2",
+      "timestamp_start": 4.440000057220459,
+      "text": "I",
+      "style": "style_1",
       "b_roll_search_term": null,
       "local_b_roll_path": null
     },
     {
-      "timestamp_start": 9.9399995803833,
-      "text": "yada",
-      "style": "style_2",
+      "timestamp_start": 4.5,
+      "text": "am",
+      "style": "style_1",
       "b_roll_search_term": null,
       "local_b_roll_path": null
     },
     {
-      "timestamp_start": 10.260000228881836,
-      "text": "bla",
+      "timestamp_start": 4.679999828338623,
+      "text": "so",
+      "style": "style_3",
+      "b_roll_search_term": "classic termination",
+      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_ea2b5ea7-4d86-4832-8323-f280d638a0b8_8_classic_termination.mp4"
+    },
+    {
+      "timestamp_start": 5.139999866485596,
+      "text": "done",
       "style": "style_2",
-      "b_roll_search_term": null,
+      "b_roll_search_term": "retro misunderstanding",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 5.360000133514404,
+      "text": "with",
+      "style": "style_2",
+      "b_roll_search_term": "retro misunderstanding",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 5.78000020980835,
+      "text": "not",
+      "style": "style_2",
+      "b_roll_search_term": "retro misunderstanding",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 6.019999980926514,
+      "text": "understanding",
+      "style": "style_2",
+      "b_roll_search_term": "retro misunderstanding",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 6.400000095367432,
+      "text": "my",
+      "style": "style_2",
+      "b_roll_search_term": "retro misunderstanding",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 6.760000228881836,
+      "text": "partners",
+      "style": "style_2",
+      "b_roll_search_term": "retro misunderstanding",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 7.420000076293945,
+      "text": "I",
+      "style": "style_2",
+      "b_roll_search_term": "vintage relationship",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 7.5,
+      "text": "don't",
+      "style": "style_2",
+      "b_roll_search_term": "vintage relationship",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 7.699999809265137,
+      "text": "want",
+      "style": "style_2",
+      "b_roll_search_term": "vintage relationship",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 8.0,
+      "text": "another",
+      "style": "style_2",
+      "b_roll_search_term": "vintage relationship",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 8.319999694824219,
+      "text": "ex",
+      "style": "style_2",
+      "b_roll_search_term": "vintage relationship",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 8.84000015258789,
+      "text": "girlfriend",
+      "style": "style_3",
+      "b_roll_search_term": "nostalgic breakup",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 9.039999961853027,
+      "text": "who's",
+      "style": "style_3",
+      "b_roll_search_term": "nostalgic breakup",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 9.65999984741211,
+      "text": "fed",
+      "style": "style_3",
+      "b_roll_search_term": "nostalgic breakup",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 9.779999732971191,
+      "text": "up",
+      "style": "style_3",
+      "b_roll_search_term": "nostalgic breakup",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 9.920000076293945,
+      "text": "with",
+      "style": "style_3",
+      "b_roll_search_term": "nostalgic breakup",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 10.15999984741211,
+      "text": "me",
+      "style": "style_3",
+      "b_roll_search_term": "retro frustration",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 10.479999542236328,
+      "text": "I'm",
+      "style": "style_3",
+      "b_roll_search_term": "retro frustration",
       "local_b_roll_path": null
     },
     {
       "timestamp_start": 10.619999885559082,
-      "text": "bla",
-      "style": "style_2",
-      "b_roll_search_term": null,
+      "text": "especially",
+      "style": "style_3",
+      "b_roll_search_term": "retro frustration",
       "local_b_roll_path": null
     },
     {
-      "timestamp_start": 10.880000114440918,
-      "text": "bla",
-      "style": "style_2",
-      "b_roll_search_term": null,
+      "timestamp_start": 11.119999885559082,
+      "text": "fed",
+      "style": "style_3",
+      "b_roll_search_term": "retro frustration",
       "local_b_roll_path": null
     },
     {
-      "timestamp_start": 11.260000228881836,
-      "text": "bla",
-      "style": "style_2",
-      "b_roll_search_term": null,
+      "timestamp_start": 11.420000076293945,
+      "text": "up",
+      "style": "style_3",
+      "b_roll_search_term": "retro frustration",
       "local_b_roll_path": null
     },
     {
-      "timestamp_start": 11.579999923706055,
-      "text": "bla",
+      "timestamp_start": 11.619999885559082,
+      "text": "with",
+      "style": "style_2",
+      "b_roll_search_term": "classic male struggle",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 12.020000457763672,
+      "text": "the",
+      "style": "style_2",
+      "b_roll_search_term": "classic male struggle",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 12.220000267028809,
+      "text": "problem",
+      "style": "style_2",
+      "b_roll_search_term": "classic male struggle",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 12.520000457763672,
+      "text": "that",
+      "style": "style_2",
+      "b_roll_search_term": "classic male struggle",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 12.720000267028809,
+      "text": "we",
+      "style": "style_2",
+      "b_roll_search_term": "classic male struggle",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 12.960000038146973,
+      "text": "men",
+      "style": "style_1",
+      "b_roll_search_term": "retro resource search",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 13.15999984741211,
+      "text": "have",
+      "style": "style_1",
+      "b_roll_search_term": "retro resource search",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 13.420000076293945,
+      "text": "not",
+      "style": "style_1",
+      "b_roll_search_term": "retro resource search",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 13.640000343322754,
+      "text": "too",
+      "style": "style_1",
+      "b_roll_search_term": "retro resource search",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 13.84000015258789,
+      "text": "many",
+      "style": "style_1",
+      "b_roll_search_term": "retro resource search",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 13.9399995803833,
+      "text": "resources",
+      "style": "style_1",
+      "b_roll_search_term": "retro resource search",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 14.359999656677246,
+      "text": "to",
+      "style": "style_1",
+      "b_roll_search_term": "retro resource search",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 14.680000305175781,
+      "text": "look",
+      "style": "style_1",
+      "b_roll_search_term": "retro resource search",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 14.920000076293945,
+      "text": "into",
+      "style": "style_1",
+      "b_roll_search_term": "retro resource search",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 15.579999923706055,
+      "text": "I'm",
+      "style": "style_2",
+      "b_roll_search_term": "vintage manhood",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 15.65999984741211,
+      "text": "a",
+      "style": "style_2",
+      "b_roll_search_term": "vintage manhood",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 15.819999694824219,
+      "text": "man",
+      "style": "style_2",
+      "b_roll_search_term": "vintage manhood",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 15.960000038146973,
+      "text": "too",
+      "style": "style_2",
+      "b_roll_search_term": "vintage manhood",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 16.280000686645508,
+      "text": "and",
+      "style": "style_2",
+      "b_roll_search_term": "vintage manhood",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 16.600000381469727,
+      "text": "I",
+      "style": "style_2",
+      "b_roll_search_term": "vintage manhood",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 17.239999771118164,
+      "text": "messed",
+      "style": "style_1",
+      "b_roll_search_term": "retro life mistakes",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 17.31999969482422,
+      "text": "up",
+      "style": "style_1",
+      "b_roll_search_term": "retro life mistakes",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 17.639999389648438,
+      "text": "big",
+      "style": "style_1",
+      "b_roll_search_term": "retro life mistakes",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 17.940000534057617,
+      "text": "times",
+      "style": "style_1",
+      "b_roll_search_term": "retro life mistakes",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 18.139999389648438,
+      "text": "in",
+      "style": "style_1",
+      "b_roll_search_term": "retro life mistakes",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 18.31999969482422,
+      "text": "my",
+      "style": "style_1",
+      "b_roll_search_term": "retro life mistakes",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 18.639999389648438,
+      "text": "life",
+      "style": "style_2",
+      "b_roll_search_term": "nostalgic regret",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 18.700000762939453,
+      "text": "and",
+      "style": "style_2",
+      "b_roll_search_term": "nostalgic regret",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 18.860000610351562,
+      "text": "I'm",
+      "style": "style_2",
+      "b_roll_search_term": "nostalgic regret",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 19.100000381469727,
+      "text": "super",
+      "style": "style_2",
+      "b_roll_search_term": "nostalgic regret",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 19.479999542236328,
+      "text": "sorry",
+      "style": "style_2",
+      "b_roll_search_term": "nostalgic regret",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 19.65999984741211,
+      "text": "for",
+      "style": "style_2",
+      "b_roll_search_term": "nostalgic regret",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 19.899999618530273,
+      "text": "that",
+      "style": "style_2",
+      "b_roll_search_term": "nostalgic regret",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 20.420000076293945,
+      "text": "So",
       "style": "style_1",
       "b_roll_search_term": null,
       "local_b_roll_path": null
     },
     {
-      "timestamp_start": 12.0,
-      "text": "never",
-      "style": "style_3",
-      "b_roll_search_term": "retro pop infinity loop",
-      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_27_retro_pop_infinity_loop.mp4"
-    },
-    {
-      "timestamp_start": 12.319999694824219,
-      "text": "ending",
-      "style": "style_3",
-      "b_roll_search_term": "retro pop infinity loop",
-      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_27_retro_pop_infinity_loop.mp4"
-    },
-    {
-      "timestamp_start": 12.880000114440918,
-      "text": "never",
+      "timestamp_start": 20.579999923706055,
+      "text": "because",
       "style": "style_1",
       "b_roll_search_term": null,
       "local_b_roll_path": null
     },
     {
-      "timestamp_start": 13.760000228881836,
-      "text": "ending",
+      "timestamp_start": 20.81999969482422,
+      "text": "of",
+      "style": "style_1",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 21.020000457763672,
+      "text": "this",
+      "style": "style_1",
+      "b_roll_search_term": "retro innovation",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 21.31999969482422,
+      "text": "I",
+      "style": "style_1",
+      "b_roll_search_term": "retro innovation",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 21.639999389648438,
+      "text": "decided",
+      "style": "style_1",
+      "b_roll_search_term": "retro innovation",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 21.959999084472656,
+      "text": "to",
+      "style": "style_1",
+      "b_roll_search_term": "retro innovation",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 22.299999237060547,
+      "text": "build",
+      "style": "style_1",
+      "b_roll_search_term": "retro innovation",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 22.3799991607666,
+      "text": "an",
+      "style": "style_1",
+      "b_roll_search_term": "retro innovation",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 22.579999923706055,
+      "text": "app",
+      "style": "style_1",
+      "b_roll_search_term": "retro innovation",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 23.280000686645508,
+      "text": "A",
+      "style": "style_2",
+      "b_roll_search_term": "classic male training",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 23.479999542236328,
+      "text": "training",
+      "style": "style_2",
+      "b_roll_search_term": "classic male training",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 23.68000030517578,
+      "text": "app",
+      "style": "style_2",
+      "b_roll_search_term": "classic male training",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 23.940000534057617,
+      "text": "for",
+      "style": "style_2",
+      "b_roll_search_term": "classic male training",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 24.280000686645508,
+      "text": "men",
       "style": "style_3",
-      "b_roll_search_term": "retro pop infinity loop",
-      "local_b_roll_path": "https://ydqppcwlufpenytdnmiy.supabase.co/storage/v1/object/public/wabisabi-assets/broll_34726371-4987-46b0-9e69-2c1c2ec03d57_29_retro_pop_infinity_loop.mp4"
+      "b_roll_search_term": "vintage podcast critique",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 24.739999771118164,
+      "text": "And",
+      "style": "style_3",
+      "b_roll_search_term": "vintage podcast critique",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 24.940000534057617,
+      "text": "I'm",
+      "style": "style_3",
+      "b_roll_search_term": "vintage podcast critique",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 25.0,
+      "text": "not",
+      "style": "style_3",
+      "b_roll_search_term": "vintage podcast critique",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 25.219999313354492,
+      "text": "talking",
+      "style": "style_3",
+      "b_roll_search_term": "vintage podcast critique",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 25.3799991607666,
+      "text": "about",
+      "style": "style_3",
+      "b_roll_search_term": "vintage podcast critique",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 25.700000762939453,
+      "text": "this",
+      "style": "style_3",
+      "b_roll_search_term": "vintage podcast critique",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 26.040000915527344,
+      "text": "podcast",
+      "style": "style_3",
+      "b_roll_search_term": "vintage podcast critique",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 26.520000457763672,
+      "text": "bro",
+      "style": "style_3",
+      "b_roll_search_term": "vintage podcast critique",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 27.020000457763672,
+      "text": "bullshit",
+      "style": "style_3",
+      "b_roll_search_term": "vintage podcast critique",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 27.68000030517578,
+      "text": "No",
+      "style": "style_3",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 27.8799991607666,
+      "text": "no",
+      "style": "style_3",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 27.899999618530273,
+      "text": "no",
+      "style": "style_3",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 28.079999923706055,
+      "text": "no",
+      "style": "style_1",
+      "b_roll_search_term": "retro research",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 28.479999542236328,
+      "text": "It's",
+      "style": "style_1",
+      "b_roll_search_term": "retro research",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 28.780000686645508,
+      "text": "built",
+      "style": "style_1",
+      "b_roll_search_term": "retro research",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 28.979999542236328,
+      "text": "and",
+      "style": "style_1",
+      "b_roll_search_term": "retro research",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 29.219999313354492,
+      "text": "based",
+      "style": "style_1",
+      "b_roll_search_term": "retro research",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 29.420000076293945,
+      "text": "on",
+      "style": "style_1",
+      "b_roll_search_term": "retro research",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 29.600000381469727,
+      "text": "four",
+      "style": "style_1",
+      "b_roll_search_term": "retro research",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 29.899999618530273,
+      "text": "research",
+      "style": "style_1",
+      "b_roll_search_term": "retro research",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 30.31999969482422,
+      "text": "frameworks",
+      "style": "style_1",
+      "b_roll_search_term": "retro research",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 31.200000762939453,
+      "text": "It",
+      "style": "style_1",
+      "b_roll_search_term": "classic disciplines",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 31.200000762939453,
+      "text": "has",
+      "style": "style_1",
+      "b_roll_search_term": "classic disciplines",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 31.399999618530273,
+      "text": "over",
+      "style": "style_1",
+      "b_roll_search_term": "classic disciplines",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 31.719999313354492,
+      "text": "14",
+      "style": "style_1",
+      "b_roll_search_term": "classic disciplines",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 32.119998931884766,
+      "text": "disciplines",
+      "style": "style_1",
+      "b_roll_search_term": "classic disciplines",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 33.18000030517578,
+      "text": "From",
+      "style": "style_2",
+      "b_roll_search_term": "vintage love and conflict",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 33.279998779296875,
+      "text": "how",
+      "style": "style_2",
+      "b_roll_search_term": "vintage love and conflict",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 33.5,
+      "text": "you",
+      "style": "style_2",
+      "b_roll_search_term": "vintage love and conflict",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 33.68000030517578,
+      "text": "fight",
+      "style": "style_2",
+      "b_roll_search_term": "vintage love and conflict",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 34.040000915527344,
+      "text": "to",
+      "style": "style_2",
+      "b_roll_search_term": "vintage love and conflict",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 34.34000015258789,
+      "text": "how",
+      "style": "style_2",
+      "b_roll_search_term": "vintage love and conflict",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 34.58000183105469,
+      "text": "you",
+      "style": "style_2",
+      "b_roll_search_term": "vintage love and conflict",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 34.70000076293945,
+      "text": "love",
+      "style": "style_2",
+      "b_roll_search_term": "vintage love and conflict",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 35.29999923706055,
+      "text": "It's",
+      "style": "style_2",
+      "b_roll_search_term": "retro healing",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 35.380001068115234,
+      "text": "called",
+      "style": "style_2",
+      "b_roll_search_term": "retro healing",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 35.63999938964844,
+      "text": "Healman",
+      "style": "style_2",
+      "b_roll_search_term": "retro healing",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 36.36000061035156,
+      "text": "It's",
+      "style": "style_1",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 36.5,
+      "text": "my",
+      "style": "style_1",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 36.65999984741211,
+      "text": "bio",
+      "style": "style_1",
+      "b_roll_search_term": null,
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 37.20000076293945,
+      "text": "Tell",
+      "style": "style_1",
+      "b_roll_search_term": "classic friendship",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 37.279998779296875,
+      "text": "your",
+      "style": "style_1",
+      "b_roll_search_term": "classic friendship",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 37.52000045776367,
+      "text": "male",
+      "style": "style_1",
+      "b_roll_search_term": "classic friendship",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 37.720001220703125,
+      "text": "friends",
+      "style": "style_1",
+      "b_roll_search_term": "classic friendship",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 37.91999816894531,
+      "text": "about",
+      "style": "style_1",
+      "b_roll_search_term": "classic friendship",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 38.34000015258789,
+      "text": "it",
+      "style": "style_1",
+      "b_roll_search_term": "retro social feedback",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 38.7599983215332,
+      "text": "And",
+      "style": "style_1",
+      "b_roll_search_term": "retro social feedback",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 38.91999816894531,
+      "text": "let",
+      "style": "style_1",
+      "b_roll_search_term": "retro social feedback",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 39.040000915527344,
+      "text": "me",
+      "style": "style_1",
+      "b_roll_search_term": "retro social feedback",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 39.18000030517578,
+      "text": "know",
+      "style": "style_1",
+      "b_roll_search_term": "retro social feedback",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 39.29999923706055,
+      "text": "what",
+      "style": "style_1",
+      "b_roll_search_term": "retro social feedback",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 39.439998626708984,
+      "text": "you",
+      "style": "style_1",
+      "b_roll_search_term": "retro social feedback",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 39.63999938964844,
+      "text": "think",
+      "style": "style_1",
+      "b_roll_search_term": "retro social feedback",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 39.7400016784668,
+      "text": "in",
+      "style": "style_1",
+      "b_roll_search_term": "retro social feedback",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 39.86000061035156,
+      "text": "the",
+      "style": "style_1",
+      "b_roll_search_term": "retro social feedback",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 40.060001373291016,
+      "text": "comments",
+      "style": "style_1",
+      "b_roll_search_term": "retro social feedback",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 40.65999984741211,
+      "text": "I",
+      "style": "style_2",
+      "b_roll_search_term": "nostalgic growth",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 40.81999969482422,
+      "text": "really",
+      "style": "style_2",
+      "b_roll_search_term": "nostalgic growth",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 41.02000045776367,
+      "text": "want",
+      "style": "style_2",
+      "b_roll_search_term": "nostalgic growth",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 41.20000076293945,
+      "text": "to",
+      "style": "style_2",
+      "b_roll_search_term": "nostalgic growth",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 41.31999969482422,
+      "text": "make",
+      "style": "style_2",
+      "b_roll_search_term": "nostalgic growth",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 41.41999816894531,
+      "text": "it",
+      "style": "style_2",
+      "b_roll_search_term": "nostalgic growth",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 41.58000183105469,
+      "text": "grow",
+      "style": "style_2",
+      "b_roll_search_term": "nostalgic growth",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 41.81999969482422,
+      "text": "and",
+      "style": "style_1",
+      "b_roll_search_term": "retro collaboration",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 42.2400016784668,
+      "text": "I",
+      "style": "style_1",
+      "b_roll_search_term": "retro collaboration",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 42.41999816894531,
+      "text": "will",
+      "style": "style_1",
+      "b_roll_search_term": "retro collaboration",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 42.58000183105469,
+      "text": "need",
+      "style": "style_1",
+      "b_roll_search_term": "retro collaboration",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 42.65999984741211,
+      "text": "your",
+      "style": "style_1",
+      "b_roll_search_term": "retro collaboration",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 42.84000015258789,
+      "text": "help",
+      "style": "style_1",
+      "b_roll_search_term": "retro collaboration",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 43.040000915527344,
+      "text": "with",
+      "style": "style_1",
+      "b_roll_search_term": "retro collaboration",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 43.279998779296875,
+      "text": "that",
+      "style": "style_2",
+      "b_roll_search_term": "vintage gratitude",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 43.619998931884766,
+      "text": "Thank",
+      "style": "style_2",
+      "b_roll_search_term": "vintage gratitude",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 43.91999816894531,
+      "text": "you",
+      "style": "style_2",
+      "b_roll_search_term": "vintage gratitude",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 44.0,
+      "text": "very",
+      "style": "style_2",
+      "b_roll_search_term": "vintage gratitude",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 44.220001220703125,
+      "text": "much",
+      "style": "style_3",
+      "b_roll_search_term": "classic good day",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 44.63999938964844,
+      "text": "Have",
+      "style": "style_3",
+      "b_roll_search_term": "classic good day",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 44.720001220703125,
+      "text": "a",
+      "style": "style_3",
+      "b_roll_search_term": "classic good day",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 44.880001068115234,
+      "text": "beautiful",
+      "style": "style_3",
+      "b_roll_search_term": "classic good day",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 45.060001373291016,
+      "text": "day",
+      "style": "style_3",
+      "b_roll_search_term": "classic good day",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 45.91999816894531,
+      "text": "Ciao",
+      "style": "style_3",
+      "b_roll_search_term": "retro farewell",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 45.97999954223633,
+      "text": "cacao",
+      "style": "style_3",
+      "b_roll_search_term": "retro farewell",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 46.63999938964844,
+      "text": "Happy",
+      "style": "style_3",
+      "b_roll_search_term": "nostalgic healing",
+      "local_b_roll_path": null
+    },
+    {
+      "timestamp_start": 46.81999969482422,
+      "text": "healing",
+      "style": "style_3",
+      "b_roll_search_term": "nostalgic healing",
+      "local_b_roll_path": null
     }
   ],
   "style_config": {
     "global_theme": "retro pop",
     "style_1": {
-      "primaryColor": "#F3CAC7",
+      "primaryColor": "#F5B016",
       "backgroundColor": null,
       "fontFamily": "Impact",
-      "fontWeight": 900,
+      "fontWeight": 700,
       "textTransform": "uppercase",
-      "textShadow": "4px 4px 0px #000000",
-      "textStroke": null
+      "textShadow": "6px 6px 0px #D92331, 12px 12px 0px #2CB1A1",
+      "textStroke": "2px #000000"
     },
     "style_2": {
-      "primaryColor": "#B4E0E3",
+      "primaryColor": "#F5E9DC",
       "backgroundColor": null,
-      "fontFamily": "Impact",
-      "fontWeight": 900,
+      "fontFamily": "Comic Sans",
+      "fontWeight": 400,
       "textTransform": "uppercase",
-      "textShadow": "4px 4px 0px #000000",
+      "textShadow": "none",
       "textStroke": null
     },
     "style_3": {
-      "primaryColor": "#F7E8B5",
-      "backgroundColor": null,
-      "fontFamily": "Impact",
-      "fontWeight": 900,
+      "primaryColor": "#E3214D",
+      "backgroundColor": "#5B429B",
+      "fontFamily": "Bangers",
+      "fontWeight": 700,
       "textTransform": "uppercase",
-      "textShadow": "4px 4px 0px #000000",
+      "textShadow": "none",
       "textStroke": null
     }
   }

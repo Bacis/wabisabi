@@ -18,7 +18,7 @@ from app.services.video_processor import extract_audio, download_pexels_video, i
 from app.services.audio_processor import transcribe_audio, setup_viral_music, init_audio_service
 from app.services.llm_service import extract_style_config, generate_styling_manifest, evaluate_broll_options, init_llm_service
 
-def process_video_pipeline(job_id: str, input_video: str, ref_image: str, user_prompt: str, pexels_key: str, openai_key: str):
+def process_video_pipeline(job_id: str, input_videos: list[str], ref_images: list[str], user_prompt: str, connect_music: bool, external_videos_amount: int, pexels_key: str, openai_key: str):
     """The orchestrator background task for a given job."""
     
     from app.database import SessionLocal
@@ -54,28 +54,61 @@ def process_video_pipeline(job_id: str, input_video: str, ref_image: str, user_p
         job.progress = 10.0
         db.commit()
 
-        # Base video is now a URL, no need to copy locally
-        base_video_url = input_video
+        import requests
+        from app.services.video_processor import concat_videos
+        
+        # Download and merge input videos
+        local_videos = []
+        for idx, v_url in enumerate(input_videos):
+            local_v_path = os.path.join(backend_dir, "assets", f"tmp_in_{job_id}_{idx}.mp4")
+            v_res = requests.get(v_url, stream=True)
+            v_res.raise_for_status()
+            with open(local_v_path, "wb") as f:
+                for chunk in v_res.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            local_videos.append(local_v_path)
+            
+        merged_video_path = os.path.join(backend_dir, "assets", f"merged_input_{job_id}.mp4")
+        if not concat_videos(local_videos, merged_video_path):
+            raise Exception("Failed to concatenate input videos.")
+            
+        for p in local_videos:
+            if os.path.exists(p):
+                os.remove(p)
+
+        # Upload merged video to supabase to use as base_video_url
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_KEY")
+        supabase = create_client(supabase_url, supabase_key)
+        bucket_name = "wabisabi-assets"
+        merged_filename = f"merged_{job_id}.mp4"
+        with open(merged_video_path, "rb") as f:
+            supabase.storage.from_(bucket_name).upload(
+                path=merged_filename, file=f.read(), file_options={"content-type": "video/mp4"}
+            )
+        base_video_url = supabase.storage.from_(bucket_name).get_public_url(merged_filename)
 
         audio_file = os.path.join(backend_dir, "assets", f"extracted_audio_{job_id}.mp3")
 
         job.progress = 20.0
+        job.details = {"stage": "transcribing"}
         db.commit()
 
-        if not extract_audio(input_video, audio_file):
+        if not extract_audio(merged_video_path, audio_file):
             raise Exception("Failed to extract audio from video.")
             
         words = transcribe_audio(audio_file)
         logging.info(f"Extracted {len(words)} words from transcript.")
 
         job.progress = 40.0
+        job.details = {"stage": "extracting_styles", "words_count": len(words)}
         db.commit()
 
         # Style Extraction
         style_config = None
         global_theme = None
-        if ref_image:
-            style_config = extract_style_config(ref_image)
+        if ref_images:
+            style_config = extract_style_config(ref_images)
             
         if style_config:
             global_theme = style_config.get("global_theme")
@@ -100,16 +133,22 @@ def process_video_pipeline(job_id: str, input_video: str, ref_image: str, user_p
             db.commit()
 
         job.progress = 50.0
+        job.details = {"stage": "generating_manifest", "words_count": len(words), "styles": style_config}
         db.commit()
 
         # Manifest Generation
         captions_manifest = generate_styling_manifest(words, user_prompt, style_config, global_theme)
 
         job.progress = 70.0
+        job.details = {"stage": "fetching_broll", "words_count": len(words), "styles": style_config, "manifest": captions_manifest[:20]}
         db.commit()
 
         # Download B-Roll
+        b_roll_count = 0
         for i, caption in enumerate(captions_manifest):
+            if b_roll_count >= external_videos_amount:
+                break
+                
             b_roll_term = caption.get("b_roll_search_term")
             if b_roll_term:
                 clean_name = "".join([c for c in b_roll_term.replace(" ", "_").lower() if c.isalpha() or c.isdigit() or c=='_']).rstrip()
@@ -125,35 +164,60 @@ def process_video_pipeline(job_id: str, input_video: str, ref_image: str, user_p
                 if user_prompt:
                     context_prompt += f" Ensure it appeals to the creator's vision: '{user_prompt}'."
                 
-                download_pexels_video(b_roll_term, temp_path, color_hex, context_prompt, evaluator_fn=evaluate_broll_options)
-                
-                # Upload to Supabase Storage
-                supabase_url = os.getenv("SUPABASE_URL")
-                supabase_key = os.getenv("SUPABASE_KEY")
-                supabase = create_client(supabase_url, supabase_key)
-                bucket_name = "wabisabi-assets"
+                if download_pexels_video(b_roll_term, temp_path, color_hex, context_prompt, evaluator_fn=evaluate_broll_options):
+                    # Upload to Supabase Storage
+                    with open(temp_path, "rb") as f:
+                        try:
+                            supabase.storage.from_(bucket_name).upload(
+                                path=b_roll_filename,
+                                file=f.read(),
+                                file_options={"content-type": "video/mp4"}
+                            )
+                        except Exception as e:
+                            logging.error(f"Failed to upload b-roll: {e}")
 
-                with open(temp_path, "rb") as f:
-                    try:
-                        supabase.storage.from_(bucket_name).upload(
-                            path=b_roll_filename,
-                            file=f.read(),
-                            file_options={"content-type": "video/mp4"}
-                        )
-                    except Exception as e:
-                        logging.error(f"Failed to upload b-roll: {e}")
+                    supabase_broll_url = supabase.storage.from_(bucket_name).get_public_url(b_roll_filename)
+                    caption["local_b_roll_path"] = supabase_broll_url
+                    b_roll_count += 1
+                    
+                    if job.details and isinstance(job.details, dict):
+                        job.details["broll_fetched"] = b_roll_count
+                        db.commit()
 
-                supabase_broll_url = supabase.storage.from_(bucket_name).get_public_url(b_roll_filename)
-                caption["local_b_roll_path"] = supabase_broll_url
-
-                if os.path.exists(temp_path):
-                    os.remove(temp_path)
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                else:
+                    caption["b_roll_search_term"] = None
 
         job.progress = 85.0
+        job.details = {"stage": "finalizing", "words_count": len(words), "styles": style_config, "broll_fetched": b_roll_count}
         db.commit()
 
         # Music
-        has_music = setup_viral_music(renderer_public, user_prompt, local_music="assets/background_music.mp3")
+        has_music = False
+        music_url = None
+        if connect_music:
+            local_music_path = os.path.join(backend_dir, "assets", f"music_{job_id}.mp3")
+            downloaded_music = setup_viral_music(local_music_path, user_prompt)
+            if downloaded_music and os.path.exists(downloaded_music):
+                music_filename = f"music_{job_id}.mp3"
+                with open(downloaded_music, "rb") as f:
+                    try:
+                        supabase.storage.from_(bucket_name).upload(
+                            path=music_filename,
+                            file=f.read(),
+                            file_options={"content-type": "audio/mpeg"}
+                        )
+                        music_url = supabase.storage.from_(bucket_name).get_public_url(music_filename)
+                        has_music = True
+                    except Exception as e:
+                        logging.error(f"Failed to upload background music: {e}")
+                
+                os.remove(downloaded_music)
+                
+            if job.details and isinstance(job.details, dict):
+                job.details["background_music_url"] = music_url
+                db.commit()
 
         # Compile final sequence
         final_sequence = []
@@ -194,6 +258,7 @@ def process_video_pipeline(job_id: str, input_video: str, ref_image: str, user_p
 
         manifest_data = {
             "has_background_music": has_music,
+            "background_music_url": music_url,
             "base_video_filename": base_video_url,
             "sequence": final_sequence,
             "style_config": style_config
@@ -215,6 +280,7 @@ def process_video_pipeline(job_id: str, input_video: str, ref_image: str, user_p
         logging.error(f"Job {job_id} failed: {e}")
         job.status = "failed"
         job.error_message = str(e)
+        job.details = {"stage": "error", "error": str(e)}
         job.completed_at = datetime.utcnow()
         db.commit()
     finally:

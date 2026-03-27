@@ -25,6 +25,27 @@ def extract_audio(video_path: str, audio_path: str):
         logging.error(f"Error extracting audio: {e.stderr.decode() if e.stderr else str(e)}")
         return False
 
+def concat_videos(video_paths: list[str], output_path: str):
+    """Concatenates multiple video files into a single video."""
+    logging.info(f"Concatenating {len(video_paths)} videos...")
+    try:
+        inputs = []
+        for vp in video_paths:
+            v_in = ffmpeg.input(vp)
+            # Normalize to 720x1280, 30fps
+            v = v_in.video.filter('scale', 720, 1280, force_original_aspect_ratio='decrease').filter('pad', 720, 1280, '(ow-iw)/2', '(oh-ih)/2').filter('fps', fps=30)
+            a = v_in.audio
+            inputs.extend([v, a])
+        
+        joined = ffmpeg.concat(*inputs, v=1, a=1).node
+        out = ffmpeg.output(joined[0], joined[1], output_path, vcodec='libx264', acodec='aac', preset='fast')
+        out.run(overwrite_output=True, quiet=True)
+        logging.info("Video concatenation complete.")
+        return True
+    except ffmpeg.Error as e:
+        logging.error(f"Error concatenating videos: {e.stderr.decode() if e.stderr else str(e)}")
+        return False
+
 def download_pexels_video(query: str, save_path: str, color_hex: str = None, context_prompt: str = None, evaluator_fn=None):
     """Downloads a video from Pexels based on the search query."""
     if not PEXELS_API_KEY:

@@ -1,5 +1,5 @@
 import React from 'react';
-import { OffthreadVideo, AbsoluteFill, staticFile } from 'remotion';
+import { Video, AbsoluteFill, staticFile } from 'remotion';
 
 interface BRollProps {
   videoPath: string | null;
@@ -11,12 +11,12 @@ export const BRoll: React.FC<BRollProps> = ({ videoPath }) => {
     return <AbsoluteFill style={{ backgroundColor: 'black' }} />;
   }
   
-  // Use Remotion's OffthreadVideo to seamlessly render the local MP4 file
+  // Use Remotion's standard Video component to seamlessly render without hitting Lambda disk limits
   // Clean the path (remove leading slash) for staticFile
   const cleanPath = videoPath.replace(/^\/+/, '');
   return (
     <AbsoluteFill style={{ backgroundColor: 'black' }}>
-      <OffthreadVideo 
+      <Video 
         src={videoPath.startsWith('http') ? videoPath : staticFile(cleanPath)} 
         muted={true}
         style={{
