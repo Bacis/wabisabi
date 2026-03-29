@@ -47,9 +47,10 @@ def extract_style_config(image_paths: list[str]):
                         "The other keys must be 'style_1', 'style_2', 'style_3' etc. (extract up to 3 distinct styles). "
                         "Each style object must have: "
                         "'primaryColor' (hex), 'backgroundColor' (hex of any bounding box/pill behind the text, or null), "
+                        "'alternateColors' (Array of hex codes. CRITICAL: Look closely at the letters in a single word. If consecutive letters alternate in color, list those alternating colors here. If all letters are the same color, leave this empty), "
                         "'fontFamily' (a generic web-safe font like 'Impact', 'Comic Sans', 'Inter', 'Bangers'), "
                         "'fontWeight' (integer like 400, 700, 900), 'textTransform' (uppercase, lowercase, none), "
-                        "'textShadow' (CSS string e.g. '4px 4px 0px #000, 8px 8px 0px #F00'. CRITICAL: if there are multiple stacked 3D layers/colors, you MUST provide a comma-separated list of shadows to recreate the exact 3D block stack effect!), "
+                        "'textShadow' (CSS string e.g. '4px 4px 0px #000' or '-4px -8px 0px #000'. CAREFULLY observe the direction of the shadow! If the shadow is ABOVE the text, the Y offset MUST be negative. If the shadow is to the LEFT, the X offset MUST be negative. Include multiple shadows separated by commas if stacked!), "
                         "and 'textStroke' (CSS webkit stroke e.g. '4px #000000' or null). "
                         "Pay close attention to thin borders around the text and make sure they are included in textStroke, and pay close attention to multiple thick block shadows behind the text."
                     )
@@ -62,6 +63,12 @@ def extract_style_config(image_paths: list[str]):
         )
         
         style_config = json.loads(response.choices[0].message.content)
+        
+        # Enforce structure in case LLM outputs an array instead of flat keys
+        if "styles" in style_config and isinstance(style_config["styles"], list):
+            for i, st_obj in enumerate(style_config["styles"]):
+                style_config[f"style_{i+1}"] = st_obj
+                
         logging.info("Successfully extracted style config from image.")
         return style_config
     except Exception as e:
@@ -157,3 +164,56 @@ def evaluate_broll_options(videos: list, context_prompt: str, text_color_hex: st
         logging.error(f"Error evaluating B-roll: {e}")
         
     return 0
+
+def generate_segment_manifest(words: list, user_prompt: str = None, style_config: dict = None, global_theme: str = None):
+    """Passes the transcript to GPT-4o to generate a sequence of logical visual segments."""
+    logging.info("Calling GPT-4o to generate segmented logical manifest...")
+    
+    transcript_text = "\n".join([f"[{w['start']:.2f}-{w['end']:.2f}] {w['word']}" for w in words])
+    available_styles = [k for k in style_config.keys() if k.startswith('style_')] if style_config else ['style_basic_white']
+    
+    system_content = (
+        "You are an expert video editor and director.\n"
+        "Given a chronologically ordered transcript with timestamps, group the spoken words into consecutive logical 'segments' (approx 2-6 seconds each, typically a full sentence or phrase).\n"
+        "Return a JSON object with a single key 'segments' containing an array of segment objects in chronological order.\n"
+        "Each segment object MUST conform to this exact structure:\n"
+        "- 'start_time' (float, exactly matching the first word's start time in the segment)\n"
+        "- 'end_time' (float, exactly matching the last word's end time in the segment)\n"
+        "- 'text_content' (string, the exact spoken words in this segment)\n"
+        "- 'caption_mode' (string, exactly either 'text_behind_subject' or 'standard'. Use 'text_behind_subject' sparingly for impactful moments or introductions. Otherwise use 'standard')\n"
+        f"- 'style' (string, MUST be one of these: {', '.join(available_styles)}. Choose based on the mood of the segment)\n"
+        "- 'highlighted_words' (array of strings, e.g. ['crazy', 'massive']. Pick 1-3 high-impact impactful words from the text_content to emphasize significantly, like scaling up to fill the screen or turning red. Leave empty array if no word is impactful enough)\n"
+        "- 'b_roll_search_term' (string or null, a highly aesthetic generic search query if b-roll fits the feeling. Null translates to keeping the camera on the speaker.)"
+    )
+    
+    if global_theme:
+        system_content += f"\n\nCRITICAL THEMATIC DIRECTION: The global theme is '{global_theme}'. B-roll selections must strongly reflect this theme."
+    
+    if user_prompt:
+        system_content += f"\n\nCRITICAL CREATIVE DIRECTION: '{user_prompt}'."
+    
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            response_format={ "type": "json_object" },
+            messages=[
+                {
+                    "role": "system",
+                    "content": system_content
+                },
+                {"role": "user", "content": f"Transcript to segment:\n{transcript_text}"}
+            ]
+        )
+        
+        manifest = json.loads(response.choices[0].message.content)
+        segments = manifest.get("segments", [])
+        
+        # Verify continuity and fix potentially bad LLM outputs
+        if segments and words:
+            segments[-1]['end_time'] = words[-1]['end'] + 0.5
+            
+        logging.info(f"Generated {len(segments)} narrative segments.")
+        return segments
+    except Exception as e:
+        logging.error(f"Error calling LLM for segments: {e}")
+        return []

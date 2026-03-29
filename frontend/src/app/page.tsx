@@ -67,48 +67,12 @@ export default function Home() {
         }
       }
 
-      setGenerationPhase("rendering");
-
-      // 3. Trigger AWS Lambda Render
-      const renderRes = await fetch("/api/render", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ manifest })
-      });
-      
-      if (!renderRes.ok) {
-          const err = await renderRes.json();
-          throw new Error("AWS Lambda execution failed: " + err.error);
-      }
-      
-      const { renderId, bucketName } = await renderRes.json();
-
-      // 4. Poll AWS Lambda Progress
-      let done = false;
-      while (!done) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        const progRes = await fetch(`/api/progress?renderId=${renderId}&bucketName=${bucketName}`);
-        const progData = await progRes.json();
-
-        if (progData.fatalErrorEncountered) {
-          throw new Error("AWS Rendering fatal error.");
-        }
-        
-        if (progData.overallProgress) {
-          setRenderProgress(Math.round(progData.overallProgress * 100));
-        }
-
-        if (progData.done) {
-          const finalUrl = progData.outputFile || 
-            (progData.outKey ? `https://s3.us-east-1.amazonaws.com/${bucketName}/${progData.outKey}` : null) ||
-            `https://s3.us-east-1.amazonaws.com/${bucketName}/renders/wabisabi_export_${Date.now()}.mp4`;
-          setFinalVideoUrl(finalUrl);
-          done = true;
-        }
-      }
-
+      // 3. Complete (Native output)
       setGenerationPhase("done");
-      console.log("Entire Pipeline finished successfully on AWS!");
+      if (manifest && (manifest as any).base_video_filename) {
+          setFinalVideoUrl((manifest as any).base_video_filename);
+      }
+      console.log("Entire FFmpeg Pipeline finished successfully natively!");
 
     } catch (err) {
       console.error(err);

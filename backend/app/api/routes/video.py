@@ -10,8 +10,7 @@ from app.models.project import RenderProject
 from app.models.job import RenderJob
 from app.models.sequence import VideoSequence
 from app.models.style import CaptionStyle
-from app.services.pipeline import process_video_pipeline
-
+from app.services.native_pipeline import process_native_video_pipeline
 router = APIRouter()
 
 class JobResponse(BaseModel):
@@ -84,9 +83,9 @@ async def generate_video(
                 )
                 ref_image_urls.append(supabase.storage.from_(bucket_name).get_public_url(r_filename))
             
-    # Add pipeline to background tasks
+    # Add pipeline to background tasks (Native FFmpeg Pipeline)
     background_tasks.add_task(
-        process_video_pipeline,
+        process_native_video_pipeline,
         job_id=new_job.id,
         input_videos=input_video_urls,
         ref_images=ref_image_urls,
