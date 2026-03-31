@@ -10,7 +10,9 @@ import re
 import textwrap
 from PIL import Image, ImageDraw, ImageFont
 
-from app.services.font_manager import get_font_path
+import json
+from pathlib import Path
+from playwright.sync_api import sync_playwright
 
 def parse_stroke(stroke_str, f_size):
     if not stroke_str or stroke_str == "none" or stroke_str == "null":
@@ -90,6 +92,9 @@ def render_project_native(input_video_path: str, transcript_words: list, segment
                 return seg
         return None
 
+    # Compile frames state to pass to headless chromium later
+    frame_playwright_states = []
+
     logging.info("Iterating frames...")
     while cap.isOpened():
         ret, frame = cap.read()
@@ -114,53 +119,33 @@ def render_project_native(input_video_path: str, transcript_words: list, segment
         else:
             writer.write(black_mask)
 
-        # Clear canvas each frame for block rendering
-        frame_canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-
         if active_segment:
             segment_words = [w for w in transcript_words if active_segment["start_time"] <= w["start"] <= active_segment["end_time"]]
             
             if segment_words:
-                # Paginate into chunks of 4 MAX!
                 pages = [segment_words[i:i+4] for i in range(0, len(segment_words), 4)]
                 active_page = pages[0]
                 for p in pages:
                     if current_time_sec >= p[0]["start"] - 0.1:
                         active_page = p
                 
-                style_key = active_segment.get("style", "style_basic_white") if active_segment else "style_basic_white"
-                style_def = style_config.get(style_key, {}) if style_config else {}
+                base_style_key = active_segment.get("style", "style_basic_white") if active_segment else "style_basic_white"
+                available_styles = [k for k in style_config.keys() if k.startswith('style_')] if style_config else []
+                missing_styles = [s for s in available_styles if s != base_style_key]
                 
-                raw_words = [w["word"].strip() for w in active_page]
-                if style_def.get("textTransform") == "uppercase":
-                    raw_words = [w.upper() for w in raw_words]
-                elif style_def.get("textTransform") == "lowercase":
-                    raw_words = [w.lower() for w in raw_words]
+                word_styles = [base_style_key] * len(active_page)
+                if len(available_styles) > 1 and len(missing_styles) > 0 and len(active_page) > 0:
+                    seed_base = int(active_page[0]["start"] * 100)
+                    available_indices = list(range(len(active_page)))
+                    available_indices.sort(key=lambda x: (np.sin(seed_base + x) * 10000 % 1))
                     
-                font_path = get_font_path(style_def.get("fontFamily"))
-                primary_col_str = style_def.get("primaryColor") or "#FFFFFF"
-                is_alternating = False
-                alt_colors = style_def.get("alternateColors")
+                    for i, ms in enumerate(missing_styles):
+                        if i < len(available_indices):
+                            target_idx = available_indices[i]
+                            word_styles[target_idx] = ms
                 
-                if alt_colors and isinstance(alt_colors, list) and len(alt_colors) > 1:
-                    is_alternating = True
-                    primary_col = alt_colors[0]
-                elif alt_colors and isinstance(alt_colors, str) and "," in alt_colors:
-                    alt_colors = [c.strip() for c in alt_colors.split(",")]
-                    is_alternating = True
-                    primary_col = alt_colors[0]
-                elif isinstance(primary_col_str, str) and "," in primary_col_str:
-                    alt_colors = [c.strip() for c in primary_col_str.split(",")]
-                    is_alternating = True
-                    primary_col = alt_colors[0]
-                else:
-                    primary_col = primary_col_str
-                
-                dummy_img = Image.new("RGBA", (1,1))
-                dummy_draw = ImageDraw.Draw(dummy_img)
-
+                # Active page box config
                 active_page_id = str(active_page[0]["start"])
-                
                 if active_page_id not in page_zone_cache and segment_mode == "text_behind_subject":
                     coords = cv2.findNonZero((binary_mask == 0).astype(np.uint8))
                     if coords is not None:
@@ -191,177 +176,90 @@ def render_project_native(input_video_path: str, transcript_words: list, segment
                         bz_w = width - (pad_x * 2)
                         bz_h = height - (pad_y * 2)
                         
-                    page_zone_cache[active_page_id] = {"x": bz_x, "y": bz_y, "w": bz_w, "h": bz_h}
+                    page_zone_cache[active_page_id] = {"x": bz_x, "y": bz_y, "w": bz_w, "h": bz_h, "f_size": int(height * 0.15)}
 
                 padding_x = int(width * 0.05)
                 max_w_default = width - (2 * padding_x)
                 
+                # Prepare JSON State
+                words_payload = []
+                for idx, w_dict in enumerate(active_page):
+                    w_style = style_config.get(word_styles[idx], {})
+                    is_visible = current_time_sec >= w_dict["start"]
+                    words_payload.append({
+                        "text": w_dict["word"].strip(),
+                        "visible": is_visible,
+                        "style": w_style
+                    })
+                
                 if segment_mode == "text_behind_subject":
                     safe_zone = page_zone_cache[active_page_id]
-                    max_w = safe_zone["w"]
-                    max_h = safe_zone["h"]
-                    start_y = safe_zone["y"]
-                    zone_pad_x = safe_zone["x"]
-                    # Binary Search for maximal font size
-                    min_f = 20
-                    max_f = int(height * 0.5)
-                    best_f = 40
-                    best_lines = []
-                    
-                    for _ in range(15):
-                        mid_f = (min_f + max_f) // 2
-                        try: 
-                            font_test = ImageFont.truetype(font_path, mid_f)
-                        except: 
-                            font_test = ImageFont.load_default()
-                            
-                        space_w = font_test.getlength(" ")
-                        
-                        lines = []
-                        current_line = []
-                        current_w = 0
-                        
-                        for idx, w_str in enumerate(raw_words):
-                            word_w = int(font_test.getlength(w_str))
-                            if current_w + space_w + word_w > max_w and len(current_line) > 0:
-                                lines.append(current_line)
-                                current_line = [(idx, w_str)]
-                                current_w = word_w
-                            else:
-                                current_line.append((idx, w_str))
-                                current_w += word_w + (space_w if len(current_line) > 1 else 0)
-                                
-                        if current_line:
-                            lines.append(current_line)
-                            
-                        # Calculate height
-                        total_block_h = 0
-                        for line in lines:
-                            line_str = " ".join([w_str for _, w_str in line])
-                            bbox = dummy_draw.textbbox((0, 0), line_str, font=font_test)
-                            total_block_h += (bbox[3] - bbox[1]) + int(mid_f * 0.1)
-                            
-                        if total_block_h > max_h:
-                            max_f = mid_f - 1
-                        else:
-                            best_f = mid_f
-                            best_lines = lines
-                            min_f = mid_f + 1
-
-                    f_size = best_f
-                    lines = best_lines
-                    if not lines: # Fallback if error
-                        lines = [[(idx, w_str) for idx, w_str in enumerate(raw_words)]]
-                    align_center = False
-                    is_zone_wrap = True
+                    layout_payload = {
+                        "x": safe_zone["x"],
+                        "y": safe_zone["y"],
+                        "w": safe_zone["w"],
+                        "h": safe_zone["h"],
+                        "f_size": safe_zone["f_size"],
+                        "align": "center"
+                    }
                 else:
-                    # Standard Mode: fixed font size, bottom center aligned
-                    f_size = int(width * 0.08)
-                    try: font_test = ImageFont.truetype(font_path, f_size)
-                    except: font_test = ImageFont.load_default()
-                    
-                    space_w = font_test.getlength(" ")
-                    lines = []
-                    current_line = []
-                    current_w = 0
-                    max_w = max_w_default
-                    
-                    for idx, w_str in enumerate(raw_words):
-                        word_w = int(font_test.getlength(w_str))
-                        if current_w + space_w + word_w > max_w and len(current_line) > 0:
-                            lines.append(current_line)
-                            current_line = [(idx, w_str)]
-                            current_w = word_w
-                        else:
-                            current_line.append((idx, w_str))
-                            current_w += word_w + (space_w if len(current_line) > 1 else 0)
-                    if current_line: lines.append(current_line)
-                    
-                    total_block_h = 0
-                    for line in lines:
-                        line_str = " ".join([w_str for _, w_str in line])
-                        bbox = dummy_draw.textbbox((0, 0), line_str, font=font_test)
-                        total_block_h += (bbox[3] - bbox[1]) + int(f_size * 0.1)
-                        
-                    start_y = int(height * 0.85) - total_block_h
-                    align_center = True
-                    is_zone_wrap = False
-                    max_w = max_w_default
-
-                try: 
-                    font = ImageFont.truetype(font_path, f_size)
-                except: 
-                    font = ImageFont.load_default()
-                    
-                space_w = font.getlength(" ")
+                    approx_h = int(height * 0.3)
+                    layout_payload = {
+                        "x": padding_x,
+                        "y": int(height * 0.85) - approx_h,
+                        "w": max_w_default,
+                        "h": approx_h,
+                        "f_size": int(width * 0.08),
+                        "align": "center"
+                    }
                 
-                # Precalculate all line heights to know exact block span
-                line_heights = []
-                for line in lines:
-                    line_str = " ".join([w_str for _, w_str in line])
-                    bbox = dummy_draw.textbbox((0, 0), line_str, font=font)
-                    lh = bbox[3] - bbox[1]
-                    line_heights.append(lh)
+                state_obj = {
+                    "words": words_payload,
+                    "layout": layout_payload
+                }
                 
-                draw = ImageDraw.Draw(frame_canvas)
-                strk_w, strk_col = parse_stroke(style_def.get("textStroke"), f_size)
-                shadows = parse_shadows(style_def.get("textShadow"), f_size)
-                
-                current_y = start_y
-                letter_idx = 0
-                
-                for line_idx, line in enumerate(lines):
-                    line_str = " ".join([w_str for _, w_str in line])
-                    bbox = dummy_draw.textbbox((0, 0), line_str, font=font)
-                    line_w = bbox[2] - bbox[0]
-                    line_h = line_heights[line_idx]
-                    
-                    if align_center:
-                        current_x = int((width - line_w) / 2)
-                    elif is_zone_wrap:
-                        current_x = zone_pad_x + int((max_w - line_w) / 2)
-                    else:
-                        current_x = padding_x
-                    
-                    for word_tuple in line:
-                        orig_idx, w_str = word_tuple
-                        w_start = active_page[orig_idx]["start"]
-                        
-                        is_visible = current_time_sec >= w_start
-                        
-                        if is_alternating:
-                            for char in w_str:
-                                if char.strip():
-                                    char_color = alt_colors[letter_idx % len(alt_colors)]
-                                    letter_idx += 1
-                                else:
-                                    char_color = primary_col
-                                    
-                                if is_visible:
-                                    for shad in shadows:
-                                        draw.text((current_x + shad["x"], current_y + shad["y"]), char, font=font, fill=shad["color"])
-                                    draw.text((current_x, current_y), char, font=font, fill=char_color, stroke_width=strk_w, stroke_fill=strk_col)
-                                    
-                                current_x += int(font.getlength(char))
-                        else:
-                            if is_visible:
-                                for shad in shadows:
-                                    draw.text((current_x + shad["x"], current_y + shad["y"]), w_str, font=font, fill=shad["color"])
-                                draw.text((current_x, current_y), w_str, font=font, fill=primary_col, stroke_width=strk_w, stroke_fill=strk_col)
-                                
-                            current_x += int(font.getlength(w_str))
-                            
-                        # Space advance
-                        current_x += int(space_w)
-                        
-                    current_y += line_h + int(f_size * 0.1)
-                
-        frame_path = os.path.join(tmp_frames_dir, f"frame_{frame_idx:04d}.png")
-        frame_canvas.save(frame_path)
+                frame_playwright_states.append({
+                    "frame_idx": frame_idx,
+                    "state": state_obj
+                })
+        
+        # We don't save frame_canvas natively anymore, we'll let Playwright render it out-of-loop.
 
     cap.release()
     writer.release()
     segmenter.close()
+
+    logging.info(f"Rendering {len(frame_playwright_states)} active text frames using Playwright Chromium...")
+    
+    # Generate transparent overlays explicitly only on frames with active state
+    backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    tpl_path = Path(backend_dir) / "app" / "services" / "templates" / "caption_engine.html"
+    
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page(viewport={"width": width, "height": height})
+        page.goto(f"file://{tpl_path.absolute()}")
+        
+        last_state_json = ""
+        for frame_idx in range(1, frame_idx + 1):
+            frame_path = os.path.join(tmp_frames_dir, f"frame_{frame_idx:04d}.png")
+            
+            # Find state for this frame
+            frame_state = next((fs for fs in frame_playwright_states if fs["frame_idx"] == frame_idx), None)
+            
+            if frame_state:
+                current_state_json = json.dumps(frame_state["state"])
+                if current_state_json != last_state_json:
+                    page.evaluate("async (s) => await window.renderState(s)", frame_state["state"])
+                    last_state_json = current_state_json
+                    
+                page.screenshot(path=frame_path, omit_background=True)
+            else:
+                # Blank frame payload
+                blank_img = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+                blank_img.save(frame_path)
+                
+        browser.close()
 
     logging.info("Hardware Compositing natively with FFmpeg...")
     cmd = [

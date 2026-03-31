@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { margin: 0; background: transparent; overflow: hidden; }
+        #canvas { position: absolute; display: flex; flex-wrap: wrap; justify-content: center; align-content: center; text-align: center; }
+        .word { display: inline-block; white-space: pre; line-height: 1.15; margin: 0 0.15em; padding: 0.1em 0.25em; border-radius: 0.2em; box-sizing: border-box; }
+    </style>
+</head>
+<body>
+    <div id="canvas"></div>
+    <script>
+        window.loadedFonts = new Set();
+        
+        window.renderState = async function(state) {
+            const canvas = document.getElementById('canvas');
+            canvas.style.left = state.layout.x + 'px';
+            canvas.style.top = state.layout.y + 'px';
+            canvas.style.width = state.layout.w + 'px';
+            canvas.style.height = state.layout.h + 'px';
+            canvas.style.alignItems = state.layout.align === 'center' ? 'center' : 'flex-end';
+            canvas.style.fontSize = state.layout.f_size + 'px';
+            canvas.innerHTML = '';
+            
+            // First pass: inject fonts
+            state.words.forEach(w => {
+                const fontName = w.style.fontFamily || 'Anton';
+                if (!window.loadedFonts.has(fontName)) {
+                    const link = document.createElement('link');
+                    link.href = `https://fonts.googleapis.com/css2?family=${fontName.replace(/ /g, '+')}:wght@400;700;800;900&display=swap`;
+                    link.rel = 'stylesheet';
+                    document.head.appendChild(link);
+                    window.loadedFonts.add(fontName);
+                }
+            });
+
+            // Second pass: construct DOM
+            let globalCharIndex = 0;
+            state.words.forEach(w => {
+                const span = document.createElement('div');
+                span.className = 'word';
+                span.style.opacity = w.visible ? '1' : '0';
+                
+                if (w.style.textTransform) span.style.textTransform = w.style.textTransform;
+                if (w.style.backgroundColor) span.style.backgroundColor = w.style.backgroundColor;
+                span.style.fontFamily = `"${w.style.fontFamily || 'Anton'}", sans-serif`;
+                if (w.style.textShadow) span.style.textShadow = w.style.textShadow;
+                if (w.style.textStroke) span.style.webkitTextStroke = w.style.textStroke;
+                span.style.fontWeight = w.style.fontWeight || '800';
+
+                let primaryColor = w.style.primaryColor || '#FFFFFF';
+                let colors = w.style.alternateColors;
+                if (typeof colors === 'string') colors = colors.split(',').map(c => c.trim());
+                
+                if (colors && colors.length > 1) {
+                    let html = '';
+                    for (let i = 0; i < w.text.length; i++) {
+                        let char = w.text[i];
+                        if (char.trim() === '') {
+                            html += char;
+                        } else {
+                            const c = colors[globalCharIndex % colors.length];
+                            html += `<span style="color: ${c}">${char}</span>`;
+                            globalCharIndex++;
+                        }
+                    }
+                    span.innerHTML = html;
+                } else {
+                    span.textContent = w.text;
+                    span.style.color = primaryColor;
+                    globalCharIndex += w.text.replace(/\\s/g, '').length;
+                }
+                
+                canvas.appendChild(span);
+            });
+
+            await document.fonts.ready;
+            void canvas.offsetHeight;
+            await new Promise(r => setTimeout(r, 40));
+            return true;
+        };
+    </script>
+</body>
+</html>
