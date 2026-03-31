@@ -4,7 +4,7 @@
     <style>
         body { margin: 0; background: transparent; overflow: hidden; }
         #canvas { position: absolute; display: flex; flex-wrap: wrap; justify-content: center; align-content: center; text-align: center; }
-        .word { display: inline-block; white-space: pre; line-height: 1.15; margin: 0 0.15em; padding: 0.1em 0.25em; border-radius: 0.2em; box-sizing: border-box; }
+        .word { display: inline-block; white-space: pre; line-height: 1.05; margin: 0 0.05em; padding: 0.05em 0.1em; border-radius: 0.2em; box-sizing: border-box; letter-spacing: 0.02em; }
     </style>
 </head>
 <body>
@@ -45,7 +45,10 @@
                 if (w.style.backgroundColor) span.style.backgroundColor = w.style.backgroundColor;
                 span.style.fontFamily = `"${w.style.fontFamily || 'Anton'}", sans-serif`;
                 if (w.style.textShadow) span.style.textShadow = w.style.textShadow;
-                if (w.style.textStroke) span.style.webkitTextStroke = w.style.textStroke;
+                if (w.style.textStroke) {
+                    span.style.webkitTextStroke = w.style.textStroke;
+                    span.style.paintOrder = 'stroke fill';
+                }
                 span.style.fontWeight = w.style.fontWeight || '800';
 
                 let primaryColor = w.style.primaryColor || '#FFFFFF';

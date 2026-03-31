@@ -162,7 +162,7 @@ def render_project_native(input_video_path: str, transcript_words: list, segment
                     
                     best_zone = max(zones.values(), key=lambda z: z["w"] * z["h"])
                     
-                    pad_x = int(width * 0.05)
+                    pad_x = int(width * 0.03)
                     pad_y = int(height * 0.05)
                     
                     bz_x = best_zone["x"] + pad_x
@@ -176,9 +176,9 @@ def render_project_native(input_video_path: str, transcript_words: list, segment
                         bz_w = width - (pad_x * 2)
                         bz_h = height - (pad_y * 2)
                         
-                    page_zone_cache[active_page_id] = {"x": bz_x, "y": bz_y, "w": bz_w, "h": bz_h, "f_size": int(height * 0.15)}
+                    page_zone_cache[active_page_id] = {"x": bz_x, "y": bz_y, "w": bz_w, "h": bz_h, "f_size": int(width * 0.17)}
 
-                padding_x = int(width * 0.05)
+                padding_x = int(width * 0.03)
                 max_w_default = width - (2 * padding_x)
                 
                 # Prepare JSON State
@@ -203,13 +203,13 @@ def render_project_native(input_video_path: str, transcript_words: list, segment
                         "align": "center"
                     }
                 else:
-                    approx_h = int(height * 0.3)
+                    approx_h = int(height * 0.4)
                     layout_payload = {
                         "x": padding_x,
-                        "y": int(height * 0.85) - approx_h,
+                        "y": int(height * 0.8) - approx_h,
                         "w": max_w_default,
                         "h": approx_h,
-                        "f_size": int(width * 0.08),
+                        "f_size": int(width * 0.16),
                         "align": "center"
                     }
                 

@@ -46,13 +46,13 @@ def extract_style_config(image_paths: list[str]):
                         "Return a strictly formatted JSON object where one key is 'global_theme' (a string describing the overall aesthetic theme of the image, e.g., 'cartoon animation', 'vintage film', 'cyberpunk'). "
                         "The other keys must be 'style_1', 'style_2', 'style_3' etc. (extract up to 3 distinct styles). "
                         "Each style object must have: "
-                        "'primaryColor' (hex), 'backgroundColor' (hex of any bounding box/pill behind the text, or null), "
+                        "'primaryColor' (hex), 'backgroundColor' (hex of any bounding box/pill behind the text, or null. If the text floats freely with NO box, forcefully set this to null), "
                         "'alternateColors' (Array of hex codes. CRITICAL: Look closely at the letters in a single word. If consecutive letters alternate in color, list those alternating colors here. If all letters are the same color, leave this empty), "
-                        "'fontFamily' (a generic web-safe font like 'Impact', 'Comic Sans', 'Inter', 'Bangers'), "
+                        "'fontFamily' (a generic web-safe font like 'Impact', 'Comic Sans', 'Inter', 'Bangers'. If the font is rounded and bubbly like a sticker, pick Google Fonts like 'Nunito', 'Fredoka', 'Baloo 2', or 'Titan One'), "
                         "'fontWeight' (integer like 400, 700, 900), 'textTransform' (uppercase, lowercase, none), "
-                        "'textShadow' (CSS string e.g. '4px 4px 0px #000' or '-4px -8px 0px #000'. CAREFULLY observe the direction of the shadow! If the shadow is ABOVE the text, the Y offset MUST be negative. If the shadow is to the LEFT, the X offset MUST be negative. Include multiple shadows separated by commas if stacked!), "
-                        "and 'textStroke' (CSS webkit stroke e.g. '4px #000000' or null). "
-                        "Pay close attention to thin borders around the text and make sure they are included in textStroke, and pay close attention to multiple thick block shadows behind the text."
+                        "'textShadow' (CSS string e.g. '4px 4px 0px #000' or '-4px -8px 0px #000'. CAREFULLY observe the direction of the shadow! If the reference has a solid, continuous 'extrusion' or 3D block shadow, you MUST build a massive comma-separated chain of shadows to fill the gap (e.g. '-1px 1px 0 #000, -2px 2px 0 #000, -3px 3px 0 #000... -15px 15px 0 #000'). Do NOT use just a single shadow if the design shows a thick solid block extrusion. Keep the pixel offsets tight and chain them outwards!), "
+                        "and 'textStroke' (CSS webkit stroke e.g. '8px #000000' or null). "
+                        "Pay close attention to borders around the text and make sure thick borders are included in textStroke."
                     )
                 },
                 {
