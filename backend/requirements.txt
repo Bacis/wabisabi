@@ -10,7 +10,7 @@ python-multipart
 pydantic
 supabase
 psycopg2-binary
-opencv-python
+opencv-python-headless
 mediapipe
 Pillow
 openai-whisper
