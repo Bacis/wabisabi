@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 # Install system dependencies
 RUN apt-get update && \
-    apt-get install -y ffmpeg libgl1 libglib2.0-0 libsm6 libxext6 libxrender-dev libgles2 libgl1-mesa-glx libegl1 && \
+    apt-get install -y ffmpeg libgl1 libglib2.0-0 libsm6 libxext6 libxrender-dev libgles2 libegl1 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
