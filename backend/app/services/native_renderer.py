@@ -65,7 +65,7 @@ def render_project_native(input_video_path: str, transcript_words: list, segment
     from mediapipe.tasks.python import vision
 
     backend_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    tflite_path = os.path.join(backend_dir, "..", "experiments", "backend-text-behind-video", "selfie_segmenter.tflite")
+    tflite_path = os.path.join(backend_dir, "assets", "selfie_segmenter.tflite")
     tflite_path = os.path.abspath(tflite_path)
 
     base_options = python.BaseOptions(model_asset_path=tflite_path)
