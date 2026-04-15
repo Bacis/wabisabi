@@ -1,0 +1,40 @@
+{
+  "name": "test-captions",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "api": "tsx watch src/api/server.ts",
+    "worker": "tsx watch src/worker/index.ts",
+    "worker:producer": "tsx watch src/worker/producerIndex.ts",
+    "telegram": "tsx watch src/telegram/index.ts",
+    "start": "sh scripts/start.sh",
+    "start:api": "node --import tsx/esm src/api/server.ts",
+    "start:worker": "node --import tsx/esm src/worker/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.88.0",
+    "@aws-sdk/client-s3": "^3.1029.0",
+    "@aws-sdk/client-service-quotas": "^3.1029.0",
+    "@aws-sdk/client-sts": "^3.1029.0",
+    "@aws-sdk/s3-request-presigner": "^3.1029.0",
+    "@fastify/multipart": "^9.0.1",
+    "@remotion/bundler": "^4.0.448",
+    "@remotion/lambda": "^4.0.448",
+    "@remotion/renderer": "^4.0.448",
+    "better-sqlite3": "^11.5.0",
+    "fastify": "^5.1.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "telegraf": "^4.16.3",
+    "tsx": "^4.19.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.12",
+    "@types/node": "^22.9.0",
+    "typescript": "^5.6.3"
+  }
+}

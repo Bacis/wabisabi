@@ -1,0 +1,656 @@
+{
+    "metadata": {
+      "video_title": "Trevor Wallace Crowd Work Special (ssstwitter.com_1776086292488.mp4)",
+      "description": "Categorized caption timeline mapped to styling classes for dynamic UI/motion design."
+    },
+    "style_classes": {
+      "trevor-standard": {
+        "speaker": "Trevor",
+        "font": "Komika Axis / Bangers",
+        "color": "#FFE800 (Yellow) or #FFFFFF (White)",
+        "animation": "Pop-in (0.8 to 1.0 scale)",
+        "outline": "Heavy black stroke with drop shadow"
+      },
+      "german-standard": {
+        "speaker": "Audience / German Fan",
+        "font": "Komika Axis / Bangers",
+        "color": "#FF5900 (Orange)",
+        "animation": "Pop-in (0.8 to 1.0 scale)",
+        "outline": "Heavy black stroke with drop shadow"
+      },
+      "german-accent-mock": {
+        "speaker": "Mixed",
+        "font": "Old English Text MT / Gothic",
+        "color": "#FF5900 (Orange)",
+        "animation": "Wavy pop-in",
+        "outline": "Heavy black stroke with drop shadow"
+      },
+      "emphasis-shout": {
+        "speaker": "Mixed",
+        "font": "Komika Axis / Bangers",
+        "color": "#FF0000 (Red) or Bright Yellow",
+        "animation": "Rapid scale up (1.15+), chromatic aberration, screen shake",
+        "outline": "Heavy black stroke"
+      },
+      "emphasis-stretch": {
+        "speaker": "Mixed",
+        "font": "Komika Axis / Bangers",
+        "color": "#FF0000 (Red)",
+        "animation": "Vertical Y-axis stretch to match drawn out vowels",
+        "outline": "Heavy black stroke"
+      },
+      "b-roll-trigger": {
+        "action": "Triggers secondary visual graphic (PNG pop-up, background overlay, or screen effect)"
+      }
+    },
+    "captions": [
+      {
+        "time_range": "00:00.000 - 00:03.000",
+        "speaker": "German Fan",
+        "text": "Hello Trevor, how are you?",
+        "classes": [
+          "german-accent-mock"
+        ]
+      },
+      {
+        "time_range": "00:00.000 - 00:03.000",
+        "speaker": "Trevor",
+        "text": "Holy fuck.",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:00.000 - 00:03.000",
+        "speaker": "Trevor",
+        "text": "Holy shit.",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:03.000 - 00:14.000",
+        "speaker": "German Fan",
+        "text": "It sounds fine.",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "00:03.000 - 00:14.000",
+        "speaker": "Trevor",
+        "text": "Buddy... My ancestors are being like...",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:03.000 - 00:14.000",
+        "speaker": "Trevor",
+        "text": "GET OUT OF THERE!!!",
+        "classes": [
+          "emphasis-shout"
+        ]
+      },
+      {
+        "time_range": "00:03.000 - 00:14.000",
+        "speaker": "Trevor",
+        "text": "GET HIM OUT!!!",
+        "classes": [
+          "emphasis-shout"
+        ]
+      },
+      {
+        "time_range": "00:03.000 - 00:14.000",
+        "speaker": "Trevor",
+        "text": "What's your guys story?",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:03.000 - 00:14.000",
+        "speaker": "German Fan",
+        "text": "We're from GERMANY.",
+        "classes": [
+          "german-standard",
+          "b-roll-trigger"
+        ],
+        "b_roll_details": "German flag PNG overlay"
+      },
+      {
+        "time_range": "00:14.000 - 00:24.000",
+        "speaker": "Trevor",
+        "text": "Oh shit.",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:14.000 - 00:24.000",
+        "speaker": "Trevor",
+        "text": "I'm JEWISH",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:14.000 - 00:24.000",
+        "speaker": "Trevor",
+        "text": "leave me alone.",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:14.000 - 00:24.000",
+        "speaker": "Trevor",
+        "text": "Why are you here?",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:14.000 - 00:24.000",
+        "speaker": "German Fan",
+        "text": "We wanted to see your SHOW.",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "00:14.000 - 00:24.000",
+        "speaker": "German Fan",
+        "text": "He will be on the stage...",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "00:14.000 - 00:24.000",
+        "speaker": "German Fan",
+        "text": "RIGHT UP",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "00:14.000 - 00:24.000",
+        "speaker": "German Fan",
+        "text": "THEEEEEEERE.",
+        "classes": [
+          "emphasis-stretch"
+        ]
+      },
+      {
+        "time_range": "00:25.000 - 00:41.000",
+        "speaker": "Trevor",
+        "text": "What are you guys doing out here in Austin?",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:25.000 - 00:41.000",
+        "speaker": "German Fan",
+        "text": "We're doing an EXCHANGE.",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "00:25.000 - 00:41.000",
+        "speaker": "Trevor",
+        "text": "Nice. What's your favorite and least favorite thing about America so far?",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:25.000 - 00:41.000",
+        "speaker": "German Fan",
+        "text": "The girls are STUPID.",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "00:25.000 - 00:41.000",
+        "speaker": "Trevor",
+        "text": "Looking for some BRAIN...",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:25.000 - 00:41.000",
+        "speaker": "Trevor",
+        "text": "but she had bad brain.",
+        "classes": [
+          "trevor-standard",
+          "b-roll-trigger"
+        ],
+        "b_roll_details": "Hawk Tuah girl popup"
+      },
+      {
+        "time_range": "00:25.000 - 00:41.000",
+        "speaker": "Trevor",
+        "text": "Give me an example of why they're dumb.",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:42.000 - 00:52.000",
+        "speaker": "German Fan",
+        "text": "This one girl told me the next day she's gonna like just hunt anything.",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "00:42.000 - 00:52.000",
+        "speaker": "German Fan",
+        "text": "Just go in the country and just... SHOOT STUFF.",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "00:42.000 - 00:52.000",
+        "speaker": "Trevor",
+        "text": "That's America brother.",
+        "classes": [
+          "trevor-standard",
+          "b-roll-trigger"
+        ],
+        "b_roll_details": "Bald eagles flying with screech SFX"
+      },
+      {
+        "time_range": "00:53.000 - 01:14.000",
+        "speaker": "Trevor",
+        "text": "Whether it's a FOREST or a SCHOOL,",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:53.000 - 01:14.000",
+        "speaker": "Trevor",
+        "text": "it's America brother.",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:53.000 - 01:14.000",
+        "speaker": "Trevor",
+        "text": "So she went to go hunt and you're like...",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:53.000 - 01:14.000",
+        "speaker": "Trevor",
+        "text": "'She is ZEE DUMB one'.",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:53.000 - 01:14.000",
+        "speaker": "German Fan",
+        "text": "What is ziss ACCENT?",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "00:53.000 - 01:14.000",
+        "speaker": "Trevor",
+        "text": "Motherfucker I sound exactly like you!",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:53.000 - 01:14.000",
+        "speaker": "Trevor",
+        "text": "Do I not? What is ziss accent?",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:53.000 - 01:14.000",
+        "speaker": "Trevor",
+        "text": "Let's go bar for bar. Just give me a sentence that's like...",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:53.000 - 01:14.000",
+        "speaker": "Trevor",
+        "text": "'Hello Trevor, how are you?'",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "00:53.000 - 01:14.000",
+        "speaker": "German Fan",
+        "text": "Hello Threvhor, how are you?",
+        "classes": [
+          "german-accent-mock"
+        ]
+      },
+      {
+        "time_range": "00:53.000 - 01:14.000",
+        "speaker": "Trevor",
+        "text": "Holy SHID.",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "01:15.000 - 01:30.000",
+        "speaker": "German Fan",
+        "text": "Oh no!!! It's not that bad...",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "01:15.000 - 01:30.000",
+        "speaker": "German Fan",
+        "text": "it zounds FIENEEEE.",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "01:15.000 - 01:30.000",
+        "speaker": "Trevor",
+        "text": "Buddy.",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "01:15.000 - 01:30.000",
+        "speaker": "Trevor",
+        "text": "My ancestors are...",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "01:15.000 - 01:30.000",
+        "speaker": "Trevor",
+        "text": "It zounds FIENEEEE man...",
+        "classes": [
+          "trevor-standard",
+          "b-roll-trigger"
+        ],
+        "b_roll_details": "Arnold Schwarzenegger cutout popup"
+      },
+      {
+        "time_range": "01:31.000 - 01:36.000",
+        "speaker": "Trevor",
+        "text": "A CYBERTRUCK is gonna fly into the walls right now...",
+        "classes": [
+          "trevor-standard",
+          "b-roll-trigger"
+        ],
+        "b_roll_details": "Cybertruck explosion graphic"
+      },
+      {
+        "time_range": "01:31.000 - 01:36.000",
+        "speaker": "Trevor",
+        "text": "with ELON in it!",
+        "classes": [
+          "trevor-standard",
+          "b-roll-trigger"
+        ],
+        "b_roll_details": "Elon Musk cutout pointing"
+      },
+      {
+        "time_range": "01:31.000 - 01:36.000",
+        "speaker": "Trevor",
+        "text": "...zain zohn zohn zeen zoot",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "01:37.000 - 01:52.000",
+        "speaker": "Trevor",
+        "text": "And what is your name? Like Doofinheimer or something?",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "01:37.000 - 01:52.000",
+        "speaker": "German Fan",
+        "text": "Ehhhh it's TAMMO.",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "01:37.000 - 01:52.000",
+        "speaker": "Trevor",
+        "text": "Tammo?",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "01:37.000 - 01:52.000",
+        "speaker": "German Fan",
+        "text": "Yeah, T-A-M-M-O.",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "01:37.000 - 01:52.000",
+        "speaker": "Trevor",
+        "text": "And what does that mean in German?",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "01:37.000 - 01:52.000",
+        "speaker": "German Fan",
+        "text": "Something like aaaa... a deep thinka.",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "01:53.000 - 02:09.000",
+        "speaker": "Trevor",
+        "text": "Deep thinker...",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "01:53.000 - 02:09.000",
+        "speaker": "Trevor",
+        "text": "that's why you hate all these dumb bitches in Austin.",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "01:53.000 - 02:09.000",
+        "speaker": "Trevor",
+        "text": "And what's your favorite thing to do out here in Austin?",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "01:53.000 - 02:09.000",
+        "speaker": "German Fan",
+        "text": "Probably the dance halls.",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "01:53.000 - 02:09.000",
+        "speaker": "Trevor",
+        "text": "TWO-STEP?!",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "01:53.000 - 02:09.000",
+        "speaker": "Trevor",
+        "text": "Who taught the Germans about two-stepping?",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "01:53.000 - 02:09.000",
+        "speaker": "Trevor",
+        "text": "Next he's gonna be like, 'You have to hit ZE DUGGY'.",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "02:10.000 - 02:24.000",
+        "speaker": "Trevor",
+        "text": "Okay so we got Tammo, and then what was your name?",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "02:10.000 - 02:24.000",
+        "speaker": "New Jersey Fan",
+        "text": "Gino.",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "02:10.000 - 02:24.000",
+        "speaker": "Trevor",
+        "text": "Motherfucker you're from New Brunswick, New Jersey!",
+        "classes": [
+          "trevor-standard",
+          "b-roll-trigger"
+        ],
+        "b_roll_details": "New Jersey state map graphic overlay"
+      },
+      {
+        "time_range": "02:10.000 - 02:24.000",
+        "speaker": "Trevor",
+        "text": "What's better in Germany that is worse here?",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "02:10.000 - 02:24.000",
+        "speaker": "German Fan",
+        "text": "Ed 'JEW' cation.",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "02:25.000 - 02:43.000",
+        "speaker": "Trevor",
+        "text": "You guys came here for our EDUCATION?",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "02:25.000 - 02:43.000",
+        "speaker": "Trevor",
+        "text": "What classes are you taking in America?",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "02:25.000 - 02:43.000",
+        "speaker": "German Fan",
+        "text": "Math.",
+        "classes": [
+          "german-standard"
+        ]
+      },
+      {
+        "time_range": "02:25.000 - 02:43.000",
+        "speaker": "Trevor",
+        "text": "Buddy. Math is GLOBAL you fuck!",
+        "classes": [
+          "trevor-standard",
+          "b-roll-trigger"
+        ],
+        "b_roll_details": "Math equations overlay across screen"
+      },
+      {
+        "time_range": "02:25.000 - 02:43.000",
+        "speaker": "Trevor",
+        "text": "It's no different here versus Germany.",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "02:25.000 - 02:43.000",
+        "speaker": "Trevor",
+        "text": "All of your numbers means 'NO'.",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "02:25.000 - 02:43.000",
+        "speaker": "Trevor",
+        "text": "There's no other difference. NIEN!!!",
+        "classes": [
+          "emphasis-shout"
+        ]
+      },
+      {
+        "time_range": "02:44.000 - 02:51.000",
+        "speaker": "Trevor",
+        "text": "Oh shit, you're Jewish sitting in front of the Germans?",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "02:44.000 - 02:51.000",
+        "speaker": "Trevor",
+        "text": "Risky.",
+        "classes": [
+          "trevor-standard"
+        ]
+      },
+      {
+        "time_range": "02:44.000 - 02:51.000",
+        "speaker": "Trevor",
+        "text": "Yeah... Well, I'd say gassy, but...",
+        "classes": [
+          "trevor-standard"
+        ]
+      }
+    ]
+  }
