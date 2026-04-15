@@ -1,0 +1,13 @@
+services:
+  captions:
+    build: .
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - REMOTION_GL=swangle
+      - WHISPER_MODEL=base
+      - STORAGE_DIR=/app/storage
+    volumes:
+      - ./storage:/app/storage

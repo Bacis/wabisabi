@@ -1,0 +1,1293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Captions</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --panel: #15151c;
+    --panel-2: #1c1c25;
+    --border: #2a2a35;
+    --text: #e8e8ed;
+    --text-dim: #7a7a85;
+    --accent: #ff3366;
+    --emphasis: #ffe14b;
+    --done: #4ade80;
+    --running: #facc15;
+    --failed: #f87171;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  header {
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  header h1 {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  header h1 span { color: var(--accent); }
+  main {
+    padding: 24px;
+    max-width: 1600px;
+    margin: 0 auto;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 20px;
+    align-items: start;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .panel + .panel { margin-top: 16px; }
+  .panel h2 {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-dim);
+    margin-bottom: 12px;
+  }
+  video {
+    width: 100%;
+    border-radius: 8px;
+    background: black;
+    display: block;
+  }
+  .job-list, .preset-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .job-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 80ms;
+  }
+  .job-item:hover { background: rgba(255,255,255,0.04); }
+  .job-item.active { background: rgba(255,51,102,0.10); border-color: var(--accent); }
+  .status-pill {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .status-pill.done { background: rgba(74,222,128,0.15); color: var(--done); }
+  .status-pill.failed { background: rgba(248,113,113,0.15); color: var(--failed); }
+  .status-pill.running, .status-pill.queued { background: rgba(250,204,21,0.15); color: var(--running); }
+  .job-id {
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .job-time {
+    margin-left: auto;
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  }
+  .preset-item {
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel-2);
+    position: relative;
+  }
+  .preset-item.custom { border-color: rgba(255,51,102,0.3); }
+  .preset-name {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+  .preset-name code {
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(255,51,102,0.08);
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .preset-desc {
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.4;
+  }
+  .preset-tpl {
+    font-size: 10px;
+    color: var(--text-dim);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .preset-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .mini-btn {
+    font-size: 11px;
+    padding: 3px 8px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-dim);
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .mini-btn:hover { color: var(--text); border-color: var(--text-dim); }
+  .mini-btn.danger:hover { color: var(--failed); border-color: var(--failed); }
+  .chunks {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  .chunks::-webkit-scrollbar { width: 6px; }
+  .chunks::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .chunk {
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background 80ms, border-color 80ms;
+  }
+  .chunk:hover { background: rgba(255,255,255,0.03); }
+  .chunk.active {
+    background: rgba(255,51,102,0.10);
+    border-color: var(--accent);
+  }
+  .chunk-time {
+    font-size: 10px;
+    color: var(--text-dim);
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    margin-bottom: 3px;
+  }
+  .word { display: inline-block; padding: 0 1px; }
+  .word.emphasis {
+    color: var(--emphasis);
+    font-weight: 700;
+  }
+  .empty {
+    padding: 32px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 13px;
+  }
+  .meta {
+    font-size: 12px;
+    color: var(--text-dim);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .meta b { color: var(--text); font-weight: 600; }
+  .meta code {
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+  }
+  .stage-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-top: 6px;
+  }
+  .stage-pill {
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background: rgba(74,222,128,0.10);
+    color: var(--done);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .stage-pill.missing {
+    background: rgba(122,122,133,0.15);
+    color: var(--text-dim);
+  }
+  .progress-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .progress-bar {
+    flex: 1;
+    height: 8px;
+    background: var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), #ff6b8a);
+    transition: width 250ms ease-out;
+  }
+  .progress-percent {
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--text);
+    min-width: 42px;
+    text-align: right;
+  }
+  .progress-stats {
+    display: flex;
+    gap: 14px;
+    font-size: 11px;
+    color: var(--text-dim);
+    flex-wrap: wrap;
+  }
+  .progress-stats span { font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
+  .chunk-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(18px, 1fr));
+    gap: 4px;
+    margin-top: 12px;
+  }
+  .chunk-cell {
+    aspect-ratio: 1;
+    background: var(--border);
+    border-radius: 3px;
+    transition: background 200ms;
+  }
+  .chunk-cell.invoked { background: var(--running); }
+  .chunk-cell.done { background: var(--done); }
+
+  /* Editor UI (Phase D) */
+  details.editor {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0;
+    margin-bottom: 16px;
+  }
+  details.editor > summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 16px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-dim);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  details.editor > summary::-webkit-details-marker { display: none; }
+  details.editor > summary::before {
+    content: '▸';
+    font-size: 10px;
+    transition: transform 120ms;
+  }
+  details.editor[open] > summary::before { transform: rotate(90deg); }
+  details.editor[open] > summary { border-bottom: 1px solid var(--border); }
+  .editor-body {
+    padding: 16px;
+    display: grid;
+    grid-template-columns: 1fr 340px;
+    gap: 20px;
+  }
+  @media (max-width: 1280px) {
+    .editor-body { grid-template-columns: 1fr; }
+  }
+  .editor-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .editor-form details.group {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0;
+    background: var(--panel-2);
+  }
+  .editor-form details.group > summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 10px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+  }
+  .editor-form details.group > summary::-webkit-details-marker { display: none; }
+  .editor-form details.group[open] > summary { border-bottom: 1px solid var(--border); }
+  .editor-form .fields {
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .editor-form .row {
+    display: grid;
+    grid-template-columns: 110px 1fr auto;
+    align-items: center;
+    gap: 10px;
+    font-size: 12px;
+  }
+  .editor-form .row > label:first-child {
+    color: var(--text-dim);
+    font-size: 11px;
+  }
+  .editor-form input[type="text"],
+  .editor-form input[type="number"],
+  .editor-form select {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-family: inherit;
+    width: 100%;
+  }
+  .editor-form input[type="range"] { width: 100%; accent-color: var(--accent); }
+  .editor-form input[type="color"] {
+    width: 36px;
+    height: 26px;
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: transparent;
+    cursor: pointer;
+  }
+  .editor-form .row .value-display {
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 11px;
+    color: var(--text);
+    min-width: 40px;
+    text-align: right;
+  }
+  .editor-preview {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .editor-preview .preview-img-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 9/16;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+  .editor-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+  .editor-preview .preview-loading {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.4);
+    color: var(--text-dim);
+    font-size: 12px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms;
+  }
+  .editor-preview .preview-loading.active { opacity: 1; }
+  .editor-preview .frame-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .editor-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .btn-primary, .btn-secondary {
+    flex: 1;
+    padding: 9px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-primary {
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    color: #fff;
+  }
+  .btn-primary:hover { filter: brightness(1.1); }
+  .btn-secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  .btn-secondary:hover { border-color: var(--text-dim); }
+  /* Natural-language style generator row — pinned to the top of the
+     editor body, above the form. */
+  .generate-box {
+    grid-column: 1 / -1;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 51, 102, 0.07),
+      rgba(0, 234, 255, 0.05)
+    );
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 14px;
+    margin-bottom: 4px;
+  }
+  .generate-box .label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .generate-box .label::before {
+    content: '✨';
+    font-size: 12px;
+  }
+  .generate-row {
+    display: flex;
+    gap: 8px;
+  }
+  .generate-row input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .generate-row input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .generate-row button {
+    padding: 8px 16px;
+    background: var(--accent);
+    border: 1px solid var(--accent);
+    color: #fff;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .generate-row button:hover:not(:disabled) {
+    filter: brightness(1.1);
+  }
+  .generate-row button:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+  .generate-notes {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+    min-height: 14px;
+  }
+  .generate-notes.error { color: var(--failed); }
+  .generate-notes.success { color: var(--done); }
+</style>
+</head>
+<body>
+<header>
+  <h1>captions<span>.</span></h1>
+</header>
+<main>
+  <div class="grid">
+    <div>
+      <div class="panel">
+        <h2>recent jobs</h2>
+        <div id="jobs" class="job-list"></div>
+      </div>
+      <div class="panel">
+        <h2>presets</h2>
+        <div id="presets" class="preset-list"></div>
+      </div>
+    </div>
+    <div id="viewer">
+      <div class="panel empty">select a job from the left</div>
+    </div>
+  </div>
+</main>
+<script>
+const params = new URLSearchParams(location.search);
+const selectedId = params.get('id');
+
+// Shared state for the editor — a single working spec the form binds to,
+// plus the currently-selected template id and preview frame time. Reset
+// whenever a new job is loaded.
+let currentSpec = {};
+let currentTemplateId = 'pop-words';
+let currentFrameSec = 0;
+let activeJobId = null;
+let previewTimer = null;
+let previewInFlight = null;
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+function getPath(obj, path) {
+  return path.split('.').reduce((o, k) => (o && o[k] !== undefined) ? o[k] : undefined, obj);
+}
+
+function setPath(obj, path, val) {
+  const parts = path.split('.');
+  let o = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (!o[parts[i]] || typeof o[parts[i]] !== 'object' || Array.isArray(o[parts[i]])) {
+      o[parts[i]] = {};
+    }
+    o = o[parts[i]];
+  }
+  o[parts[parts.length - 1]] = val;
+}
+
+function coerce(val, type) {
+  if (type === 'number') {
+    const n = Number(val);
+    return Number.isFinite(n) ? n : 0;
+  }
+  return val;
+}
+
+// ---- jobs + presets lists -------------------------------------------------
+
+async function loadJobs() {
+  const res = await fetch('/jobs');
+  const jobs = await res.json();
+  const list = document.getElementById('jobs');
+  if (!jobs.length) {
+    list.innerHTML = '<div class="empty">no jobs yet — POST one to /jobs</div>';
+    return;
+  }
+  list.innerHTML = jobs.map(j => {
+    const isActive = j.id === selectedId ? 'active' : '';
+    const time = (j.createdAt || '').slice(11, 19);
+    return `<a class="job-item ${isActive}" href="/?id=${j.id}">
+      <span class="status-pill ${j.status}">${j.status}</span>
+      <span class="job-id">${j.id.slice(0, 8)}</span>
+      <span class="job-time">${time}</span>
+    </a>`;
+  }).join('');
+}
+
+async function loadPresets() {
+  const res = await fetch('/presets');
+  const presets = await res.json();
+  document.getElementById('presets').innerHTML = presets.map(p => {
+    const customClass = p.source === 'custom' ? 'custom' : '';
+    const deleteBtn = p.source === 'custom'
+      ? `<button class="mini-btn danger" data-delete-preset="${escapeHtml(p.id)}">delete</button>`
+      : '';
+    return `<div class="preset-item ${customClass}">
+      <div class="preset-name">${escapeHtml(p.name)} <code>${escapeHtml(p.id)}</code></div>
+      <div class="preset-desc">${escapeHtml(p.description || '')}</div>
+      <div class="preset-tpl">${escapeHtml(p.templateId)}${p.source === 'custom' ? ' · custom' : ''}</div>
+      <div class="preset-actions">
+        <button class="mini-btn" data-apply-preset='${escapeHtml(JSON.stringify(p))}'>apply to editor</button>
+        ${deleteBtn}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Wire preset action buttons. Apply replaces the editor state with the
+  // preset's spec; delete removes a custom preset and refreshes the list.
+  document.querySelectorAll('[data-apply-preset]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      try {
+        const p = JSON.parse(btn.getAttribute('data-apply-preset'));
+        applyPresetToEditor(p);
+      } catch (e) {
+        console.error('bad preset payload', e);
+      }
+    });
+  });
+  document.querySelectorAll('[data-delete-preset]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = btn.dataset.deletePreset;
+      if (!confirm(`delete preset "${id}"?`)) return;
+      const res = await fetch('/presets/' + encodeURIComponent(id), { method: 'DELETE' });
+      if (!res.ok) {
+        alert('delete failed: ' + res.status);
+        return;
+      }
+      await loadPresets();
+    });
+  });
+}
+
+// ---- job loader + renderer -----------------------------------------------
+
+async function loadJob(id) {
+  const res = await fetch('/jobs/' + id);
+  if (!res.ok) {
+    document.getElementById('viewer').innerHTML = '<div class="panel empty">job not found</div>';
+    return;
+  }
+  const job = await res.json();
+  activeJobId = job.id;
+  // Seed the editor state from this job's stored spec. A deep clone keeps
+  // the viewer's display from reflecting mid-edit mutations.
+  currentSpec = JSON.parse(JSON.stringify(job.styleSpec || {}));
+  currentTemplateId = job.templateId || 'pop-words';
+  currentFrameSec = 0;
+  renderViewer(job);
+}
+
+function renderProgressPanel(progress) {
+  if (!progress) return '';
+  const elapsed = Math.max(0, Math.floor(
+    (Date.now() - new Date(progress.startedAt).getTime()) / 1000,
+  ));
+  const stats = [];
+  if (progress.framesRendered != null && progress.totalFrames) {
+    stats.push(`<span>${progress.framesRendered}/${progress.totalFrames} frames rendered</span>`);
+  } else if (progress.framesRendered != null) {
+    stats.push(`<span>${progress.framesRendered} frames rendered</span>`);
+  }
+  if (progress.framesEncoded != null && progress.framesEncoded > 0) {
+    stats.push(`<span>${progress.framesEncoded} encoded</span>`);
+  }
+  if (progress.mode === 'lambda' && progress.lambdasInvoked != null) {
+    const total = progress.totalChunks ? `/${progress.totalChunks}` : '';
+    stats.push(`<span>${progress.lambdasInvoked}${total} lambdas invoked</span>`);
+  }
+  stats.push(`<span>${elapsed}s elapsed</span>`);
+
+  let chunkGrid = '';
+  if (progress.mode === 'lambda' && progress.totalChunks) {
+    const cells = [];
+    const invoked = Math.min(progress.lambdasInvoked ?? 0, progress.totalChunks);
+    const done = Math.floor((progress.percent / 100) * progress.totalChunks);
+    for (let i = 0; i < progress.totalChunks; i++) {
+      let cls = '';
+      if (i < done) cls = 'done';
+      else if (i < invoked) cls = 'invoked';
+      cells.push(`<div class="chunk-cell ${cls}"></div>`);
+    }
+    chunkGrid = `<div class="chunk-grid">${cells.join('')}</div>`;
+  }
+
+  return `
+    <div class="panel">
+      <h2>render progress · ${escapeHtml(progress.mode)}</h2>
+      <div class="progress-row">
+        <div class="progress-bar"><div class="progress-fill" style="width:${progress.percent}%"></div></div>
+        <div class="progress-percent">${progress.percent}%</div>
+      </div>
+      <div class="progress-stats">${stats.join('')}</div>
+      ${chunkGrid}
+    </div>
+  `;
+}
+
+// The editor HTML is static — we build it once per job load, wire bindings
+// inside wireEditorBindings, then sync form values from currentSpec.
+function renderEditorPanel(job) {
+  const duration = (job.transcript?.duration ?? 10).toFixed(1);
+  return `
+    <details class="editor" id="editor-panel">
+      <summary>style editor</summary>
+      <div class="editor-body">
+        <div class="generate-box">
+          <div class="label">generate from description</div>
+          <div class="generate-row">
+            <input
+              type="text"
+              id="generate-query"
+              placeholder="e.g. 'neon cyberpunk with pink #ff3366 emphasis and cyan glow'"
+            >
+            <button id="generate-btn">generate</button>
+          </div>
+          <div class="generate-notes" id="generate-notes"></div>
+        </div>
+        <div class="editor-form">
+          <details class="group" open>
+            <summary>template</summary>
+            <div class="fields">
+              <div class="row">
+                <label>template</label>
+                <select data-bind="_templateId">
+                  <option value="pop-words">pop-words</option>
+                  <option value="single-word">single-word</option>
+                  <option value="three-effects">three-effects</option>
+                  <option value="kinetic-burst">kinetic-burst</option>
+                </select>
+                <span></span>
+              </div>
+            </div>
+          </details>
+          <details class="group" open>
+            <summary>font</summary>
+            <div class="fields">
+              <div class="row">
+                <label>family</label>
+                <input type="text" data-bind="font.family" placeholder="Inter">
+                <span></span>
+              </div>
+              <div class="row">
+                <label>weight</label>
+                <input type="range" min="100" max="900" step="100" data-bind="font.weight" data-type="number" data-display="true">
+                <span class="value-display"></span>
+              </div>
+              <div class="row">
+                <label>size (px)</label>
+                <input type="range" min="24" max="160" step="2" data-bind="font.size" data-type="number" data-display="true">
+                <span class="value-display"></span>
+              </div>
+              <div class="row">
+                <label>letter spacing</label>
+                <input type="range" min="-10" max="10" step="0.5" data-bind="font.letterSpacing" data-type="number" data-display="true">
+                <span class="value-display"></span>
+              </div>
+              <div class="row">
+                <label>transform</label>
+                <select data-bind="font.textTransform">
+                  <option value="none">none</option>
+                  <option value="uppercase">uppercase</option>
+                  <option value="lowercase">lowercase</option>
+                </select>
+                <span></span>
+              </div>
+            </div>
+          </details>
+          <details class="group" open>
+            <summary>color</summary>
+            <div class="fields">
+              <div class="row">
+                <label>fill</label>
+                <input type="color" data-bind="color.fill">
+                <span></span>
+              </div>
+              <div class="row">
+                <label>stroke</label>
+                <input type="color" data-bind="color.stroke">
+                <span></span>
+              </div>
+              <div class="row">
+                <label>stroke width</label>
+                <input type="range" min="0" max="24" step="1" data-bind="color.strokeWidth" data-type="number" data-display="true">
+                <span class="value-display"></span>
+              </div>
+              <div class="row">
+                <label>emphasis</label>
+                <input type="color" data-bind="color.emphasisFill">
+                <span></span>
+              </div>
+              <div class="row">
+                <label>background</label>
+                <input type="color" data-bind="color.background">
+                <span></span>
+              </div>
+            </div>
+          </details>
+          <details class="group">
+            <summary>layout</summary>
+            <div class="fields">
+              <div class="row">
+                <label>position</label>
+                <select data-bind="layout.position">
+                  <option value="top">top</option>
+                  <option value="middle">middle</option>
+                  <option value="bottom">bottom</option>
+                </select>
+                <span></span>
+              </div>
+              <div class="row">
+                <label>safe margin</label>
+                <input type="range" min="0" max="0.5" step="0.01" data-bind="layout.safeMargin" data-type="number" data-display="true">
+                <span class="value-display"></span>
+              </div>
+              <div class="row">
+                <label>words/line</label>
+                <input type="range" min="1" max="8" step="1" data-bind="layout.maxWordsPerLine" data-type="number" data-display="true">
+                <span class="value-display"></span>
+              </div>
+              <div class="row">
+                <label>align</label>
+                <select data-bind="layout.align">
+                  <option value="left">left</option>
+                  <option value="center">center</option>
+                  <option value="right">right</option>
+                </select>
+                <span></span>
+              </div>
+              <div class="row">
+                <label>border radius</label>
+                <input type="range" min="0" max="48" step="1" data-bind="layout.borderRadius" data-type="number" data-display="true">
+                <span class="value-display"></span>
+              </div>
+              <div class="row">
+                <label>gap ratio</label>
+                <input type="range" min="0" max="1" step="0.05" data-bind="layout.gapRatio" data-type="number" data-display="true">
+                <span class="value-display"></span>
+              </div>
+            </div>
+          </details>
+          <details class="group">
+            <summary>animation</summary>
+            <div class="fields">
+              <div class="row">
+                <label>preset</label>
+                <select data-bind="animation.preset">
+                  <option value="pop">pop</option>
+                  <option value="fade">fade</option>
+                  <option value="karaoke">karaoke</option>
+                  <option value="typewriter">typewriter</option>
+                  <option value="slide">slide</option>
+                </select>
+                <span></span>
+              </div>
+              <div class="row">
+                <label>duration (ms)</label>
+                <input type="range" min="40" max="600" step="10" data-bind="animation.durationMs" data-type="number" data-display="true">
+                <span class="value-display"></span>
+              </div>
+              <div class="row">
+                <label>emph. scale</label>
+                <input type="range" min="1" max="2.5" step="0.05" data-bind="animation.emphasisScale" data-type="number" data-display="true">
+                <span class="value-display"></span>
+              </div>
+              <div class="row">
+                <label>scale from</label>
+                <input type="range" min="0" max="1" step="0.05" data-bind="animation.scaleFrom" data-type="number" data-display="true">
+                <span class="value-display"></span>
+              </div>
+              <div class="row">
+                <label>active boost</label>
+                <input type="range" min="1" max="1.3" step="0.02" data-bind="animation.activeBoost" data-type="number" data-display="true">
+                <span class="value-display"></span>
+              </div>
+              <div class="row">
+                <label>tail (ms)</label>
+                <input type="range" min="0" max="1000" step="10" data-bind="animation.tailMs" data-type="number" data-display="true">
+                <span class="value-display"></span>
+              </div>
+            </div>
+          </details>
+        </div>
+        <div class="editor-preview">
+          <div class="preview-img-wrap">
+            <img id="preview-img" alt="preview">
+            <div class="preview-loading" id="preview-loading">rendering…</div>
+          </div>
+          <div class="frame-row">
+            <span>frame</span>
+            <input type="range" id="frame-slider" min="0" max="${duration}" step="0.1" value="0">
+            <span id="frame-display" class="value-display">0.0s</span>
+          </div>
+          <div class="editor-actions">
+            <button class="btn-secondary" id="save-preset-btn">save preset</button>
+            <button class="btn-primary" id="render-full-btn">render job</button>
+          </div>
+        </div>
+      </div>
+    </details>
+  `;
+}
+
+function renderViewer(job) {
+  const viewer = document.getElementById('viewer');
+
+  const transcript = typeof job.transcript === 'string' ? JSON.parse(job.transcript) : job.transcript;
+  const plan = typeof job.captionPlan === 'string' ? JSON.parse(job.captionPlan) : job.captionPlan;
+  const faces = typeof job.faces === 'string' ? JSON.parse(job.faces) : job.faces;
+  const progress = typeof job.progress === 'string' ? JSON.parse(job.progress) : job.progress;
+
+  const stageRows = [
+    { name: 'transcript', present: !!transcript },
+    { name: 'caption plan', present: !!plan },
+    { name: 'faces', present: !!faces },
+  ];
+  const stageHtml = stageRows.map(s =>
+    `<span class="stage-pill ${s.present ? '' : 'missing'}">${s.name}${s.present ? '' : ' missing'}</span>`
+  ).join('');
+
+  const meta = `
+    <div class="meta">
+      <div><b>${escapeHtml(job.id)}</b></div>
+      <div>status: <code>${escapeHtml(job.status)}</code>${job.stage ? ' · stage: <code>' + escapeHtml(job.stage) + '</code>' : ''}</div>
+      <div>template: <code>${escapeHtml(job.templateId)}</code></div>
+      <div>created: ${escapeHtml(job.createdAt || '')}</div>
+      <div class="stage-row">${stageHtml}</div>
+    </div>
+  `;
+
+  let chunksHtml = '';
+  if (plan && plan.chunks && plan.chunks.length) {
+    chunksHtml = plan.chunks.map((c, i) => {
+      const start = c.words[0]?.start ?? 0;
+      const end = c.words[c.words.length - 1]?.end ?? 0;
+      const wordsHtml = c.words.map((w, wi) => {
+        const isEm = c.emphasis[wi];
+        return `<span class="word ${isEm ? 'emphasis' : ''}">${escapeHtml(w.word)}</span>`;
+      }).join(' ');
+      return `<div class="chunk" data-time="${start}" data-chunk-idx="${i}">
+        <div class="chunk-time">chunk ${i} · ${start.toFixed(2)}s – ${end.toFixed(2)}s</div>
+        <div>${wordsHtml}</div>
+      </div>`;
+    }).join('');
+  } else if (transcript && transcript.words && transcript.words.length) {
+    const text = transcript.words.map(w => escapeHtml(w.word)).join(' ');
+    chunksHtml = `<div class="empty">no caption plan — fixed-N fallback used</div>
+      <div style="margin-top:8px;font-size:13px;color:var(--text-dim);">${text}</div>`;
+  } else {
+    chunksHtml = '<div class="empty">no transcript yet</div>';
+  }
+
+  const videoSrc = job.status === 'done' ? `/jobs/${job.id}/output` : null;
+  const planTitle = plan && plan.chunks ? `caption plan (${plan.chunks.length} chunks)` : 'caption plan';
+
+  // Editor is only meaningful on jobs that have at least a transcript —
+  // no transcript means renderStill can't run. Hide it in that case.
+  const editorHtml = transcript ? renderEditorPanel(job) : '';
+
+  viewer.innerHTML = `
+    <div class="panel">${meta}</div>
+    ${renderProgressPanel(progress)}
+    ${editorHtml}
+    ${videoSrc
+      ? `<div class="panel"><video controls src="${videoSrc}" id="player"></video></div>`
+      : `<div class="panel empty">job is <code>${escapeHtml(job.status)}</code> — no video yet</div>`}
+    <div class="panel">
+      <h2>${planTitle}</h2>
+      <div class="chunks">${chunksHtml}</div>
+    </div>
+  `;
+
+  // Chunk click-to-seek for the main video player.
+  const player = document.getElementById('player');
+  if (player) {
+    document.querySelectorAll('.chunk').forEach(el => {
+      el.addEventListener('click', () => {
+        const t = parseFloat(el.dataset.time);
+        if (!Number.isNaN(t)) {
+          player.currentTime = t;
+          player.play();
+        }
+      });
+    });
+    player.addEventListener('timeupdate', () => {
+      if (!plan || !plan.chunks) return;
+      const t = player.currentTime;
+      let activeIdx = -1;
+      for (let i = 0; i < plan.chunks.length; i++) {
+        const c = plan.chunks[i];
+        const start = c.words[0]?.start ?? 0;
+        const end = c.words[c.words.length - 1]?.end ?? 0;
+        if (t >= start && t <= end + 0.2) { activeIdx = i; break; }
+      }
+      document.querySelectorAll('.chunk').forEach((el, i) => {
+        el.classList.toggle('active', i === activeIdx);
+      });
+    });
+  }
+
+  // Wire the editor form bindings (only present if transcript exists).
+  if (editorHtml) {
+    wireEditorBindings();
+    syncFormFromSpec();
+    // Fire one preview immediately so the user sees what their current
+    // stored spec looks like at frame 0.
+    schedulePreview();
+  }
+}
+
+// ---- editor bindings -----------------------------------------------------
+
+function wireEditorBindings() {
+  document.querySelectorAll('[data-bind]').forEach(el => {
+    const path = el.dataset.bind;
+    const type = el.dataset.type || 'string';
+    const display = el.dataset.display === 'true';
+    const handler = () => {
+      const val = coerce(el.value, type);
+      if (path === '_templateId') {
+        currentTemplateId = val;
+      } else {
+        setPath(currentSpec, path, val);
+      }
+      if (display) {
+        const sibling = el.parentElement?.querySelector('.value-display');
+        if (sibling) sibling.textContent = String(val);
+      }
+      schedulePreview();
+    };
+    el.addEventListener('input', handler);
+    el.addEventListener('change', handler);
+  });
+
+  const frameSlider = document.getElementById('frame-slider');
+  if (frameSlider) {
+    frameSlider.addEventListener('input', () => {
+      currentFrameSec = Number(frameSlider.value);
+      const disp = document.getElementById('frame-display');
+      if (disp) disp.textContent = currentFrameSec.toFixed(1) + 's';
+      schedulePreview();
+    });
+  }
+
+  const saveBtn = document.getElementById('save-preset-btn');
+  if (saveBtn) saveBtn.addEventListener('click', savePreset);
+  const renderBtn = document.getElementById('render-full-btn');
+  if (renderBtn) renderBtn.addEventListener('click', submitRenderJob);
+
+  // Natural-language style generation — fires POST /style/generate with
+  // the current spec as context so the LLM can do incremental edits.
+  const genBtn = document.getElementById('generate-btn');
+  const genInput = document.getElementById('generate-query');
+  if (genBtn) genBtn.addEventListener('click', handleGenerate);
+  if (genInput) {
+    genInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleGenerate();
+      }
+    });
+  }
+}
+
+async function handleGenerate() {
+  const genBtn = document.getElementById('generate-btn');
+  const genInput = document.getElementById('generate-query');
+  const genNotes = document.getElementById('generate-notes');
+  if (!genBtn || !genInput || !genNotes) return;
+  const query = genInput.value.trim();
+  if (!query) return;
+
+  genBtn.disabled = true;
+  const origLabel = genBtn.textContent;
+  genBtn.textContent = 'thinking…';
+  genNotes.className = 'generate-notes';
+  genNotes.textContent = '';
+
+  try {
+    const res = await fetch('/style/generate', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        query,
+        currentSpec,
+        templateId: currentTemplateId,
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      genNotes.className = 'generate-notes error';
+      genNotes.textContent = err.message || err.error || ('HTTP ' + res.status);
+      return;
+    }
+    const data = await res.json();
+    // Replace the editor state with the generated spec. The LLM merged
+    // its changes server-side so data.styleSpec is the final merged
+    // result, not just the deltas.
+    currentSpec = data.styleSpec;
+    currentTemplateId = data.templateId || currentTemplateId;
+    // Re-open the editor if the user had collapsed it.
+    const panel = document.getElementById('editor-panel');
+    if (panel && !panel.open) panel.open = true;
+    syncFormFromSpec();
+    schedulePreview();
+    genNotes.className = 'generate-notes success';
+    genNotes.textContent = data.notes || 'applied';
+  } catch (err) {
+    genNotes.className = 'generate-notes error';
+    genNotes.textContent = String(err.message || err);
+  } finally {
+    genBtn.disabled = false;
+    genBtn.textContent = origLabel;
+  }
+}
+
+function syncFormFromSpec() {
+  document.querySelectorAll('[data-bind]').forEach(el => {
+    const path = el.dataset.bind;
+    if (path === '_templateId') {
+      el.value = currentTemplateId;
+      return;
+    }
+    const val = getPath(currentSpec, path);
+    if (val === undefined) return;
+    if (el.type === 'color') {
+      // Color inputs only accept 6-char hex; strip any alpha suffix.
+      el.value = String(val).slice(0, 7);
+    } else {
+      el.value = val;
+    }
+    if (el.dataset.display === 'true') {
+      const sibling = el.parentElement?.querySelector('.value-display');
+      if (sibling) sibling.textContent = String(val);
+    }
+  });
+}
+
+function schedulePreview() {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(fetchPreview, 500);
+}
+
+async function fetchPreview() {
+  if (!activeJobId) return;
+  const img = document.getElementById('preview-img');
+  const loading = document.getElementById('preview-loading');
+  if (!img) return;
+  // If a fetch is in flight, abort it — no point waiting for a stale frame
+  // when the user is mid-drag.
+  if (previewInFlight) previewInFlight.abort();
+  const controller = new AbortController();
+  previewInFlight = controller;
+  if (loading) loading.classList.add('active');
+  try {
+    const res = await fetch(`/jobs/${activeJobId}/preview`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        styleSpec: currentSpec,
+        templateId: currentTemplateId,
+        frameSec: currentFrameSec,
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      console.error('preview failed:', res.status);
+      if (loading) loading.textContent = 'preview failed (' + res.status + ')';
+      return;
+    }
+    const blob = await res.blob();
+    if (img.dataset.url) URL.revokeObjectURL(img.dataset.url);
+    const url = URL.createObjectURL(blob);
+    img.src = url;
+    img.dataset.url = url;
+    if (loading) loading.textContent = 'rendering…';
+  } catch (err) {
+    if (err.name === 'AbortError') return;
+    console.error('preview error:', err);
+    if (loading) loading.textContent = 'error: ' + err.message;
+  } finally {
+    if (previewInFlight === controller) previewInFlight = null;
+    if (loading) loading.classList.remove('active');
+  }
+}
+
+function applyPresetToEditor(preset) {
+  currentSpec = JSON.parse(JSON.stringify(preset.styleSpec || {}));
+  currentTemplateId = preset.templateId || 'pop-words';
+  // Open the editor if it's currently collapsed so the user sees the change.
+  const panel = document.getElementById('editor-panel');
+  if (panel && !panel.open) panel.open = true;
+  syncFormFromSpec();
+  schedulePreview();
+}
+
+async function submitRenderJob() {
+  if (!activeJobId) return;
+  const form = new FormData();
+  form.append('sourceJobId', activeJobId);
+  form.append('templateId', currentTemplateId);
+  form.append('styleSpec', JSON.stringify(currentSpec));
+  const res = await fetch('/jobs', { method: 'POST', body: form });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert('job submit failed: ' + (err.error || res.status));
+    return;
+  }
+  const job = await res.json();
+  location.href = '/?id=' + job.id;
+}
+
+async function savePreset() {
+  const id = prompt('preset id (lowercase, no spaces)');
+  if (!id) return;
+  const name = prompt('display name');
+  if (!name) return;
+  const description = prompt('description (optional)') || '';
+  const res = await fetch('/presets', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      id: id.trim(),
+      name: name.trim(),
+      description,
+      templateId: currentTemplateId,
+      styleSpec: currentSpec,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    alert('save failed: ' + (err.error || res.status));
+    return;
+  }
+  await loadPresets();
+}
+
+// ---- init ---------------------------------------------------------------
+
+loadJobs();
+loadPresets();
+if (selectedId) loadJob(selectedId);
+
+// Light auto-refresh: while viewing a non-terminal job, poll its status
+// every 2 seconds so the UI updates as the worker progresses through stages.
+if (selectedId) {
+  setInterval(async () => {
+    const res = await fetch('/jobs/' + selectedId);
+    if (!res.ok) return;
+    const job = await res.json();
+    // Only re-render the viewer if the job isn't already being edited (the
+    // editor <details> would lose its open state otherwise). We re-render
+    // when the job state actually changes materially.
+    renderViewer(job);
+  }, 2000);
+}
+</script>
+</body>
+</html>

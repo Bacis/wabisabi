@@ -1,0 +1,9 @@
+node_modules/
+remotion/node_modules/
+.venv/
+storage/
+dist/
+.git/
+.env
+*.md
+.claude/

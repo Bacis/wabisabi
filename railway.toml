@@ -1,0 +1,20 @@
+[build]
+builder = "dockerfile"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "sh scripts/start.sh"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+# Persistent volume for the SQLite queue, in-flight job work/ dirs, and the
+# TTS cache. Finished render outputs live on S3 (RENDER_MODE=lambda + S3
+# lifecycle rules in src/lib/s3Outputs.ts), and the HuggingFace model
+# cache lives in the image layer (HF_HOME=/opt/hf-cache in Dockerfile),
+# so this volume stays small. 5 GB comfortably holds the DB + peak
+# concurrent job working-set.
+[[deploy.volumes]]
+mountPath = "/app/storage"
+sizeMB = 5000
