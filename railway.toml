@@ -5,7 +5,13 @@ dockerfilePath = "Dockerfile"
 [deploy]
 startCommand = "sh scripts/start.sh"
 healthcheckPath = "/health"
-healthcheckTimeout = 30
+# 300s is generous but the container boots 4 Node processes via tsx (on-
+# the-fly TS transpile) plus the producer worker lazily deploys a
+# Remotion Lambda function on first boot (60-90s to tarball + upload).
+# The API process itself is ready in a few seconds on a healthy run; the
+# extra budget just keeps us from failing on a cold machine or an AWS
+# region blip during the Lambda bootstrap.
+healthcheckTimeout = 300
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 3
 
