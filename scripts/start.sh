@@ -26,11 +26,16 @@ if [ -n "$TELEGRAM_BOT_TOKEN" ]; then
 fi
 
 # Forward termination signals so Railway's graceful shutdown works.
+# NOTE: use bare signal names (TERM INT, not SIGTERM SIGINT) — dash (the
+# /bin/sh on Debian slim) rejects the SIG prefix with "bad trap" and, under
+# `set -e` above, that failure kills the script and terminates every
+# process we just launched. Bash accepts both forms, dash only accepts the
+# bare form, so bare is the portable choice.
 cleanup() {
   kill "$WORKER_PID" "$PRODUCER_PID" "$API_PID" ${TELEGRAM_PID:-} 2>/dev/null || true
   wait "$WORKER_PID" "$PRODUCER_PID" "$API_PID" ${TELEGRAM_PID:-} 2>/dev/null || true
 }
-trap cleanup SIGTERM SIGINT
+trap cleanup TERM INT
 
 # Wait for any process to exit. If one dies, bring down the others so
 # Railway restarts the whole container.
