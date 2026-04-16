@@ -99,6 +99,18 @@ export async function renderProductionLambda(
       narrationUrl = await uploadAndSign(args.narrationPath, 'narration');
     }
 
+    // Optional split-screen background clip. Uploaded once per render and
+    // Looped inside each speaker clip — the S3 key is pushed into
+    // stagedKeys by uploadAndSign() so the finally block cleans it up.
+    let backgroundVideo: { src: string; durationInFrames: number } | null = null;
+    if (args.brainRotClipPath && args.brainRotDurationSec) {
+      const url = await uploadAndSign(args.brainRotClipPath, 'brainrot');
+      backgroundVideo = {
+        src: url,
+        durationInFrames: Math.max(1, Math.ceil(args.brainRotDurationSec * FPS)),
+      };
+    }
+
     const totalFrames = Math.max(
       1,
       clips.reduce((s, c) => s + c.durationInFrames, 0),
@@ -125,6 +137,7 @@ export async function renderProductionLambda(
         fps: FPS,
       },
       styleSpec: args.styleSpec,
+      backgroundVideo,
     };
 
     // Durable output key — outputPath looks like ".../storage/productions/<id>/output/<id>.mp4";

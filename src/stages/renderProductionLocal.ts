@@ -71,6 +71,18 @@ export async function renderProductionLocal(
       narrationBasename = await stage(args.narrationPath, 'narration');
     }
 
+    // Optional split-screen background clip. The composition Loops this to
+    // fill each speaker clip's duration, so we only need to stage it once
+    // regardless of how many speaker clips are in the timeline.
+    let backgroundVideo: { src: string; durationInFrames: number } | null = null;
+    if (args.brainRotClipPath && args.brainRotDurationSec) {
+      const brainRotBasename = await stage(args.brainRotClipPath, 'brainrot');
+      backgroundVideo = {
+        src: brainRotBasename,
+        durationInFrames: Math.max(1, Math.ceil(args.brainRotDurationSec * FPS)),
+      };
+    }
+
     const totalFrames = Math.max(
       1,
       clips.reduce((s, c) => s + c.durationInFrames, 0),
@@ -98,6 +110,7 @@ export async function renderProductionLocal(
         fps: FPS,
       },
       styleSpec: args.styleSpec,
+      backgroundVideo,
     };
 
     const startedAt = new Date().toISOString();
