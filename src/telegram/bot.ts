@@ -127,6 +127,75 @@ function flushBuffer(key: string): void {
   });
 }
 
+// ---------- Text messages (no media) -----------------------------------------
+//
+// Runs after the media handler for text-only messages that fell through. If
+// the bot is @mentioned we always reply so users don't get silent-treatment
+// from a tag. `--help` / plain "help" / a bare @mention → full HELP_TEXT;
+// anything else → a short nudge to attach media.
+bot.on('text', async (ctx) => {
+  const botUsername = ctx.botInfo?.username;
+  if (!botUsername) return;
+
+  const msg = ctx.message;
+  const text = msg.text ?? '';
+  const entities = msg.entities ?? [];
+  if (!isBotMentioned(text, entities, botUsername)) return;
+
+  const cleaned = stripMentions(text, entities).trim();
+  console.log(
+    `[telegram] text-mention from=${ctx.from?.username ?? ctx.from?.id} cleaned="${cleaned.slice(0, 80)}"`,
+  );
+
+  const parsed = parseCaption(cleaned);
+  const asksForHelp =
+    parsed.help || cleaned.length === 0 || /\bhelp\b/i.test(cleaned);
+
+  const replyOpts = {
+    parse_mode: 'Markdown' as const,
+    reply_parameters: { message_id: msg.message_id },
+  };
+
+  if (asksForHelp) {
+    await ctx.reply(HELP_TEXT, replyOpts).catch((err) => {
+      console.error('[telegram] text-help reply failed:', err);
+    });
+    return;
+  }
+
+  // They tagged the bot with a real message but no media — tell them how to
+  // actually kick off a render. Surface any parse errors too so typo'd flags
+  // aren't silently eaten.
+  const errPrefix =
+    parsed.errors.length > 0 ? `⚠️ ${parsed.errors.join('\n')}\n\n` : '';
+  await ctx
+    .reply(
+      `${errPrefix}Attach a photo or video with your @mention to start a render. Type \`/help\` for all controls.`,
+      replyOpts,
+    )
+    .catch((err) => {
+      console.error('[telegram] text-nudge reply failed:', err);
+    });
+});
+
+// Returns true if `text` contains an @mention of `botUsername` among its
+// entities. Works for text messages (entities) — use findBotMention for
+// media captions (caption_entities).
+function isBotMentioned(
+  text: string,
+  entities: MessageEntity[],
+  botUsername: string,
+): boolean {
+  const target = `@${botUsername}`.toLowerCase();
+  for (const ent of entities) {
+    if (ent.type !== 'mention') continue;
+    if (text.slice(ent.offset, ent.offset + ent.length).toLowerCase() === target) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // ---------- Dispatch: one album → one /productions job -----------------------
 
 // Captured submitter info so we can tag them back in the final reply even
