@@ -18,6 +18,7 @@
 
 import { Telegraf, Input, type Context } from 'telegraf';
 import type { Message, MessageEntity, PhotoSize } from 'telegraf/types';
+import { parseCaption, HELP_TEXT } from './flags.js';
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 if (!token) {
@@ -35,6 +36,15 @@ const ALBUM_DEBOUNCE_MS = 1500;
 // process. We run polling that lasts up to 20 minutes after each
 // submission, so we disable the timeout and rely on our own deadline.
 export const bot = new Telegraf(token, { handlerTimeout: Infinity });
+
+// Standalone /help: lets users discover flags without having to attach
+// media. Works in DMs and groups (Telegraf routes `/help` and
+// `/help@botname` to the same handler).
+bot.command('help', async (ctx) => {
+  await ctx.reply(HELP_TEXT, { parse_mode: 'Markdown' }).catch((err) => {
+    console.error('[telegram] /help reply failed:', err);
+  });
+});
 
 // ---------- Album debouncer --------------------------------------------------
 //
@@ -164,9 +174,38 @@ async function dispatch(ctx: Context, items: MediaMessage[]): Promise<void> {
     );
     return;
   }
-  const prompt = stripMentions(mention.caption, mention.entities).trim();
+  const raw = stripMentions(mention.caption, mention.entities).trim();
+  const parsed = parseCaption(raw);
+
+  // --help wins over everything else. Reply to the message that triggered
+  // the help request so the user sees the context they asked from.
+  if (parsed.help) {
+    const firstId = items[0]?.message_id;
+    await ctx.reply(HELP_TEXT, {
+      parse_mode: 'Markdown',
+      ...(firstId !== undefined ? { reply_parameters: { message_id: firstId } } : {}),
+    });
+    return;
+  }
+
+  // Bad flag → reply inline, do not queue. Cheap to retry.
+  if (parsed.errors.length > 0) {
+    const firstId = items[0]?.message_id;
+    await ctx.reply(
+      `⚠️ ${parsed.errors.join('\n')}\n\nTry \`/help\` to see available flags.`,
+      {
+        parse_mode: 'Markdown',
+        ...(firstId !== undefined ? { reply_parameters: { message_id: firstId } } : {}),
+      },
+    );
+    return;
+  }
+
+  const prompt = parsed.prompt;
+  const extraFields = parsed.fields;
   console.log(
-    `[telegram] dispatching: ${items.length} item(s), prompt="${prompt.slice(0, 80)}"`,
+    `[telegram] dispatching: ${items.length} item(s), prompt="${prompt.slice(0, 80)}" ` +
+      `flags=${Object.keys(extraFields).join(',') || '-'}`,
   );
 
   // Reject unsupported kinds before downloading anything.
@@ -201,7 +240,7 @@ async function dispatch(ctx: Context, items: MediaMessage[]): Promise<void> {
 
     // Post to /productions. Submitter info travels with the request so the
     // producer pipeline can do per-user hook rotation.
-    const submit = await submitProduction(files, prompt, submitter);
+    const submit = await submitProduction(files, prompt, submitter, extraFields);
     if (!submit.ok) {
       await ctx.reply(`⚠️ Failed to queue render: ${submit.error}`);
       return;
@@ -210,8 +249,9 @@ async function dispatch(ctx: Context, items: MediaMessage[]): Promise<void> {
     // capSeconds here is the user's upper bound, not the actual output
     // length — phrase it as such so the ack doesn't lie.
     const assetWord = submit.assetCount === 1 ? 'file' : 'files';
+    const flagsNote = describeFlags(extraFields);
     const statusMsg = await ctx.reply(
-      `🎬 Got it — rendering your video from ${submit.assetCount} ${assetWord} (up to ${submit.capSeconds}s). Job \`${submit.id}\`.`,
+      `🎬 Got it — rendering your video from ${submit.assetCount} ${assetWord} (up to ${submit.capSeconds}s)${flagsNote}. Job \`${submit.id}\`.`,
       { parse_mode: 'Markdown' },
     );
     statusMsgId = statusMsg.message_id;
@@ -410,6 +450,7 @@ async function submitProduction(
   files: DownloadedFile[],
   prompt: string,
   submitter: Submitter | null,
+  extraFields: Record<string, string>,
 ): Promise<SubmitResult> {
   const form = new FormData();
   for (const f of files) {
@@ -424,6 +465,12 @@ async function submitProduction(
   if (submitter) {
     form.append('userId', String(submitter.id));
     if (submitter.username) form.append('username', submitter.username);
+  }
+  // Parsed flags (voiceId / presetId / capSeconds / styleSpec). The API
+  // validates each — we trust it to reject invalid combinations instead
+  // of re-checking client-side.
+  for (const [k, v] of Object.entries(extraFields)) {
+    form.append(k, v);
   }
 
   const res = await fetch(`${API_BASE}/productions`, { method: 'POST', body: form });
@@ -610,6 +657,17 @@ function fmtDuration(sec: number): string {
 // Turn 'Kid-Blast-Hook.mp4' into 'Kid Blast Hook' for a friendlier caption.
 function prettyHookName(basename: string): string {
   return basename.replace(/\.(mp4|mov|m4v|webm)$/i, '').replace(/[-_]+/g, ' ');
+}
+
+// Short human summary of the non-default knobs the user chose, appended
+// to the "got it" ack so the parse is visible. Empty string when no
+// flags were set so the ack reads the same as before.
+function describeFlags(fields: Record<string, string>): string {
+  const parts: string[] = [];
+  if (fields.presetId) parts.push(`preset=${fields.presetId}`);
+  if (fields.voiceId) parts.push('voice=custom');
+  if (fields.styleSpec) parts.push('style=custom');
+  return parts.length > 0 ? ` · ${parts.join(', ')}` : '';
 }
 
 // ---------- Sending the finished video ---------------------------------------
