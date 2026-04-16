@@ -61,6 +61,15 @@ WORKDIR /app
 
 # Copy Python venv from stage 1
 COPY --from=python-deps /opt/venv /opt/venv
+# The venv's /opt/venv/bin/python is a symlink to /usr/local/bin/python
+# (the interpreter from the python:3.11-slim-bookworm builder stage).
+# node:20-bookworm-slim doesn't ship Python at /usr/local/bin, so that
+# symlink dangles and `spawn /opt/venv/bin/python` returns ENOENT,
+# silently failing the transcribe/diarize/detectFaces sidecars and
+# cascading into narrated_story misclassification. apt-installed
+# /usr/bin/python3 on bookworm is 3.11.x — ABI-compatible with the
+# venv's site-packages layout — so we just fix the dangling target.
+RUN ln -sf /usr/bin/python3 /usr/local/bin/python
 ENV PATH="/opt/venv/bin:$PATH"
 
 # Copy node_modules from stage 2
