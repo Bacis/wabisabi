@@ -524,7 +524,15 @@ export async function runProductionPipeline(prodId: string): Promise<void> {
   if (plan.mode === 'narrated_story') {
     if (!row.presetId) {
       const storyBase = pickStoryPreset(prodId);
+      // Replacement (not merge) is deliberate — see block comment above.
+      // BUT carry opt-in structural flags from the user's submitted spec
+      // across the replacement, otherwise e.g. `--brainrot` is silently
+      // swallowed whenever the video classifies as narrated_story.
+      const carryOver = (styleSpec as { splitScreen?: unknown }).splitScreen;
       styleSpec = storyBase;
+      if (carryOver) {
+        (styleSpec as Record<string, unknown>).splitScreen = carryOver;
+      }
     }
     // Rotate animation presets across chunks so no two consecutive
     // captions pop in the same way. When enrichTranscript succeeds we know

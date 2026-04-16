@@ -12,7 +12,9 @@
     "start:api": "node --import tsx/esm src/api/server.ts",
     "start:worker": "node --import tsx/esm src/worker/index.ts",
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "brain-rot:upload": "tsx scripts/uploadBrainRot.ts",
+    "brain-rot:list": "tsx scripts/uploadBrainRot.ts --list"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",

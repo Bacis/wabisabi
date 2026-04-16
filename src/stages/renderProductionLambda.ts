@@ -99,14 +99,23 @@ export async function renderProductionLambda(
       narrationUrl = await uploadAndSign(args.narrationPath, 'narration');
     }
 
-    // Optional split-screen background clip. Uploaded once per render and
-    // Looped inside each speaker clip — the S3 key is pushed into
-    // stagedKeys by uploadAndSign() so the finally block cleans it up.
+    // Optional split-screen background clip. Two sources:
+    //
+    //   * HTTPS URL — the pipeline already fetched a presigned link from
+    //     the permanent brain-rot/ prefix in our bucket. Pass through
+    //     unchanged; no re-upload, no cleanup (those objects are library
+    //     assets owned by scripts/uploadBrainRot.ts, not per-render).
+    //
+    //   * Local path — dev-mode override. Upload-and-sign it like the
+    //     clips; stagedKeys pushes the key so the finally block cleans
+    //     it up.
     let backgroundVideo: { src: string; durationInFrames: number } | null = null;
     if (args.brainRotClipPath && args.brainRotDurationSec) {
-      const url = await uploadAndSign(args.brainRotClipPath, 'brainrot');
+      const src = args.brainRotClipPath.startsWith('http')
+        ? args.brainRotClipPath
+        : await uploadAndSign(args.brainRotClipPath, 'brainrot');
       backgroundVideo = {
-        src: url,
+        src,
         durationInFrames: Math.max(1, Math.ceil(args.brainRotDurationSec * FPS)),
       };
     }
