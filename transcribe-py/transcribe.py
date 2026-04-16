@@ -70,7 +70,19 @@ def main() -> None:
         {"start": float(s.start), "end": float(s.end), "text": s.text}
         for s in segments_iter
     ]
-    log(f"transcribed {len(segments)} segments, language={info.language}")
+    total_seg_text_chars = sum(len(s["text"]) for s in segments)
+    log(
+        f"transcribed {len(segments)} segments, language={info.language}, "
+        f"lang_probability={getattr(info, 'language_probability', 'n/a')}, "
+        f"audio_duration={info.duration:.2f}s, "
+        f"total_segment_chars={total_seg_text_chars}"
+    )
+    if len(segments) == 0:
+        log(
+            "WARN: faster-whisper returned zero segments — usually means the "
+            "VAD filter rejected the entire clip as non-speech. The Node "
+            "caller will retry with --no-vad next."
+        )
 
     log("loading alignment model...")
     align_model, metadata = whisperx.load_align_model(
@@ -88,12 +100,14 @@ def main() -> None:
     )
 
     words = []
+    skipped_unaligned = 0
     for seg in aligned.get("segments", []):
         for w in seg.get("words", []):
             if "start" not in w or "end" not in w:
                 # Words the aligner couldn't pin to the audio (rare,
                 # usually filler tokens). Skip — they would break the
                 # render timeline if we kept them with bogus timestamps.
+                skipped_unaligned += 1
                 continue
             words.append(
                 {
@@ -103,6 +117,16 @@ def main() -> None:
                     "confidence": float(w.get("score", 1.0)),
                 }
             )
+    if skipped_unaligned > 0:
+        log(
+            f"WARN: skipped {skipped_unaligned} word(s) with no alignment "
+            f"timestamps (whisperx drop)"
+        )
+    aligned_seg_count = len(aligned.get("segments", []))
+    log(
+        f"alignment: {aligned_seg_count} segments -> {len(words)} words "
+        f"({skipped_unaligned} skipped)"
+    )
 
     out = {
         "language": info.language,
