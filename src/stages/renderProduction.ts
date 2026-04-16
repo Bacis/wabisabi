@@ -17,6 +17,13 @@ export type ProductionRenderArgs = {
   // hook ends. Zero when no hook was prepended (empty hooks dir, etc.).
   hookDurationSec: number;
   styleSpec: StyleSpec;
+  // Optional split-screen background clip (brain-rot lower half). When null
+  // the composition renders every clip full-frame as before. Populated by
+  // the producer pipeline after consulting styleSpec.splitScreen.brainRot;
+  // if the library folder is empty the pipeline leaves these null and logs
+  // a warning so the render still succeeds.
+  brainRotClipPath?: string | null;
+  brainRotDurationSec?: number | null;
   outputPath: string;
   onProgress?: (progress: RenderProgress) => void;
 };

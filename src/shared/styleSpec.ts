@@ -132,6 +132,17 @@ export const StyleSpecSchema = z
         }),
       )
       .optional(),
+    // Optional structural overlays on top of the base clip rendering. Right
+    // now only `brainRot` exists — when true, the producer picks a random
+    // clip from /storage/brain-rot/ and the composition renders speaker
+    // clips as a vertical split (speaker top / brain-rot bottom, captions
+    // at the seam). Group (vs. bare boolean) leaves room for future split
+    // modes without another schema bump.
+    splitScreen: z
+      .object({
+        brainRot: z.boolean().default(false),
+      })
+      .default({}),
     animation: z
       .object({
         preset: z.enum(['pop', 'fade', 'karaoke', 'typewriter', 'slide']).default('pop'),

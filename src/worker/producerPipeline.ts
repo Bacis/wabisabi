@@ -1,5 +1,5 @@
 import { mkdir } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { db } from '../db.js';
 import {
   analyzeImageAsset,
@@ -13,6 +13,8 @@ import { narrate } from '../stages/narrate.js';
 import { enrichTranscript } from '../stages/enrichTranscript.js';
 import { pickHook } from '../stages/pickHook.js';
 import { renderProduction } from '../stages/renderProduction.js';
+import { ffprobe } from '../stages/ffprobe.js';
+import { pickRandomBrainRotClip } from '../shared/brainRotPool.js';
 import type {
   AssetAnalysis,
   CutTimelineEntry,
@@ -572,6 +574,28 @@ export async function runProductionPipeline(prodId: string): Promise<void> {
   const outputDir = join(STORAGE_DIR, 'productions', prodId, 'output');
   await mkdir(outputDir, { recursive: true });
   const hintedOutputPath = join(outputDir, `${prodId}.mp4`);
+
+  // Brain-rot split: pick one random clip per production (deterministic by
+  // prodId so reprocess reaches for the same file) and ffprobe it so the
+  // composition can Loop it across the whole output. Empty/missing library
+  // folder is a warning, not a hard error — the render proceeds full-frame.
+  let brainRotClipPath: string | null = null;
+  let brainRotDurationSec: number | null = null;
+  const splitSpec = (styleSpec as { splitScreen?: { brainRot?: boolean } }).splitScreen;
+  if (splitSpec?.brainRot) {
+    brainRotClipPath = await pickRandomBrainRotClip(prodId);
+    if (brainRotClipPath) {
+      brainRotDurationSec = (await ffprobe(brainRotClipPath)).duration;
+      console.log(
+        `[prod ${prodId}] brain-rot split enabled; clip=${basename(brainRotClipPath)} dur=${brainRotDurationSec.toFixed(2)}s`,
+      );
+    } else {
+      console.warn(
+        `[prod ${prodId}] splitScreen.brainRot=true but /storage/brain-rot/ is empty or missing — skipping effect`,
+      );
+    }
+  }
+
   const result = await renderProduction({
     timeline: enrichedCuts,
     narrationPath,
@@ -580,6 +604,8 @@ export async function runProductionPipeline(prodId: string): Promise<void> {
     narrationCaptionPlan,
     hookDurationSec: hookDurSec,
     styleSpec,
+    brainRotClipPath,
+    brainRotDurationSec,
     outputPath: hintedOutputPath,
     onProgress: (p) => {
       try {

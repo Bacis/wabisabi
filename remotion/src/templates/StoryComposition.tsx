@@ -3,6 +3,7 @@ import {
   AbsoluteFill,
   Audio,
   Img,
+  Loop,
   OffthreadVideo,
   Sequence,
   Series,
@@ -48,6 +49,11 @@ export type StoryProps = {
   hookDurationInFrames?: number;
   videoMeta: { width: number; height: number; durationInFrames: number; fps: number };
   styleSpec: StyleSpec;
+  // Split-screen background: when present, every speaker clip is rendered
+  // in the top half of the frame and this clip plays (muted, looped) in
+  // the bottom half, with captions pinned to the 50% seam. B-roll and
+  // image clips ignore this and stay full-frame.
+  backgroundVideo?: { src: string; durationInFrames: number } | null;
 };
 
 function resolveSrc(basenameOrUrl: string): string {
@@ -71,43 +77,94 @@ export const StoryComposition: React.FC<StoryProps> = ({
   narrationCaptionPlan,
   hookDurationInFrames = 0,
   styleSpec,
+  backgroundVideo,
 }) => {
   const hasNarrationCaptions =
     !!narrationTranscript && narrationTranscript.words.length > 0;
+  // When the split is active, captions sit at the 50% seam everywhere —
+  // both inside each speaker Sequence and on the global narration layer.
+  // We also force faces=null on the speaker layer so effectivePosition()
+  // can't flip captions away from the seam based on face detection.
+  const splitStyleSpec = backgroundVideo
+    ? { ...styleSpec, layout: { ...styleSpec.layout, position: 'middle' as const } }
+    : styleSpec;
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
       <Series>
-        {clips.map((clip, i) => (
-          <Series.Sequence key={i} durationInFrames={Math.max(1, clip.durationInFrames)}>
-            <AbsoluteFill>
-              {clip.kind === 'video' ? (
-                <OffthreadVideo
-                  src={resolveSrc(clip.fileBasename)}
-                  muted={!clip.keepAudio}
-                  startFrom={clip.startFromFrame ?? 0}
-                />
-              ) : (
-                <Img
-                  src={resolveSrc(clip.fileBasename)}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                />
-              )}
-              {clip.role === 'speaker' && clip.transcript && (
-                <CaptionLayer
-                  transcript={clip.transcript}
-                  captionPlan={clip.captionPlan ?? null}
-                  faces={clip.faces ?? null}
-                  styleSpec={styleSpec}
-                />
-              )}
-              {/* Title cards only when we DON'T have global narration
-                  captions — otherwise the two layers compete. */}
-              {clip.role !== 'speaker' && clip.caption && !hasNarrationCaptions && (
-                <TitleCard text={clip.caption} />
-              )}
-            </AbsoluteFill>
-          </Series.Sequence>
-        ))}
+        {clips.map((clip, i) => {
+          const isSplitSpeaker = backgroundVideo && clip.role === 'speaker';
+          return (
+            <Series.Sequence key={i} durationInFrames={Math.max(1, clip.durationInFrames)}>
+              <AbsoluteFill>
+                {isSplitSpeaker ? (
+                  <>
+                    {/* Top half: speaker, center-cropped into 1080x960. */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '50%',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <OffthreadVideo
+                        src={resolveSrc(clip.fileBasename)}
+                        muted={!clip.keepAudio}
+                        startFrom={clip.startFromFrame ?? 0}
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    </div>
+                    {/* Bottom half: brain-rot, muted, looped to fill. */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        width: '100%',
+                        height: '50%',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      <Loop durationInFrames={backgroundVideo!.durationInFrames}>
+                        <OffthreadVideo
+                          src={resolveSrc(backgroundVideo!.src)}
+                          muted
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      </Loop>
+                    </div>
+                  </>
+                ) : clip.kind === 'video' ? (
+                  <OffthreadVideo
+                    src={resolveSrc(clip.fileBasename)}
+                    muted={!clip.keepAudio}
+                    startFrom={clip.startFromFrame ?? 0}
+                  />
+                ) : (
+                  <Img
+                    src={resolveSrc(clip.fileBasename)}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                )}
+                {clip.role === 'speaker' && clip.transcript && (
+                  <CaptionLayer
+                    transcript={clip.transcript}
+                    captionPlan={clip.captionPlan ?? null}
+                    faces={isSplitSpeaker ? null : (clip.faces ?? null)}
+                    styleSpec={isSplitSpeaker ? splitStyleSpec : styleSpec}
+                  />
+                )}
+                {/* Title cards only when we DON'T have global narration
+                    captions — otherwise the two layers compete. */}
+                {clip.role !== 'speaker' && clip.caption && !hasNarrationCaptions && (
+                  <TitleCard text={clip.caption} />
+                )}
+              </AbsoluteFill>
+            </Series.Sequence>
+          );
+        })}
       </Series>
       {/* Global narration caption layer — sibling to Series, so
           useCurrentFrame here is the OUTPUT-timeline frame (not rebased
@@ -122,14 +179,14 @@ export const StoryComposition: React.FC<StoryProps> = ({
           <HopecoreCaptionLayer
             transcript={narrationTranscript!}
             captionPlan={narrationCaptionPlan ?? null}
-            styleSpec={styleSpec}
+            styleSpec={backgroundVideo ? splitStyleSpec : styleSpec}
           />
         ) : (
           <CaptionLayer
             transcript={narrationTranscript!}
             captionPlan={narrationCaptionPlan ?? null}
             faces={null}
-            styleSpec={styleSpec}
+            styleSpec={backgroundVideo ? splitStyleSpec : styleSpec}
           />
         )
       )}

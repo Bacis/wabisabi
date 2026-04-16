@@ -110,6 +110,14 @@ const storyPropsSchema = z.object({
     fps: z.number(),
   }),
   styleSpec: z.any(),
+  // Optional split-screen background clip. When set, speaker clips are
+  // rendered in the top half and this clip loops in the bottom half. `src`
+  // is a public/ basename (local mode) or an https URL (lambda mode), same
+  // convention as narrationFile.
+  backgroundVideo: z
+    .object({ src: z.string(), durationInFrames: z.number().int().positive() })
+    .nullable()
+    .optional(),
 });
 
 const storyDefaultProps = {
@@ -119,6 +127,7 @@ const storyDefaultProps = {
   narrationCaptionPlan: null,
   videoMeta: { width: 1080, height: 1920, durationInFrames: 300, fps: 30 },
   styleSpec: {},
+  backgroundVideo: null,
 };
 
 const defaultProps = {

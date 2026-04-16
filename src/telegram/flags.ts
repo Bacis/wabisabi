@@ -75,6 +75,7 @@ type StyleDelta = {
   animation?: Record<string, unknown>;
   color?: Record<string, unknown>;
   font?: Record<string, unknown>;
+  splitScreen?: Record<string, unknown>;
 };
 
 // ---------- Parser -----------------------------------------------------------
@@ -96,6 +97,11 @@ export function parseCaption(raw: string): ParsedCaption {
     // ---- Boolean flags
     if (lower === '--help' || lower === '-h' || lower === '--h') {
       help = true;
+      continue;
+    }
+
+    if (lower === '--brainrot') {
+      styleDelta.splitScreen = { ...(styleDelta.splitScreen ?? {}), brainRot: true };
       continue;
     }
 
@@ -145,7 +151,11 @@ export function parseCaption(raw: string): ParsedCaption {
   // Merge --style JSON with shortcut-driven deltas. Shortcuts win via the
   // two-level merge at the end (override second arg overrides first arg).
   const hasShortcuts = Boolean(
-    styleDelta.layout || styleDelta.animation || styleDelta.color || styleDelta.font,
+    styleDelta.layout ||
+      styleDelta.animation ||
+      styleDelta.color ||
+      styleDelta.font ||
+      styleDelta.splitScreen,
   );
   if (stylePayload || hasShortcuts) {
     const base = stylePayload ?? {};
@@ -298,6 +308,9 @@ ${presetLines}
   \`--animation pop|fade|karaoke|typewriter|slide\`
   \`--color <#hex|${Object.keys(COLOR_NAMES).join('|')}>\` — emphasis/pop color
   \`--words N\` — max words per chunk, 1–10
+
+*Layout*
+  \`--brainrot\` — split screen: speaker top, random brain-rot bottom, captions in the middle
 
 *Advanced*
   \`--style {...}\` — raw styleSpec JSON. Must be the *last* flag; everything after is treated as JSON.
