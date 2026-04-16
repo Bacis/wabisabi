@@ -53,8 +53,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 \
     libpango-1.0-0 libcairo2 libasound2 libxshmfence1 \
     fonts-noto-color-emoji fonts-liberation \
-    # MediaPipe / OpenCV headless deps
-    libgl1 libglib2.0-0 \
+    # MediaPipe / OpenCV headless deps. libgl1 covers libGL.so.1 (OpenCV
+    # video IO); MediaPipe additionally dlopen's libGLESv2.so.2 and
+    # libEGL.so.1 at runtime, which ship in libgles2 and libegl1. Without
+    # these, detect_faces.py throws `OSError: libGLESv2.so.2: cannot
+    # open shared object file` → faces=0 → every upload with speech
+    # still classifies as narrated_story (the mode detector gates on
+    # assetsWithFaces>=1).
+    libgl1 libglib2.0-0 libgles2 libegl1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
