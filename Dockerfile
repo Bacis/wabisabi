@@ -19,11 +19,23 @@ FROM node:20-bookworm-slim AS node-deps
 
 WORKDIR /app
 
-# Root package
+# Root package. Build toolchain for native addons (better-sqlite3 in
+# particular) — this is a node-deps *build* stage so it's fine to have
+# a compiler here; the final image ditches it.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json* ./
-RUN npm ci --ignore-scripts
+# No --ignore-scripts: better-sqlite3 ships a postinstall that compiles
+# its native .node addon against the current Node ABI. Without it, every
+# process that imports the module crashes with "Could not locate the
+# bindings file" at runtime.
+RUN npm ci
 
-# Remotion sub-package
+# Remotion sub-package. --ignore-scripts is safe here: the Remotion
+# packages don't have native addons we need to build, and skipping the
+# postinstalls keeps the image build deterministic (the final stage
+# explicitly runs `npx remotion browser ensure` to cache Chromium).
 COPY remotion/package.json remotion/package-lock.json* ./remotion/
 RUN cd remotion && npm ci --ignore-scripts
 
