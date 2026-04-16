@@ -69,7 +69,16 @@ export async function analyzeVideoAsset(asset: ProductionAsset, workDir: string)
   let audioOk = false;
   try {
     await extractAudio(asset.path, audioPath);
-    audioOk = true;
+    const { size } = await import('node:fs/promises').then((m) => m.stat(audioPath));
+    audioOk = size > 0;
+    console.log(
+      `analyzeAsset: extracted audio ${asset.path} -> ${audioPath} (${(size / 1024).toFixed(1)} KB)`,
+    );
+    if (!audioOk) {
+      console.warn(
+        `analyzeAsset: audio extract produced empty file — treating as silent`,
+      );
+    }
   } catch (err) {
     console.warn(`analyzeAsset: extractAudio failed for ${asset.path}:`, (err as Error).message);
   }

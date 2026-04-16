@@ -26,15 +26,24 @@ const TRANSCRIBE_SCRIPT = resolvePath(
 // the cost of a wrong empty is much higher than a few spurious words
 // on silence — silence rarely gets uploaded as part of a production.
 export async function transcribe(audioPath: string): Promise<Transcript> {
+  console.log(`transcribe: starting pass 1 (vad_filter=true) on ${audioPath}`);
   const first = await runTranscribe(audioPath, { noVad: false });
+  console.log(
+    `transcribe: pass 1 done — ${first.words.length} words, lang=${first.language}, audioDuration=${first.duration.toFixed(2)}s`,
+  );
   if (first.words.length > 0) return first;
 
   console.warn(
-    'transcribe: first pass returned 0 words; retrying with --no-vad (VAD likely suppressed speech)',
+    'transcribe: pass 1 returned 0 words; retrying with --no-vad (VAD likely suppressed speech)',
   );
   const second = await runTranscribe(audioPath, { noVad: true });
+  console.log(
+    `transcribe: pass 2 done — ${second.words.length} words, lang=${second.language}`,
+  );
   if (second.words.length === 0) {
-    console.warn('transcribe: retry without VAD also returned 0 words');
+    console.warn(
+      'transcribe: pass 2 without VAD also returned 0 words — check PYTHON stderr above for faster-whisper diagnostics',
+    );
   } else {
     console.log(`transcribe: retry recovered ${second.words.length} words`);
   }
