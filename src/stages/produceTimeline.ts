@@ -232,7 +232,11 @@ async function tryLlm(args: ProduceTimelineArgs): Promise<ProductionPlan | null>
     return null;
   }
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
-  const client = new Anthropic();
+  // 5 retries (SDK default is 2). 529 "Overloaded" is a transient 5xx
+  // that the SDK retries with exponential backoff + jitter — the extra
+  // attempts ride out Anthropic capacity spikes before we drop to the
+  // deterministic fallback plan.
+  const client = new Anthropic({ maxRetries: 5 });
 
   const system =
     args.mode === 'speaker_montage' ? SPEAKER_MONTAGE_SYSTEM : NARRATED_STORY_SYSTEM;

@@ -138,7 +138,8 @@ export async function generateStyle(args: GenerateStyleArgs): Promise<GenerateSt
 
   // Lazy import so the API boots even when the SDK isn't installed.
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
-  const client = new Anthropic();
+  // 5 retries (SDK default is 2) to ride out 529 Overloaded spikes.
+  const client = new Anthropic({ maxRetries: 5 });
 
   const currentSpecJson = JSON.stringify(args.currentSpec ?? {}, null, 2);
   const userMessage = `Current templateId: ${args.currentTemplateId ?? 'pop-words'}

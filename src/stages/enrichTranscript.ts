@@ -161,7 +161,8 @@ export async function enrichTranscript(
 
   // Lazy import so the worker can boot even if the SDK isn't installed.
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
-  const client = new Anthropic();
+  // 5 retries (SDK default is 2) to ride out 529 Overloaded spikes.
+  const client = new Anthropic({ maxRetries: 5 });
 
   const userMessage = buildUserMessage(transcript.words);
   const start = Date.now();
