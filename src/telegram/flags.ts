@@ -88,7 +88,12 @@ export function parseCaption(raw: string): ParsedCaption {
   let stylePayload: Record<string, unknown> | null = null;
   let help = false;
 
-  const tokens = raw.split(/\s+/).filter((t) => t.length > 0);
+  // iOS autocorrects a typed `--` into an em-dash (U+2014), and some
+  // keyboards produce an en-dash (U+2013) or horizontal bar (U+2015).
+  // Normalize those to ASCII `--` before tokenizing so users don't have
+  // to disable autocorrect to invoke flags.
+  const normalized = raw.replace(/[\u2013\u2014\u2015]/g, '--');
+  const tokens = normalized.split(/\s+/).filter((t) => t.length > 0);
 
   for (let i = 0; i < tokens.length; i++) {
     const tok = tokens[i]!;
