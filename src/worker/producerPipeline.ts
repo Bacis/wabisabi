@@ -599,7 +599,7 @@ export async function runProductionPipeline(prodId: string): Promise<void> {
       );
     } else {
       console.warn(
-        `[prod ${prodId}] splitScreen.brainRot=true but /storage/brain-rot/ is empty or missing — skipping effect`,
+        `[prod ${prodId}] splitScreen.brainRot=true but no library files found — checked /storage/brain-rot/ (local) and the Remotion bucket's brain-rot/ prefix (S3). Run \`npm run brain-rot:upload\` from a machine with the .mp4 files to populate S3. Skipping effect.`,
       );
     }
   }
