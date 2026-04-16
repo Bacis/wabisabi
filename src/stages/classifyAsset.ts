@@ -134,7 +134,8 @@ export async function classifyAsset(args: ClassifyAssetArgs): Promise<AssetAnaly
     }
 
     const { default: Anthropic } = await import('@anthropic-ai/sdk');
-    const client = new Anthropic();
+    // 5 retries (SDK default is 2) to ride out 529 Overloaded spikes.
+    const client = new Anthropic({ maxRetries: 5 });
 
     const content: Array<Record<string, unknown>> = imageInputs.map((img) => ({
       type: 'image',
