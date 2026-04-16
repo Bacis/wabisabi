@@ -74,11 +74,18 @@ export async function renderProductionLocal(
     // Optional split-screen background clip. The composition Loops this to
     // fill each speaker clip's duration, so we only need to stage it once
     // regardless of how many speaker clips are in the timeline.
+    //
+    // When brainRotClipPath is already an HTTPS URL (S3-backed library
+    // path), pass it straight to the composition — staticFile() detects
+    // the http prefix and skips its own rewrite, so no local staging is
+    // needed or desired.
     let backgroundVideo: { src: string; durationInFrames: number } | null = null;
     if (args.brainRotClipPath && args.brainRotDurationSec) {
-      const brainRotBasename = await stage(args.brainRotClipPath, 'brainrot');
+      const src = args.brainRotClipPath.startsWith('http')
+        ? args.brainRotClipPath
+        : await stage(args.brainRotClipPath, 'brainrot');
       backgroundVideo = {
-        src: brainRotBasename,
+        src,
         durationInFrames: Math.max(1, Math.ceil(args.brainRotDurationSec * FPS)),
       };
     }
