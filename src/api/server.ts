@@ -29,6 +29,7 @@ const VALID_TEMPLATE_IDS: readonly TemplateId[] = [
   'single-word',
   'three-effects',
   'kinetic-burst',
+  'reel-clone',
 ];
 function isValidTemplateId(s: string): s is TemplateId {
   return (VALID_TEMPLATE_IDS as readonly string[]).includes(s);

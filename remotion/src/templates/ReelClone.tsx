@@ -1,0 +1,629 @@
+import React from 'react';
+import { AbsoluteFill, OffthreadVideo, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
+import { loadFont } from '@remotion/google-fonts/Inter';
+import type { FaceData } from '../lib/positioning';
+import type {
+  CaptionPlan,
+  Transcript,
+  Word,
+  CaptionChunk,
+} from '../lib/CaptionLayer';
+
+// Fully StyleSpec-driven caption template. Every visual behavior is
+// controlled via styleSpec fields — no hardcoded multipliers, transforms,
+// or layout decisions. This allows the automated refinement loop to tune
+// all parameters without needing template code changes.
+//
+// Extended StyleSpec fields read by this template (beyond the standard ones):
+//   styleSpec.reel.emphasisStyle           — 'inline-color' | 'block' | 'combined' (default 'combined')
+//                                              inline-color: emphasisFill color, no case/size change, stays inline
+//                                              block: large uppercase on own line at fillColor (no color change)
+//                                              combined: red + uppercase + larger + own line (legacy behavior)
+//   styleSpec.reel.emphasisFillRatio       — when set, emphasis word size auto-fits to this fraction
+//                                              of the usable line width (overrides emphasisSizeMultiplier)
+//   styleSpec.reel.emphasisMaxHeightRatio  — caps emphasis font-size to this fraction of canvas height
+//                                              (default 0.20). Prevents huge words from clipping the
+//                                              caption stack when the chunk has multiple lines.
+//   styleSpec.reel.cascadeTopRatio         — top-line size as fraction of bottom (default 1.0 = no cascade)
+//   styleSpec.reel.cascadeBottomRatio      — bottom-line (anchor) size factor (default 1.0)
+//                                              When cascadeTopRatio < cascadeBottomRatio, lines progressively
+//                                              grow from top to bottom, mimicking the reference reel's stack.
+//   styleSpec.reel.multiColorEmphasis      — when true, cycle through emphasisFill palette per emphasis word
+//                                              within a chunk (default false: one color per chunk).
+//   styleSpec.reel.italicVocabulary        — array of lowercase tokens that should render in italic
+//                                              when they appear in a chunk (default []). Used to mimic
+//                                              the rare italic-script accent words in some reels
+//                                              (e.g. "reasonable").
+//   styleSpec.reel.emphasisSizeMultiplier  — fixed size ratio for emphasis words (default 1.0)
+//   styleSpec.reel.fillerSizeMultiplier    — size ratio for filler words (default 1.0)
+//   styleSpec.reel.emphasisTextTransform   — 'uppercase' | 'lowercase' | 'none' (default 'none')
+//   styleSpec.reel.fillerTextTransform     — 'uppercase' | 'lowercase' | 'none' (default 'none')
+//   styleSpec.reel.mediumTextTransform     — 'uppercase' | 'lowercase' | 'none' (default 'none')
+//   styleSpec.reel.emphasisLineBreak       — whether emphasis words force their own line (default false)
+//   styleSpec.reel.emphasisWeight          — font weight for emphasis words (default: same as font.weight)
+//   styleSpec.reel.wordReveal              — 'all' | 'progressive' (default 'all')
+//   styleSpec.reel.inferEmphasis           — auto-infer emphasis if plan has none (default false)
+//   styleSpec.reel.columnGapRatio          — gap between words as ratio of baseSize (default 0.2)
+//   styleSpec.reel.rowGapRatio             — gap between lines as ratio of baseSize (default 0.05)
+//   styleSpec.reel.maxWidthPercent         — max width of text container (default 90)
+//   styleSpec.reel.paddingPercent          — horizontal padding (default 6)
+
+loadFont('normal', {
+  weights: ['400', '700', '800', '900'],
+  subsets: ['latin'],
+});
+loadFont('italic', {
+  weights: ['400', '700', '900'],
+  subsets: ['latin'],
+});
+
+const FILLER_WORDS = new Set([
+  'a', 'an', 'the', 'of', 'to', 'in', 'on', 'at', 'by', 'for', 'with', 'as',
+  'is', 'are', 'was', 'were', 'be', 'been', 'am',
+  'i', 'me', 'my', 'we', 'us', 'our', 'you', 'your', 'he', 'him', 'his',
+  'she', 'her', 'it', 'its', 'they', 'them', 'their',
+  'and', 'or', 'but', 'so', 'if', 'then', 'than',
+  "it's", "i'm", "we're", "you're", "they're", "that's", "what's",
+  'um', 'uh', 'er', 'oh',
+]);
+
+// Value-words carry inline-color emphasis (red), never block treatment.
+// References render these as colored words at base size, not as huge anchor
+// blocks — the color does the visual work, not size dramatics.
+const VALUE_WORDS = new Set([
+  'never', 'always', 'no', 'not', 'only', 'every', 'all', 'none',
+  'best', 'worst', 'better', 'worse',
+  'most', 'more', 'less', 'least',
+  'big', 'huge', 'tiny', 'small',
+  'first', 'last', 'one',
+  'really', 'very', 'truly',
+  'so',
+]);
+
+function normalize(word: string): string {
+  return word.toLowerCase().replace(/[.,!?;:"'()—-]/g, '');
+}
+
+function isFiller(word: string): boolean {
+  return FILLER_WORDS.has(normalize(word));
+}
+
+function inferEmphasis(words: Word[]): boolean[] {
+  const out = words.map(() => false);
+  if (words.length === 0) return out;
+  const candidates: { idx: number; length: number }[] = [];
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i]!;
+    if (isFiller(w.word)) continue;
+    const alphaLen = w.word.replace(/[^A-Za-z]/g, '').length;
+    if (alphaLen >= 3) candidates.push({ idx: i, length: alphaLen });
+  }
+  if (candidates.length === 0) {
+    let best = 0;
+    for (let i = 1; i < words.length; i++) {
+      if (words[i]!.word.length > words[best]!.word.length) best = i;
+    }
+    out[best] = true;
+    return out;
+  }
+  candidates.sort((a, b) => b.length - a.length || a.idx - b.idx);
+  const picks = words.length <= 3 ? 1 : 2;
+  for (let i = 0; i < Math.min(picks, candidates.length); i++) {
+    out[candidates[i]!.idx] = true;
+  }
+  return out;
+}
+
+function fallbackChunks(words: Word[], maxPerLine: number): CaptionChunk[] {
+  const out: CaptionChunk[] = [];
+  for (let i = 0; i < words.length; i += maxPerLine) {
+    const slice = words.slice(i, i + maxPerLine);
+    out.push({ words: slice, emphasis: slice.map(() => false) });
+  }
+  return out;
+}
+
+function toPalette(ef: string | string[] | undefined, fallback: string): string[] {
+  if (Array.isArray(ef)) return ef.length > 0 ? ef : [fallback];
+  if (typeof ef === 'string') return [ef];
+  return [fallback];
+}
+
+function applyTransform(word: string, transform: string): string {
+  if (transform === 'uppercase') return word.toUpperCase();
+  if (transform === 'lowercase') return word.toLowerCase();
+  return word;
+}
+
+type Props = {
+  videoFile: string;
+  videoMeta: { width: number; height: number; durationInFrames: number; fps: number };
+  transcript: Transcript;
+  captionPlan: CaptionPlan | null;
+  faces: FaceData | null;
+  styleSpec: Record<string, any>;
+};
+
+export const ReelClone: React.FC<Props> = ({
+  videoFile,
+  transcript,
+  captionPlan,
+  styleSpec,
+}) => {
+  const frame = useCurrentFrame();
+  const { fps, width: frameWidth, height: frameHeight } = useVideoConfig();
+  const t = frame / fps;
+
+  // --- Read ALL config from styleSpec ---
+  const font = styleSpec.font ?? {};
+  const color = styleSpec.color ?? {};
+  const layout = styleSpec.layout ?? {};
+  const anim = styleSpec.animation ?? {};
+  const reel = styleSpec.reel ?? {};
+
+  // Font
+  const fontFamily = font.family ?? 'Inter';
+  const nominalSize = font.size ?? 64;
+  const baseSize = nominalSize * (frameWidth / 1080);
+  const baseWeight = font.weight ?? 800;
+  const baseLetterSpacing = font.letterSpacing ?? 0;
+  const baseTextTransform = font.textTransform ?? 'none';
+
+  // Colors
+  const fillColor = color.fill ?? '#ffffff';
+  const strokeColor = color.stroke ?? '#000000';
+  const strokeWidth = color.strokeWidth ?? 0;
+  const palette = toPalette(color.emphasisFill, fillColor);
+
+  // Layout
+  const maxPerLine = layout.maxWordsPerLine ?? 4;
+  const position = layout.position ?? 'bottom';
+  const safeMargin = layout.safeMargin ?? 0.15;
+  const align = layout.align ?? 'left';
+
+  // Animation
+  const tailMs = anim.tailMs ?? 200;
+  const scaleFrom = anim.scaleFrom ?? 1.0;
+  const springDamping = anim.spring?.damping ?? 14;
+  const springStiffness = anim.spring?.stiffness ?? 240;
+  const springMass = anim.spring?.mass ?? 0.5;
+  const animDuration = anim.durationMs ?? 150;
+
+  // Reel-specific config (all StyleSpec-driven, all with safe defaults)
+  const emphasisStyleRaw = (reel.emphasisStyle ?? 'combined') as
+    | 'combined' | 'block' | 'inline-color';
+  const emphasisFillRatio: number | null =
+    typeof reel.emphasisFillRatio === 'number' ? reel.emphasisFillRatio : null;
+  const emphasisMaxHeightRatio: number =
+    typeof reel.emphasisMaxHeightRatio === 'number' ? reel.emphasisMaxHeightRatio : 0.2;
+  const cascadeTopRatio: number =
+    typeof reel.cascadeTopRatio === 'number' ? reel.cascadeTopRatio : 1.0;
+  const cascadeBottomRatio: number =
+    typeof reel.cascadeBottomRatio === 'number' ? reel.cascadeBottomRatio : 1.0;
+  const multiColorEmphasis: boolean = reel.multiColorEmphasis === true;
+  // Italic style is now a generic *rate*, not a specific vocab list. The
+  // preset's italicAccentRate (0..1) declares what fraction of qualifying
+  // emphasis-style words the source reel rendered italic. We replicate that
+  // density deterministically on the input transcript: hash each candidate
+  // word and italicize the bottom italicAccentRate fraction. Same word
+  // always gets the same treatment, so the result is stable across re-renders
+  // but distributed naturally across the video.
+  const italicAccentRate: number = typeof reel.italicAccentRate === 'number'
+    ? Math.max(0, Math.min(1, reel.italicAccentRate))
+    : 0;
+  // Backward-compat: respect old italicVocabulary lists if a hand-tuned
+  // preset still uses them (e.g. v7).
+  const italicVocabulary: string[] = Array.isArray(reel.italicVocabulary)
+    ? reel.italicVocabulary.map((s: any) => String(s).toLowerCase())
+    : [];
+  const editDistance = (a: string, b: string): number => {
+    if (a === b) return 0;
+    const m = a.length, n = b.length;
+    if (m === 0) return n;
+    if (n === 0) return m;
+    const dp: number[] = new Array(n + 1);
+    for (let j = 0; j <= n; j++) dp[j] = j;
+    for (let i = 1; i <= m; i++) {
+      let prev = dp[0]!;
+      dp[0] = i;
+      for (let j = 1; j <= n; j++) {
+        const tmp = dp[j]!;
+        dp[j] = a[i - 1] === b[j - 1]
+          ? prev
+          : 1 + Math.min(prev, dp[j]!, dp[j - 1]!);
+        prev = tmp;
+      }
+    }
+    return dp[n]!;
+  };
+  // Stable string hash — FNV-1a 32-bit. Better distribution on short words
+  // than polynomial 31-shift, so the italic-rate selection actually reaches
+  // its target fraction even on small word sets (~30-50 unique words).
+  const hashUnit = (s: string): number => {
+    let h = 0x811c9dc5;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 0x01000193);
+    }
+    return (h >>> 0) / 0x100000000;
+  };
+  const isItalicWord = (key: string): boolean => {
+    // Eligibility for italic accent treatment: long content word (>= 5 alpha
+    // chars) — short words like "is" / "a" wouldn't read as italic anyway.
+    if (key.length < 5) return false;
+    // Vocabulary path (back-compat with hand-tuned presets)
+    if (italicVocabulary.length > 0) {
+      for (const v of italicVocabulary) {
+        if (v === key) return true;
+        const longer = Math.max(v.length, key.length);
+        if (editDistance(v, key) / longer <= 0.34) return true;
+      }
+    }
+    // Rate path (auto-extracted presets) — deterministically italicize the
+    // hash-bucket fraction that matches the source's measured italic rate.
+    // Floor at 0.08 when nonzero to ensure visible italic accents even on
+    // short transcripts (~30-50 unique qualifying words) where small target
+    // rates would statistically miss everything. Cap at 0.30 so italic
+    // doesn't overwhelm.
+    if (italicAccentRate > 0) {
+      const effective = Math.max(0.08, Math.min(0.3, italicAccentRate));
+      if (hashUnit(key) < effective) return true;
+    }
+    return false;
+  };
+  const emphasisSizeMultiplier = reel.emphasisSizeMultiplier ?? 1.0;
+  const fillerSizeMultiplier = reel.fillerSizeMultiplier ?? 1.0;
+  // Resolve emphasis behavior from emphasisStyle. Individual reel.* fields can
+  // still override (e.g. user sets emphasisStyle:'block' but explicitly opts
+  // out of line break). Switch sets the *defaults* per mode.
+  const styleDefaults =
+    emphasisStyleRaw === 'inline-color'
+      ? { useColor: true, transform: baseTextTransform, lineBreak: false, sizeRule: 'fixed' as const }
+      : emphasisStyleRaw === 'block'
+        ? { useColor: false, transform: 'uppercase' as const, lineBreak: true, sizeRule: 'fit' as const }
+        : { useColor: true, transform: 'uppercase' as const, lineBreak: true, sizeRule: 'fixed' as const };
+  const emphasisUsesColor = reel.emphasisUsesColor ?? styleDefaults.useColor;
+  const emphasisTextTransform = reel.emphasisTextTransform ?? styleDefaults.transform;
+  const fillerTextTransform = reel.fillerTextTransform ?? baseTextTransform;
+  const mediumTextTransform = reel.mediumTextTransform ?? baseTextTransform;
+  const emphasisLineBreak = reel.emphasisLineBreak ?? styleDefaults.lineBreak;
+  const emphasisWeight = reel.emphasisWeight ?? baseWeight;
+  const wordReveal = reel.wordReveal ?? 'all';
+  const doInferEmphasis = reel.inferEmphasis ?? false;
+  const columnGapRatio = reel.columnGapRatio ?? 0.2;
+  const rowGapRatio = reel.rowGapRatio ?? 0.05;
+  const maxWidthPercent = reel.maxWidthPercent ?? 90;
+  const paddingPercent = reel.paddingPercent ?? 6;
+
+  // Computed sizes
+  const sizeEmphasis = baseSize * emphasisSizeMultiplier;
+  const sizeMedium = baseSize;
+  const sizeFiller = baseSize * fillerSizeMultiplier;
+
+  const USABLE_WIDTH = frameWidth * (maxWidthPercent / 100);
+  // CHAR_ADVANCE controls how the renderer estimates a word's pixel-width
+  // from its font-size. The default 0.58 was a conservative generic value
+  // that under-sized text for Inter Black with tight letterSpacing (real
+  // measured value ~0.50). Allow the styleSpec to override for fonts/
+  // tracking combos where 0.58 doesn't fit.
+  const CHAR_ADVANCE = typeof styleSpec.charAdvance === 'number'
+    ? styleSpec.charAdvance
+    : 0.58;
+  const maxSizeForWord = (len: number) =>
+    len > 0 ? USABLE_WIDTH / (len * CHAR_ADVANCE) : Infinity;
+
+  // Chunks
+  const chunks: CaptionChunk[] = captionPlan
+    ? captionPlan.chunks
+    : fallbackChunks(transcript.words, maxPerLine);
+
+  // Active chunk selection
+  const tailSec = tailMs / 1000;
+  let activeChunkIdx = -1;
+  for (let i = chunks.length - 1; i >= 0; i--) {
+    const c = chunks[i];
+    if (c && c.words.length > 0 && t >= c.words[0]!.start) {
+      const next = chunks[i + 1];
+      if (next && next.words.length > 0 && t >= next.words[0]!.start) continue;
+      const lastWord = c.words[c.words.length - 1]!;
+      if (t <= lastWord.end + tailSec || !next) {
+        activeChunkIdx = i;
+        break;
+      }
+    }
+  }
+
+  if (activeChunkIdx < 0) {
+    return (
+      <AbsoluteFill style={{ backgroundColor: '#000' }}>
+        {videoFile && (
+          <OffthreadVideo src={videoFile.startsWith('http') ? videoFile : staticFile(videoFile)} />
+        )}
+      </AbsoluteFill>
+    );
+  }
+
+  const activeChunk = chunks[activeChunkIdx]!;
+  const emphasisColor = palette[activeChunkIdx % palette.length] ?? fillColor;
+
+  // Emphasis flags
+  const hasAnyEmphasis = activeChunk.emphasis.some((e) => e === true);
+  const effectiveEmphasis: boolean[] =
+    hasAnyEmphasis ? activeChunk.emphasis
+    : doInferEmphasis ? inferEmphasis(activeChunk.words)
+    : activeChunk.emphasis;
+
+  // Position styles
+  const positionStyle: React.CSSProperties =
+    position === 'top'
+      ? { top: `${safeMargin * 100}%` }
+      : position === 'middle'
+        ? { top: '50%', transform: 'translateY(-50%)' }
+        : { bottom: `${safeMargin * 100}%` };
+
+  const justifyContent =
+    align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center';
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: '#000' }}>
+      {videoFile && (
+        <OffthreadVideo src={videoFile.startsWith('http') ? videoFile : staticFile(videoFile)} />
+      )}
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          display: 'flex',
+          justifyContent,
+          padding: `0 ${paddingPercent}%`,
+          ...positionStyle,
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center',
+            rowGap: `${baseSize * rowGapRatio}px`,
+            maxWidth: `${maxWidthPercent}%`,
+          }}
+        >
+          {(() => {
+            // 1. Group words into explicit logical lines.
+            //    Only LAST-WORD emphasis breaks to its own line — that's the
+            //    anchor block treatment. Mid-stack emphasis stays inline so
+            //    it can carry inline-color treatment instead.
+            type LineEntry = { wordIdx: number };
+            const lines: LineEntry[][] = [];
+            let cur: LineEntry[] = [];
+            const flush = () => {
+              if (cur.length > 0) {
+                lines.push(cur);
+                cur = [];
+              }
+            };
+            const lastWordIdx = activeChunk.words.length - 1;
+            const isDigitWord = (s: string) => /\d/.test(s);
+            const stripped = (s: string) => s.replace(/[^A-Za-z0-9]/g, '');
+            const valueKey = (s: string) =>
+              s.toLowerCase().replace(/[.,!?;:"'()—\-_]/g, '');
+            const isValueLike = (s: string) => VALUE_WORDS.has(valueKey(s));
+            for (let i = 0; i < activeChunk.words.length; i++) {
+              const isEmph = effectiveEmphasis[i] ?? false;
+              const word = activeChunk.words[i]!.word;
+              // Anchor break: only meaty alpha emphasis on the FINAL word
+              // goes on its own line for block treatment. Numbers, value-
+              // words, and short emphasis words stay inline so they can
+              // carry inline-color treatment (matches references like
+              // "I was *26*" or "are *never*" — same line, just colored).
+              const isAnchorEmph =
+                emphasisLineBreak &&
+                isEmph &&
+                i === lastWordIdx &&
+                !isDigitWord(word) &&
+                !isValueLike(word) &&
+                stripped(word).length >= 5;
+              if (isAnchorEmph) {
+                flush();
+                lines.push([{ wordIdx: i }]);
+              } else {
+                cur.push({ wordIdx: i });
+                if (cur.length >= maxPerLine) flush();
+              }
+            }
+            flush();
+
+            // 1b. Width-budget split — re-walk each line and break it whenever
+            // the cumulative word-width exceeds USABLE_WIDTH. Same source-of-
+            // truth as `maxSizeForWord` so the split decision and the actual
+            // rendered size agree. Without this, long inline words like
+            // "i don't WANT" can spill past the frame edge in narrow videos.
+            const splitLines: LineEntry[][] = [];
+            const widthBudget = USABLE_WIDTH;
+            for (let li = 0; li < lines.length; li++) {
+              const line = lines[li]!;
+              if (line.length <= 1) {
+                splitLines.push(line);
+                continue;
+              }
+              // Estimate the per-line cascade factor at this index assuming
+              // current chunk shape; if splitting adds rows the factor is
+              // recalculated later (this estimate is conservative).
+              const factor = lines.length <= 1
+                ? cascadeBottomRatio
+                : cascadeTopRatio +
+                  (cascadeBottomRatio - cascadeTopRatio) *
+                    (li / (lines.length - 1));
+              const wordSize = baseSize * factor;
+              const gap = baseSize * factor * columnGapRatio;
+              let bucket: LineEntry[] = [];
+              let bucketWidth = 0;
+              for (const entry of line) {
+                const w = activeChunk.words[entry.wordIdx]!;
+                const wordWidth = wordSize * Math.max(1, w.word.length) * CHAR_ADVANCE;
+                const needsBreak = bucket.length > 0 &&
+                  bucketWidth + gap + wordWidth > widthBudget;
+                if (needsBreak) {
+                  splitLines.push(bucket);
+                  bucket = [];
+                  bucketWidth = 0;
+                }
+                bucket.push(entry);
+                bucketWidth += wordWidth + (bucket.length > 1 ? gap : 0);
+              }
+              if (bucket.length > 0) splitLines.push(bucket);
+            }
+            // Replace `lines` with the width-aware split.
+            lines.length = 0;
+            for (const l of splitLines) lines.push(l);
+
+            // 2. Track emphasis count for multi-color cycling.
+            let emphasisSeen = 0;
+
+            return lines.map((line, lineIdx) => {
+              // Per-line size factor: cascade from top (small) to bottom (anchor).
+              const lineFactor =
+                lines.length <= 1
+                  ? cascadeBottomRatio
+                  : cascadeTopRatio +
+                    (cascadeBottomRatio - cascadeTopRatio) *
+                      (lineIdx / (lines.length - 1));
+              return (
+                <div
+                  key={lineIdx}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    justifyContent,
+                    columnGap: `${baseSize * lineFactor * columnGapRatio}px`,
+                  }}
+                >
+                  {line.map(({ wordIdx: i }) => {
+                    const w = activeChunk.words[i]!;
+                    const isEmphasis = effectiveEmphasis[i] ?? false;
+                    const filler = !isEmphasis && isFiller(w.word);
+
+                    const wordStartFrame = Math.floor(w.start * fps);
+                    if (wordReveal === 'progressive' && frame < wordStartFrame) return null;
+
+                    const entryFrame =
+                      wordReveal === 'progressive'
+                        ? wordStartFrame
+                        : Math.floor(activeChunk.words[0]!.start * fps);
+                    const progress = spring({
+                      frame: frame - entryFrame,
+                      fps,
+                      durationInFrames: Math.max(1, Math.round((animDuration / 1000) * fps)),
+                      config: { damping: springDamping, stiffness: springStiffness, mass: springMass },
+                    });
+                    const scale = scaleFrom + progress * (1 - scaleFrom);
+                    const opacity = Math.min(1, scaleFrom < 1 ? progress * 1.5 : 1);
+
+                    // Position-aware emphasis treatment:
+                    //   anchor block = emphasis on its own line at the bottom
+                    //                  → white, uppercase (per spec), width-fit size
+                    //   inline color = emphasis anywhere else → palette color,
+                    //                  no case change, no size change
+                    const isAnchor = lineIdx === lines.length - 1;
+                    const onOwnLine = line.length === 1;
+                    const wordHasDigit = /\d/.test(w.word);
+                    const wordAlphaLen = w.word.replace(/[^A-Za-z]/g, '').length;
+                    const wordKeyEarly = w.word.toLowerCase().replace(/[.,!?;:"'()—\-_]/g, '');
+                    const wordIsValue = VALUE_WORDS.has(wordKeyEarly);
+                    // Determine anchor-block status FIRST, before italic. An
+                    // anchor word should be rendered as a block (white
+                    // uppercase huge), never as italic. Italic accents are
+                    // reserved for mid-stack secondary emphasis.
+                    const isAnchorBlock =
+                      isEmphasis && isAnchor && onOwnLine &&
+                      styleDefaults.sizeRule === 'fit' &&
+                      emphasisFillRatio != null &&
+                      !wordHasDigit &&
+                      !wordIsValue &&
+                      wordAlphaLen >= 5;
+                    // Only italicize if NOT an anchor-block candidate. This
+                    // prevents big anchor words like REALITY/CHANGES/TIME
+                    // from being italicized away from their intended block
+                    // treatment via the rate-based italic selection.
+                    const wordIsItalic = !isAnchorBlock && isItalicWord(wordKeyEarly);
+
+                    const fitSize = isAnchorBlock
+                      ? (USABLE_WIDTH * emphasisFillRatio!) /
+                        Math.max(1, w.word.length * CHAR_ADVANCE)
+                      : null;
+
+                    const cascadeBase = baseSize * lineFactor;
+                    const tierMul = isEmphasis && !isAnchorBlock
+                      ? 1.0  // inline emphasis keeps base/cascade size
+                      : isEmphasis
+                        ? emphasisSizeMultiplier
+                        : filler ? fillerSizeMultiplier : 1.0;
+                    const rawSize = fitSize != null ? fitSize : cascadeBase * tierMul;
+
+                    const heightCap = isAnchorBlock
+                      ? frameHeight * emphasisMaxHeightRatio
+                      : frameHeight * 0.4;
+                    const size = Math.min(rawSize, maxSizeForWord(w.word.length), heightCap);
+
+                    // Color: anchor block keeps base fill (white), inline
+                    // emphasis uses palette (cycles when multiColorEmphasis).
+                    let resolvedColor = fillColor;
+                    if (isEmphasis && !isAnchorBlock) {
+                      resolvedColor = multiColorEmphasis
+                        ? palette[emphasisSeen % palette.length] ?? emphasisColor
+                        : emphasisColor;
+                    } else if (isEmphasis && isAnchorBlock && emphasisUsesColor) {
+                      // Legacy 'combined' style still wants colored anchor.
+                      resolvedColor = emphasisColor;
+                    }
+                    if (isEmphasis) emphasisSeen++;
+
+                    // Transform: only the anchor block gets the emphasis
+                    // transform (uppercase). Inline emphasis keeps lowercase
+                    // so it sits naturally in the line ("I was 26", not "I WAS 26").
+                    const transform = isAnchorBlock
+                      ? emphasisTextTransform
+                      : filler ? fillerTextTransform : mediumTextTransform;
+                    const text = applyTransform(w.word, transform);
+                    const weight = isAnchorBlock ? emphasisWeight : baseWeight;
+                    // Italic if word is in italicVocabulary (script-style accent).
+                    // Italic overrides any color emphasis — reference reels render
+                    // italic accent words in plain white, with italic carrying the
+                    // visual emphasis instead of color.
+                    const fontStyle: 'italic' | 'normal' = wordIsItalic ? 'italic' : 'normal';
+                    const finalColor = wordIsItalic ? fillColor : resolvedColor;
+
+                    return (
+                      <span
+                        key={i}
+                        style={{
+                          fontFamily: `"${fontFamily}", sans-serif`,
+                          fontWeight: weight,
+                          fontStyle,
+                          fontSize: `${size}px`,
+                          lineHeight: 1.0,
+                          letterSpacing: baseLetterSpacing ? `${baseLetterSpacing}px` : undefined,
+                          color: finalColor,
+                          WebkitTextStroke: strokeWidth > 0 ? `${strokeWidth}px ${strokeColor}` : undefined,
+                          paintOrder: strokeWidth > 0 ? 'stroke fill' : undefined,
+                          transform: scale !== 1 ? `scale(${scale})` : undefined,
+                          transformOrigin: 'left baseline',
+                          opacity,
+                          display: 'inline-block',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {text}
+                      </span>
+                    );
+                  })}
+                </div>
+              );
+            });
+          })()}
+        </div>
+      </div>
+    </AbsoluteFill>
+  );
+};

@@ -6,6 +6,9 @@ import { SingleWord } from './templates/SingleWord';
 import { ThreeEffects } from './templates/ThreeEffects';
 import { KineticBurst } from './templates/KineticBurst';
 import { StoryComposition } from './templates/StoryComposition';
+import { ReelClone } from './templates/ReelClone';
+import { KineticMontage } from './templates/KineticMontage';
+import { Copacabanna } from './templates/Copacabanna';
 
 // Schema is intentionally permissive — the API server has already validated
 // the StyleSpec with the canonical Zod schema before queueing the job.
@@ -235,6 +238,39 @@ export const Root: React.FC = () => {
         height={1920}
         durationInFrames={300}
         defaultProps={threeEffectsDefaultProps}
+        calculateMetadata={calculateMetadata}
+      />
+      <Composition
+        id="reel-clone"
+        component={ReelClone}
+        schema={propsSchema}
+        fps={30}
+        width={1080}
+        height={1920}
+        durationInFrames={300}
+        defaultProps={defaultProps}
+        calculateMetadata={calculateMetadata}
+      />
+      <Composition
+        id="kinetic-montage"
+        component={KineticMontage}
+        schema={propsSchema}
+        fps={30}
+        width={1080}
+        height={1920}
+        durationInFrames={300}
+        defaultProps={defaultProps}
+        calculateMetadata={calculateMetadata}
+      />
+      <Composition
+        id="copacabanna"
+        component={Copacabanna}
+        schema={propsSchema}
+        fps={30}
+        width={1080}
+        height={1920}
+        durationInFrames={300}
+        defaultProps={defaultProps}
         calculateMetadata={calculateMetadata}
       />
       <Composition

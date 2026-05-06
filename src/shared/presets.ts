@@ -7,7 +7,7 @@ import type { StyleSpec } from './styleSpec.js';
 //
 // Adding a new preset is one entry in this object. The viewer page picks up
 // the description and templateId from `GET /presets` automatically.
-export type TemplateId = 'pop-words' | 'single-word' | 'three-effects' | 'kinetic-burst';
+export type TemplateId = 'pop-words' | 'single-word' | 'three-effects' | 'kinetic-burst' | 'reel-clone' | 'kinetic-montage' | 'copacabanna';
 
 export type Preset = {
   id: string;
@@ -185,6 +185,208 @@ export const PRESETS: Record<string, Preset> = {
       },
       layout: { position: 'bottom', safeMargin: 0.18, maxWordsPerLine: 3 },
       animation: { preset: 'pop', emphasisScale: 1.2, durationMs: 140 },
+    },
+  },
+
+  'reel-DXhn5HNhTxy': {
+    id: 'reel-DXhn5HNhTxy',
+    name: 'Karaoke Multi-Color',
+    description:
+      'Bold white sans-serif with multi-color emphasis words (red/blue/purple/gold). Karaoke animation, left-aligned, 3 words per line. Extracted from Instagram reel reference.',
+    templateId: 'reel-clone',
+    styleSpec: {
+      font: { weight: 800, size: 64, textTransform: 'none' },
+      color: {
+        fill: '#ffffff',
+        strokeWidth: 0,
+        emphasisFill: ['#ff3333', '#3366ff', '#cc33ff', '#ffcc33'],
+      },
+      layout: {
+        position: 'bottom',
+        safeMargin: 0.18,
+        maxWordsPerLine: 3,
+        align: 'left',
+      },
+      animation: { durationMs: 150, scaleFrom: 0.7, tailMs: 200 },
+    },
+  },
+
+  // Auto-extracted via the OCR feature pipeline (scripts/reel-analysis/
+  // extract-features.ts → profile-to-preset.ts). Output of analyzing the same
+  // reel as 'reel-DXhn5HNhTxy' but derived programmatically from visual
+  // measurements rather than hand-tuned. Position-aware emphasis: anchor
+  // words render as white uppercase blocks; mid-stack emphasis stays inline
+  // colored (red/yellow). Cascade size growth top→bottom.
+  'reel-DXhn5HNhTxy-auto': {
+    id: 'reel-DXhn5HNhTxy-auto',
+    name: 'Karaoke Cascade (Auto-extracted v2)',
+    description:
+      'Bold Inter Black with yellow + red inline emphasis and white uppercase block anchors. Cascading sizes top→bottom, progressive word-by-word reveal, left-aligned. Auto-derived from OCR analysis of the reference reel — anchor size, char advance, fill ratio, and italic vocabulary all measured from source.',
+    templateId: 'reel-clone',
+    styleSpec: {
+      font: {
+        family: 'Inter',
+        weight: 900,
+        size: 234,
+        letterSpacing: -2,
+        textTransform: 'lowercase',
+      },
+      color: {
+        fill: '#ffffff',
+        strokeWidth: 0,
+        emphasisFill: ['#ffd700', '#ff2a2a'],
+      },
+      layout: {
+        position: 'bottom',
+        safeMargin: 0.18,
+        maxWordsPerLine: 3,
+        align: 'left',
+      },
+      // Empirically measured char-advance for Inter Black at letterSpacing=-2.
+      // Source-frame OCR reported median bbox_width / (text_len * font_height)
+      // = 0.558. Default 0.58 was conservative and under-sized text.
+      charAdvance: 0.558,
+      animation: {
+        preset: 'karaoke',
+        tailMs: 200,
+        scaleFrom: 0.7,
+        durationMs: 140,
+      },
+      reel: {
+        emphasisStyle: 'block',
+        // Derived from anchor_width_pct measured on source: anchor words
+        // occupy ~60% of frame width = ~75% of usable width (after 80%
+        // maxWidthPercent padding).
+        emphasisFillRatio: 0.75,
+        emphasisMaxHeightRatio: 0.16,
+        fillerSizeMultiplier: 1,
+        emphasisTextTransform: 'uppercase',
+        fillerTextTransform: 'lowercase',
+        mediumTextTransform: 'lowercase',
+        emphasisWeight: 900,
+        wordReveal: 'progressive',
+        inferEmphasis: false,
+        columnGapRatio: 0.18,
+        rowGapRatio: 0.04,
+        maxWidthPercent: 80,
+        paddingPercent: 6,
+        cascadeTopRatio: 0.47,
+        cascadeBottomRatio: 1,
+        multiColorEmphasis: true,
+        // Generic italic-accent style rate measured from the source: ~6% of
+        // qualifying long emphasis words rendered italic. Renderer applies
+        // this density to ANY input video by hashing each candidate word and
+        // italicizing the matching fraction — works on any transcript, not
+        // tied to the reference reel's specific vocabulary.
+        italicAccentRate: 0.057,
+      },
+    },
+  },
+
+  'copacabanna-default': {
+    id: 'copacabanna-default',
+    name: 'Copacabanna',
+    description:
+      'Brazilian samba-sway captions in Lobster script: every word cycles through a 5-stop tropical palette (terracotta / forest / grass / lime / flag-yellow), each word enters with a -8° tilt that springs to upright with a slight overshoot, emphasis words lock to flag-yellow at 1.25× size and oscillate ±3° while on screen. Center-aligned, lower-third, no stroke or shadow.',
+    templateId: 'copacabanna',
+    styleSpec: {
+      font: {
+        family: 'Lobster',
+        weight: 400,
+        size: 156,
+        letterSpacing: 0,
+        textTransform: 'none',
+      },
+      color: {
+        fill: '#ffffff',
+        strokeWidth: 0,
+        emphasisFill: '#FDFF55',
+      },
+      layout: {
+        position: 'bottom',
+        safeMargin: 0.2,
+        maxWordsPerLine: 4,
+        align: 'center',
+      },
+      charAdvance: 0.62,
+      animation: {
+        preset: 'pop',
+        tailMs: 220,
+        scaleFrom: 0.85,
+        durationMs: 220,
+        spring: {
+          damping: 8,
+          stiffness: 180,
+          mass: 0.5,
+        },
+      },
+      reel: {
+        palette: ['#CA402A', '#0E694F', '#6EB453', '#AED953', '#FDFF55'],
+        tiltDegrees: -8,
+        swayAmplitudeDegrees: 3,
+        swayHz: 0.8,
+        fillerOpacity: 0.65,
+        emphasisSizeMultiplier: 1.25,
+        wordReveal: 'progressive',
+        inferEmphasis: true,
+        columnGapRatio: 0.22,
+        rowGapRatio: 0.05,
+        maxWidthPercent: 88,
+        paddingPercent: 6,
+      },
+    },
+  },
+
+  'kinetic-montage-default': {
+    id: 'kinetic-montage-default',
+    name: 'Kinetic Montage',
+    description:
+      'Cascade-anchor-multi-color-progressive-reveal aesthetic in Plus Jakarta Sans ExtraBold: 1–3 line size cascade (top ~47% of bottom anchor), per-word spring reveal at spoken time (70%→100% over 140ms), red/yellow inline emphasis cycling, huge white uppercase anchor blocks for last-word long alpha emphasis, ~6% italic accent on soft content words. Bottom-third, left-aligned, no stroke, no shadow.',
+    templateId: 'kinetic-montage',
+    styleSpec: {
+      font: {
+        family: 'Plus Jakarta Sans',
+        weight: 800,
+        size: 234,
+        letterSpacing: -2,
+        textTransform: 'lowercase',
+      },
+      color: {
+        fill: '#ffffff',
+        strokeWidth: 0,
+        emphasisFill: ['#ff2a2a', '#ffd700'],
+      },
+      layout: {
+        position: 'bottom',
+        safeMargin: 0.18,
+        maxWordsPerLine: 3,
+        align: 'left',
+      },
+      charAdvance: 0.560,
+      animation: {
+        preset: 'karaoke',
+        tailMs: 200,
+        scaleFrom: 0.7,
+        durationMs: 140,
+      },
+      reel: {
+        emphasisFillRatio: 0.75,
+        emphasisMaxHeightRatio: 0.16,
+        emphasisTextTransform: 'uppercase',
+        fillerTextTransform: 'lowercase',
+        mediumTextTransform: 'lowercase',
+        emphasisWeight: 800,
+        wordReveal: 'progressive',
+        inferEmphasis: false,
+        columnGapRatio: 0.18,
+        rowGapRatio: 0.04,
+        maxWidthPercent: 80,
+        paddingPercent: 6,
+        cascadeTopRatio: 0.47,
+        cascadeBottomRatio: 1,
+        multiColorEmphasis: true,
+        italicAccentRate: 0.06,
+      },
     },
   },
 

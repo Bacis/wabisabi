@@ -18,6 +18,9 @@ videos/
 ig.mp4
 input_orhan.mp4
 
+# Reel analysis runs (downloaded videos, frames, analysis output)
+scripts/reel-analysis/runs/
+
 # OS / editor
 .DS_Store
 .vscode/

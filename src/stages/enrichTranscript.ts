@@ -46,12 +46,16 @@ type RawPlan = z.infer<typeof rawPlanSchema>;
 
 function buildUserMessage(words: Word[]): string {
   const wordList = words.map((w, i) => `${i}: ${w.word}`).join('\n');
+  const lastIdx = words.length - 1;
   return `Group these words into caption lines and mark emphasis. Output JSON only.
 
 Format:
 {"chunks":[{"start":0,"end":3,"emphasis":[2]},{"start":4,"end":7,"emphasis":[5,7]}]}
 
 start and end are inclusive 0-based indices into the words list below.
+
+There are exactly ${words.length} words, indexed 0 through ${lastIdx} inclusive.
+The first chunk MUST start at 0. The last chunk MUST end at exactly ${lastIdx}. Do not invent indices beyond ${lastIdx}.
 
 Words:
 ${wordList}`;
@@ -147,6 +151,30 @@ function stripFences(text: string): string {
     .trim();
 }
 
+// Extract the first complete top-level JSON object from a string. Haiku sometimes
+// appends trailing commentary after the JSON despite "JSON only" instructions;
+// rather than fail the whole stage, scan brace depth and return only the object.
+function extractFirstJsonObject(text: string): string {
+  const start = text.indexOf('{');
+  if (start === -1) return text;
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i]!;
+    if (escape) { escape = false; continue; }
+    if (ch === '\\' && inString) { escape = true; continue; }
+    if (ch === '"') { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === '{') depth++;
+    else if (ch === '}') {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return text;
+}
+
 export async function enrichTranscript(
   transcript: Transcript,
 ): Promise<CaptionPlan | null> {
@@ -166,47 +194,65 @@ export async function enrichTranscript(
 
   const userMessage = buildUserMessage(transcript.words);
   const start = Date.now();
+  const MAX_ATTEMPTS = 3;
 
-  let text: string;
-  try {
-    const response = await client.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user', content: userMessage }],
-    });
-    const block = response.content[0];
-    text = block && block.type === 'text' ? block.text : '';
-  } catch (err) {
-    console.error('enrich: LLM call failed, falling back', err);
+  let validRaw: RawPlan | null = null;
+  let lastError = '';
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let text: string;
+    try {
+      const response = await client.messages.create({
+        model: 'claude-haiku-4-5',
+        max_tokens: 4096,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: userMessage }],
+      });
+      const block = response.content[0];
+      text = block && block.type === 'text' ? block.text : '';
+    } catch (err) {
+      console.error(`enrich: attempt ${attempt} LLM call failed`, err);
+      lastError = (err as Error).message ?? 'LLM call failed';
+      continue;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(extractFirstJsonObject(stripFences(text)));
+    } catch (err) {
+      lastError = `parse: ${(err as Error).message}`;
+      console.error(
+        `enrich: attempt ${attempt} JSON parse failed`,
+        lastError,
+        `\nfirst 200 chars: ${text.slice(0, 200)}`,
+      );
+      continue;
+    }
+
+    const result = rawPlanSchema.safeParse(parsed);
+    if (!result.success) {
+      lastError = `schema: ${JSON.stringify(result.error.flatten())}`;
+      console.error(`enrich: attempt ${attempt} schema validation failed`, lastError);
+      continue;
+    }
+
+    const coverageError = validateCoverage(result.data, transcript.words.length);
+    if (coverageError) {
+      lastError = `coverage: ${coverageError}`;
+      console.error(`enrich: attempt ${attempt} ${lastError}`);
+      continue;
+    }
+
+    validRaw = result.data;
+    break;
+  }
+
+  if (!validRaw) {
+    console.error(`enrich: all ${MAX_ATTEMPTS} attempts failed (last: ${lastError}), falling back`);
     return null;
   }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(stripFences(text));
-  } catch (err) {
-    console.error(
-      'enrich: failed to parse LLM JSON, falling back',
-      (err as Error).message,
-      `\nfirst 200 chars of response: ${text.slice(0, 200)}`,
-    );
-    return null;
-  }
-
-  const result = rawPlanSchema.safeParse(parsed);
-  if (!result.success) {
-    console.error('enrich: schema validation failed, falling back', result.error.flatten());
-    return null;
-  }
-
-  const coverageError = validateCoverage(result.data, transcript.words.length);
-  if (coverageError) {
-    console.error(`enrich: ${coverageError}, falling back`);
-    return null;
-  }
-
-  const rawPlan = resolveCaptionPlan(result.data, transcript.words);
+  const rawPlan = resolveCaptionPlan(validRaw, transcript.words);
   const plan = splitLongChunks(rawPlan, MAX_WORDS_PER_CHUNK);
   const ms = Date.now() - start;
   const splits = plan.chunks.length - rawPlan.chunks.length;

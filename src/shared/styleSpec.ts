@@ -173,6 +173,16 @@ export const StyleSpecSchema = z
           .default({}),
       })
       .default({}),
+    // Empirically measured char-advance ratio (bbox width / (text length ×
+    // font height)) for the font + letterSpacing combo this preset uses.
+    // The renderer's maxSizeForWord and emphasis fit-size code use it to
+    // translate font-size to expected glyph-width without under-shooting.
+    // Auto-extracted by scripts/reel-analysis/profile-to-preset.ts.
+    charAdvance: z.number().positive().optional(),
+    // Loose bag for template-specific extension fields. ReelClone reads its
+    // cascade/multi-color/italic-vocab/wordReveal config from here. Kept open
+    // (z.any) so new templates can add fields without schema churn.
+    reel: z.record(z.string(), z.any()).optional(),
   })
   .default({});
 
