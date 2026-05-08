@@ -68,15 +68,39 @@ function tierGroup(
         label: 'Motion FX',
         options: [
           { value: 'none', label: 'None — entry spring only' },
+          // Vol.02 — entry/sustain motion. No intensity dial.
           { value: 'samba', label: 'Samba — partido alto clave (sustains)' },
           { value: 'breathe', label: 'Breathe — focus blur + sine sustain' },
           { value: 'flare', label: 'Flare — anamorphic horizontal streak' },
           { value: 'crystal', label: 'Crystal — per-letter shatter snap' },
           { value: 'magnetic', label: 'Magnetic — damped oscillator pull' },
+          // Vol.03 — intensity-driven body distortion. Use the Intensity
+          // slider below to sweep amplitude + rate together.
+          { value: 'resonance', label: 'Resonance — dual-frequency vibration ◉' },
+          { value: 'plasma', label: 'Plasma Core — heat fill flow ◉' },
+          { value: 'inflation', label: 'Inflation — dilate breathe ◉' },
+          { value: 'slice', label: 'Slice Glitch — banded offsets ◉' },
+          { value: 'ferro', label: 'Ferrofluid — magnetic spike halo ◉' },
+          { value: 'shockwave', label: 'Shockwave — pulsed distortion ◉' },
         ],
         default: 'none',
         description:
-          'Per-tier motion. Per-letter effects (samba/crystal/magnetic) split the word; full-word effects (breathe/flare) layer on the entry spring.',
+          'Per-tier motion. Vol.02 (samba/breathe/flare/crystal/magnetic) layer on the entry spring. Vol.03 (◉ marked: resonance/plasma/inflation/slice/ferro/shockwave) are intensity-driven body distortions; set Intensity below.',
+      },
+      {
+        kind: 'slider',
+        path: `${pathPrefix}.intensity`,
+        label: 'Intensity',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        default: 0.5,
+        description:
+          'Single dial driving both amplitude and rate. 0.05 = barely-perceptible, 0.95 = violent.',
+        showIf: {
+          path: `${pathPrefix}.effect`,
+          oneOf: ['resonance', 'plasma', 'inflation', 'slice', 'ferro', 'shockwave'],
+        },
       },
     ],
   };

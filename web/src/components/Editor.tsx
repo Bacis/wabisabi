@@ -260,15 +260,26 @@ function Group({
         <p className="text-[11px] text-ink-400 mb-2">{group.description}</p>
       )}
       <div className="space-y-3 pt-2">
-        {group.controls.map((control: Control) => (
-          <ControlRenderer
-            key={control.path}
-            control={control}
-            value={getPath(styleSpec, control.path)}
-            onChange={(v) => onChange(control.path, v)}
-            onApplyTheme={onApplyTheme}
-          />
-        ))}
+        {group.controls.map((control: Control) => {
+          // Conditional visibility: skip this control if its `showIf` clause
+          // points at a sibling whose current value isn't in the allow-list.
+          if (control.showIf) {
+            const siblingValue = getPath(styleSpec, control.showIf.path);
+            const allowed =
+              typeof siblingValue === 'string' &&
+              control.showIf.oneOf.includes(siblingValue);
+            if (!allowed) return null;
+          }
+          return (
+            <ControlRenderer
+              key={control.path}
+              control={control}
+              value={getPath(styleSpec, control.path)}
+              onChange={(v) => onChange(control.path, v)}
+              onApplyTheme={onApplyTheme}
+            />
+          );
+        })}
       </div>
     </details>
   );

@@ -253,6 +253,273 @@ function magneticLetterTransform(
   };
 }
 
+// FX Lab Vol.03 — intensity-driven body motion (resonance / plasma / inflation
+// / ferro / shockwave). Each takes a single 0..1 intensity that scales BOTH
+// amplitude AND rate; primitive attributes are recomputed per frame from
+// useCurrentFrame() inside the React tree, so seeds advance deterministically
+// and the same frame always produces the same render (Player + Lambda parity).
+//
+// Slice glitch lives separately — it's structural (10 stacked clip-path bands)
+// not filter-based — and is rendered inline in the per-word branch.
+
+type Vol03Effect = 'resonance' | 'plasma' | 'inflation' | 'ferro' | 'shockwave';
+
+const VOL03_EFFECTS: ReadonlyArray<Vol03Effect> = [
+  'resonance', 'plasma', 'inflation', 'ferro', 'shockwave',
+];
+
+function isVol03Effect(e: string | undefined): e is Vol03Effect {
+  return e === 'resonance' || e === 'plasma' || e === 'inflation'
+    || e === 'ferro' || e === 'shockwave';
+}
+
+function hexToRgb(hex: string): [number, number, number] {
+  let h = hex.trim().replace('#', '');
+  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
+  if (h.length === 8) h = h.slice(0, 6);
+  const n = parseInt(h, 16);
+  if (Number.isNaN(n)) return [255, 255, 255];
+  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
+}
+
+function blendRgbHex(a: [number, number, number], b: [number, number, number], t: number): string {
+  const r = Math.round(a[0] + (b[0] - a[0]) * t);
+  const g = Math.round(a[1] + (b[1] - a[1]) * t);
+  const bl = Math.round(a[2] + (b[2] - a[2]) * t);
+  return `rgb(${r}, ${g}, ${bl})`;
+}
+
+const FX_FILTER_REGION = { x: '-30%', y: '-50%', width: '160%', height: '200%' };
+
+function FxFilter({
+  id,
+  effect,
+  intensity,
+  frameSec,
+  tierFillHex,
+}: {
+  id: string;
+  effect: Vol03Effect;
+  intensity: number;
+  frameSec: number;
+  tierFillHex: string;
+}) {
+  const I = Math.max(0, Math.min(1, intensity));
+  const t = frameSec;
+
+  if (effect === 'resonance') {
+    const seed1 = Math.floor(t * 6) % 200;
+    const seed2 = Math.floor(t * 9) % 200;
+    const freqLow = 5 + I * 8;
+    const freqHigh = 14 + I * 18;
+    const scale1 = I * 18 * Math.sin(t * freqLow);
+    const scale2 = I * 10 * Math.sin(t * freqHigh + 1.7);
+    return (
+      <filter id={id} {...FX_FILTER_REGION}>
+        <feTurbulence type="turbulence" baseFrequency="0.018" numOctaves={2} seed={seed1} result="t1" />
+        <feDisplacementMap in="SourceGraphic" in2="t1" scale={scale1} result="d1" />
+        <feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves={2} seed={seed2} result="t2" />
+        <feDisplacementMap in="d1" in2="t2" scale={scale2} />
+      </filter>
+    );
+  }
+
+  if (effect === 'plasma') {
+    const seed = Math.floor(t * (1 + I * 4)) % 100;
+    const bf1 = (0.018 + I * 0.012).toFixed(4);
+    const bf2 = (0.025 + I * 0.018).toFixed(4);
+    const alphaMul = Math.min(1, I * 1.1).toFixed(3);
+    return (
+      <filter id={id} x="-10%" y="-10%" width="120%" height="120%">
+        <feTurbulence type="fractalNoise" baseFrequency={`${bf1} ${bf2}`} numOctaves={2} seed={seed} result="noise" />
+        <feComponentTransfer in="noise" result="hot">
+          <feFuncR type="table" tableValues="0.05 0.4 0.95 1 0.95" />
+          <feFuncG type="table" tableValues="0 0.05 0.5 0.85 0.95" />
+          <feFuncB type="table" tableValues="0.2 0 0 0.05 0.4" />
+          <feFuncA type="table" tableValues="0 1 1 1 1" />
+        </feComponentTransfer>
+        <feComposite in="hot" in2="SourceGraphic" operator="in" result="masked" />
+        <feColorMatrix
+          in="masked"
+          type="matrix"
+          values={`1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ${alphaMul} 0`}
+          result="opacityCtl"
+        />
+        <feMerge>
+          <feMergeNode in="SourceGraphic" />
+          <feMergeNode in="opacityCtl" />
+        </feMerge>
+      </filter>
+    );
+  }
+
+  if (effect === 'inflation') {
+    const breathRate = 1.6 + I * 3.0;
+    const breathPhase = Math.sin(t * breathRate);
+    const breathBias = I * 0.4;
+    const breathOsc = breathPhase * (0.05 + I * 0.4);
+    const radius = Math.max(0, breathBias + breathOsc);
+    return (
+      <filter id={id} x="-15%" y="-25%" width="130%" height="150%">
+        <feMorphology operator="dilate" radius={radius} in="SourceGraphic" />
+      </filter>
+    );
+  }
+
+  if (effect === 'ferro') {
+    const radius = 0.5 + I * 7.5;
+    const dispScale = I * 28;
+    const bf = (0.35 + I * 0.4).toFixed(3);
+    const seedRate = 8 + I * 30;
+    const seed = Math.floor(t * seedRate) % 250;
+    const baseRgb = hexToRgb(tierFillHex);
+    const hotRgb: [number, number, number] = [0xff, 0x5b, 0x3c];
+    const floodColor = blendRgbHex(baseRgb, hotRgb, I);
+    return (
+      <filter id={id} {...FX_FILTER_REGION}>
+        <feMorphology operator="dilate" radius={radius} in="SourceGraphic" result="dilated" />
+        <feComposite operator="out" in="dilated" in2="SourceGraphic" result="halo" />
+        <feTurbulence type="fractalNoise" baseFrequency={bf} numOctaves={2} seed={seed} result="spikeNoise" />
+        <feDisplacementMap in="halo" in2="spikeNoise" scale={dispScale} result="spikes" />
+        <feFlood floodColor={floodColor} result="flood" />
+        <feComposite operator="in" in="flood" in2="spikes" result="coloredSpikes" />
+        <feMerge>
+          <feMergeNode in="coloredSpikes" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    );
+  }
+
+  // shockwave
+  const omega = 9 + I * 50;
+  const pulse = Math.abs(Math.sin(t * omega));
+  const dispScale = pulse * I * 32;
+  const bf = (0.018 + I * 0.04).toFixed(4);
+  const seed = Math.floor(t * 2) % 200;
+  return (
+    <filter id={id} x="-15%" y="-25%" width="130%" height="150%">
+      <feTurbulence type="turbulence" baseFrequency={bf} numOctaves={1} seed={seed} result="wave" />
+      <feDisplacementMap in="SourceGraphic" in2="wave" scale={dispScale} />
+    </filter>
+  );
+}
+
+type FxRequest = { id: string; effect: Vol03Effect; intensity: number; tierFillHex: string };
+
+function FxFilterDefs({ requests, frameSec }: { requests: FxRequest[]; frameSec: number }) {
+  if (requests.length === 0) return null;
+  return (
+    <svg
+      width="0"
+      height="0"
+      style={{ position: 'absolute', width: 0, height: 0, pointerEvents: 'none' }}
+      aria-hidden="true"
+    >
+      <defs>
+        {requests.map((r) => (
+          <FxFilter
+            key={r.id}
+            id={r.id}
+            effect={r.effect}
+            intensity={r.intensity}
+            frameSec={frameSec}
+            tierFillHex={r.tierFillHex}
+          />
+        ))}
+      </defs>
+    </svg>
+  );
+}
+
+// Slice glitch — 10 horizontal-band stacked copies, per-band offsets driven
+// by deterministic frame-tick pseudo-random. Bypasses the per-letter render.
+function SliceWord({
+  text,
+  intensity,
+  frameSec,
+  fontStyles,
+  fillStyles,
+  baseColor,
+  scale,
+  opacity,
+}: {
+  text: string;
+  intensity: number;
+  frameSec: number;
+  fontStyles: React.CSSProperties;
+  fillStyles: React.CSSProperties;
+  baseColor: string;
+  scale: number;
+  opacity: number;
+}) {
+  const I = Math.max(0, Math.min(1, intensity));
+  const BANDS = 10;
+  const tickMs = Math.max(20, 200 - I * 170);
+  const tick = Math.floor((frameSec * 1000) / tickMs);
+  const maxOffset = I * 22;
+
+  const bandRand = (i: number, k: number): number => {
+    const s = ((i * 9173) ^ (k * 31337)) >>> 0;
+    return ((s * 1664525 + 1013904223) >>> 0) / 4294967295;
+  };
+
+  const bands: React.ReactNode[] = [];
+  for (let i = 0; i < BANDS; i++) {
+    const r = bandRand(i, tick);
+    let off = (r - 0.5) * 2 * maxOffset;
+    const r2 = bandRand(i, tick + 1000);
+    if (r2 > 0.4 + I * 0.55) off = 0;
+
+    let bandColor = baseColor;
+    if (I > 0.6 && Math.abs(off) > 4) {
+      if (i % 3 === 0) bandColor = '#4dd4ff';
+      else if (i % 3 === 1) bandColor = '#ff5b3c';
+    }
+
+    const topPct = (i / BANDS) * 100;
+    const botPct = ((BANDS - i - 1) / BANDS) * 100;
+
+    bands.push(
+      <span
+        key={i}
+        style={{
+          ...fontStyles,
+          ...fillStyles,
+          color: bandColor,
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          clipPath: `inset(${topPct.toFixed(3)}% 0 ${botPct.toFixed(3)}% 0)`,
+          WebkitClipPath: `inset(${topPct.toFixed(3)}% 0 ${botPct.toFixed(3)}% 0)`,
+          transform: `translateX(${off.toFixed(2)}px)`,
+        }}
+      >
+        {text}
+      </span>,
+    );
+  }
+
+  return (
+    <span
+      style={{
+        position: 'relative',
+        display: 'inline-block',
+        transform: scale !== 1 ? `scale(${scale})` : undefined,
+        transformOrigin: 'left baseline',
+        opacity,
+      }}
+    >
+      {/* Layout placeholder so the word reserves correct width — invisible but laid out */}
+      <span style={{ ...fontStyles, ...fillStyles, color: 'transparent', visibility: 'hidden' }}>
+        {text}
+      </span>
+      {bands}
+    </span>
+  );
+}
+
 type Props = {
   videoFile: string;
   videoMeta: { width: number; height: number; durationInFrames: number; fps: number };
@@ -332,7 +599,9 @@ export const ReelClone: React.FC<Props> = ({
     stops: Array<{ pos: number; color: string }>;
   };
   type TierFill = string | GradientFillObj;
-  type EffectId = 'none' | 'samba' | 'breathe' | 'flare' | 'crystal' | 'magnetic';
+  type EffectId =
+    | 'none' | 'samba' | 'breathe' | 'flare' | 'crystal' | 'magnetic'
+    | 'resonance' | 'plasma' | 'inflation' | 'slice' | 'ferro' | 'shockwave';
   type TierStyle = {
     fill?: TierFill;
     fontFamily?: string;
@@ -344,7 +613,12 @@ export const ReelClone: React.FC<Props> = ({
     // Vol.02 — see web/src/lib/templateDescriptors/reel-clone.ts for the
     // picker. Per-letter effects (samba/crystal/magnetic) split the word
     // into character spans; full-word effects (breathe/flare) wrap once.
+    // Vol.03 effects (resonance/plasma/inflation/slice/ferro/shockwave) are
+    // SVG-filter-based body distortions driven by `intensity` (0..1).
     effect?: EffectId;
+    // Single 0..1 dial driving both amplitude and rate of the Vol.03
+    // intensity-driven effects. Ignored for Vol.02 effects (none/samba/etc).
+    intensity?: number;
   };
   const tiers = (reel.tiers ?? {}) as {
     byPaletteIndex?: Record<string, TierStyle>;
@@ -517,11 +791,37 @@ export const ReelClone: React.FC<Props> = ({
   const justifyContent =
     align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center';
 
+  // Vol.03 filter requests — one filter per (tierKey, effect) pair that's
+  // configured. Slice glitch is structural, not filter-based, so it's
+  // excluded here. Filter ids are referenced by the per-word render branch.
+  const fxRequests: FxRequest[] = [];
+  const fxRequestKeys = new Set<string>();
+  const pushFxRequest = (tierKey: string, tier: TierStyle | undefined): void => {
+    if (!tier) return;
+    const eff = tier.effect;
+    if (!isVol03Effect(eff)) return;
+    const id = `fx-${tierKey}-${eff}`;
+    if (fxRequestKeys.has(id)) return;
+    fxRequestKeys.add(id);
+    const intensity = typeof tier.intensity === 'number' ? tier.intensity : 0.5;
+    const tierFillHex = typeof tier.fill === 'string'
+      ? tier.fill
+      : (palette[0] ?? fillColor);
+    fxRequests.push({ id, effect: eff, intensity, tierFillHex });
+  };
+  if (tiers.byPaletteIndex) {
+    for (const [k, v] of Object.entries(tiers.byPaletteIndex)) {
+      pushFxRequest(`p${k}`, v);
+    }
+  }
+  pushFxRequest('italic', tiers.italic);
+
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
       {videoFile && (
         <OffthreadVideo src={videoFile.startsWith('http') ? videoFile : staticFile(videoFile)} />
       )}
+      <FxFilterDefs requests={fxRequests} frameSec={t} />
       <div
         style={{
           position: 'absolute',
@@ -842,11 +1142,20 @@ export const ReelClone: React.FC<Props> = ({
                     // magnetic) split the word and drive each letter's
                     // transform/opacity from FX-Lab math (the spring
                     // entry is bypassed for per-letter so the effect math
-                    // owns the motion).
-                    const tierEffect: 'none' | 'samba' | 'breathe' | 'flare' | 'crystal' | 'magnetic' =
-                      (tier?.effect as any) ?? 'none';
+                    // owns the motion). Vol.03 body-distortion effects
+                    // (resonance/plasma/inflation/ferro/shockwave) attach
+                    // an SVG filter via url(...) and keep the single span;
+                    // slice glitch is structural (10 banded copies) and
+                    // routes to <SliceWord/>.
+                    const tierEffect: EffectId = (tier?.effect as any) ?? 'none';
                     const isPerLetterEffect =
                       tierEffect === 'samba' || tierEffect === 'crystal' || tierEffect === 'magnetic';
+                    const isFilterEffect = isVol03Effect(tierEffect);
+                    const tierIntensity =
+                      typeof tier?.intensity === 'number' ? tier.intensity : 0.5;
+                    const tierKey: string | null = wordIsItalic
+                      ? 'italic'
+                      : (paletteIdx >= 0 ? `p${paletteIdx}` : null);
                     const elapsedMs = ((frame - entryFrame) / fps) * 1000;
                     const nowMs = (frame / fps) * 1000;
 
@@ -894,11 +1203,35 @@ export const ReelClone: React.FC<Props> = ({
                       whiteSpace: 'nowrap',
                     };
 
+                    // Slice glitch — structural, not filter-based. Render
+                    // 10 stacked clip-banded copies via <SliceWord/>. Bypasses
+                    // both the !isPerLetterEffect span path and the per-letter
+                    // path (slice is its own rendering universe).
+                    if (tierEffect === 'slice' && tierKey != null) {
+                      const sliceColor =
+                        typeof tierFill === 'string' ? tierFill : baseFinalColor;
+                      return (
+                        <SliceWord
+                          key={i}
+                          text={text}
+                          intensity={tierIntensity}
+                          frameSec={t}
+                          fontStyles={fontStyles}
+                          fillStyles={fillStyles}
+                          baseColor={typeof sliceColor === 'string' ? sliceColor : fillColor}
+                          scale={scale}
+                          opacity={opacity}
+                        />
+                      );
+                    }
+
                     // Full-word effects path: keep the single-span render
                     // (preserves entry spring scale + opacity), augment
-                    // style with breathe blur or flare text-shadow.
+                    // style with breathe blur, flare text-shadow, or a
+                    // Vol.03 filter url() reference.
                     if (!isPerLetterEffect) {
                       const wordExtras: React.CSSProperties = {};
+                      let combinedScale = scale;
                       if (tierEffect === 'breathe') {
                         wordExtras.filter = `blur(${breatheBlurPx(elapsedMs).toFixed(2)}px)`;
                       } else if (tierEffect === 'flare') {
@@ -908,6 +1241,19 @@ export const ReelClone: React.FC<Props> = ({
                           typeof tierFill === 'string' ? tierFill
                           : (typeof baseFinalColor === 'string' ? baseFinalColor : '#6ba5ff');
                         wordExtras.textShadow = flareTextShadow(elapsedMs, flareColor);
+                      } else if (isFilterEffect && tierKey != null) {
+                        // Vol.03 filter — body distortion via SVG filter url().
+                        wordExtras.filter = `url(#fx-${tierKey}-${tierEffect})`;
+                        // Inflation also gets a subtle whole-word breath scale
+                        // on top of the dilate so the body visibly inflates &
+                        // contracts (the dilate alone fattens but doesn't sell
+                        // the breath rhythm).
+                        if (tierEffect === 'inflation') {
+                          const I = Math.max(0, Math.min(1, tierIntensity));
+                          const breathRate = 1.6 + I * 3.0;
+                          const breathPhase = Math.sin(t * breathRate);
+                          combinedScale = scale * (1 + breathPhase * I * 0.04);
+                        }
                       }
                       return (
                         <span
@@ -916,7 +1262,7 @@ export const ReelClone: React.FC<Props> = ({
                             ...fontStyles,
                             ...fillStyles,
                             ...wordExtras,
-                            transform: scale !== 1 ? `scale(${scale})` : undefined,
+                            transform: combinedScale !== 1 ? `scale(${combinedScale})` : undefined,
                             transformOrigin: 'left baseline',
                             opacity,
                           }}

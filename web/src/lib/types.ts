@@ -3,10 +3,20 @@
 // auto-generated common-fields form. Each Control binds a path into the
 // styleSpec object to a concrete UI input.
 
+// Conditional-visibility hook: a control with `showIf` only renders when the
+// styleSpec value at the referenced sibling path is one of the listed values.
+// Used e.g. to hide the per-tier `intensity` slider unless the tier's `effect`
+// is one of the intensity-driven Vol.03 effects.
+export type ShowIf = {
+  path: string;
+  oneOf: ReadonlyArray<string>;
+};
+
 export type ControlBase = {
   path: string;            // dot-path into styleSpec, e.g. "reel.heroFillRatio"
   label: string;
   description?: string;    // optional help text shown under the control
+  showIf?: ShowIf;         // hide this control unless sibling value matches
 };
 
 export type ColorControl = ControlBase & {
