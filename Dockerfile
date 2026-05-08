@@ -25,7 +25,13 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ \
     && rm -rf /var/lib/apt/lists/*
+
+# web/ is an npm workspace declared in the root package.json, so its
+# package.json must exist when we run `npm ci` — otherwise npm aborts
+# with EWORKSPACESCONFIG. We copy it before install so workspace deps
+# (vite, react, tailwind etc.) get hoisted into the root node_modules.
 COPY package.json package-lock.json* ./
+COPY web/package.json ./web/package.json
 # No --ignore-scripts: better-sqlite3 ships a postinstall that compiles
 # its native .node addon against the current Node ABI. Without it, every
 # process that imports the module crashes with "Could not locate the
@@ -38,6 +44,12 @@ RUN npm ci
 # explicitly runs `npx remotion browser ensure` to cache Chromium).
 COPY remotion/package.json remotion/package-lock.json* ./remotion/
 RUN cd remotion && npm ci --ignore-scripts
+
+# Build the web/ frontend. Vite emits to web/dist/, which the API serves
+# at /. Done in this stage so the final image only carries the static
+# bundle, not the Vite toolchain or web/node_modules.
+COPY web ./web
+RUN npm run build --workspace web
 
 # ---------------------------------------------------------------------------
 # Stage 3: Final image
@@ -84,6 +96,12 @@ COPY --from=node-deps /app/remotion/node_modules ./remotion/node_modules
 
 # Copy application source
 COPY . .
+
+# Bring in the prebuilt web bundle from the node-deps stage. Done after
+# COPY . . so the source `web/` directory (which is the Vite project,
+# not the build output) doesn't shadow it. Without this the API falls
+# through to its "run npm run build:web" placeholder page at /.
+COPY --from=node-deps /app/web/dist ./web/dist
 
 # Download Remotion's Chromium build at image build time so it's cached
 RUN npx remotion browser ensure
