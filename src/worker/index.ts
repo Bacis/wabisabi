@@ -76,7 +76,16 @@ async function processOne(): Promise<boolean> {
 // outputs from crashed jobs (the happy path deletes these synchronously
 // at the end of runPipeline). Missing dirs are treated as empty — on a
 // fresh install none of these exist until the first job runs.
-async function sweepDir(dir: string, maxAgeMs: number, label: string): Promise<number> {
+//
+// `protectedPaths` (optional) skips files whose absolute path appears in
+// the set, regardless of age. The inputs sweep uses this to honor jobs
+// with a future keepInputUntil deadline (editor opt-in retention).
+async function sweepDir(
+  dir: string,
+  maxAgeMs: number,
+  label: string,
+  protectedPaths?: Set<string>,
+): Promise<number> {
   let entries: string[];
   try {
     entries = await readdir(dir);
@@ -88,6 +97,7 @@ async function sweepDir(dir: string, maxAgeMs: number, label: string): Promise<n
   let removed = 0;
   for (const name of entries) {
     const full = join(dir, name);
+    if (protectedPaths?.has(full)) continue;
     try {
       const st = await stat(full);
       if (st.mtimeMs < cutoff) {
@@ -103,6 +113,18 @@ async function sweepDir(dir: string, maxAgeMs: number, label: string): Promise<n
   return removed;
 }
 
+// Look up every input path whose owning job has a keepInputUntil deadline
+// still in the future. The sweeper passes this set as `protectedPaths` so
+// editor-flagged uploads survive past the default 1-hour mtime cutoff.
+const selectKeptInputs = db.prepare(
+  `select inputPath from jobs where keepInputUntil is not null and keepInputUntil > datetime('now')`,
+);
+
+function getProtectedInputPaths(): Set<string> {
+  const rows = selectKeptInputs.all() as Array<{ inputPath: string }>;
+  return new Set(rows.map((r) => resolve(r.inputPath)));
+}
+
 // Retention sweeper. Runs on a timer alongside the job loop. The happy
 // path already deletes inputs/work at the end of each successful render
 // (pipeline.ts); this catches leftovers from crashed jobs and local-mode
@@ -111,8 +133,9 @@ async function runSweeper(): Promise<void> {
   const ONE_HOUR = 60 * 60 * 1000;
   const ONE_DAY = 24 * ONE_HOUR;
   try {
+    const kept = getProtectedInputPaths();
     await Promise.all([
-      sweepDir(join(STORAGE_DIR, 'inputs'), ONE_HOUR, 'inputs'),
+      sweepDir(join(STORAGE_DIR, 'inputs'), ONE_HOUR, 'inputs', kept),
       sweepDir(join(STORAGE_DIR, 'work'), ONE_HOUR, 'work'),
       sweepDir(join(STORAGE_DIR, 'outputs'), ONE_DAY, 'outputs'),
     ]);

@@ -25,3 +25,13 @@ scripts/reel-analysis/runs/
 .DS_Store
 .vscode/
 .idea/
+
+# Build artifacts
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+
+# Local debug screenshots & MCP browser session
+phase*.png
+themes-*.png
+font-picker.png
+.playwright-mcp/

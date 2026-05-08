@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+/* react-colorful tweaks for dark UI */
+.react-colorful {
+  width: 100% !important;
+  height: 200px !important;
+}
+.react-colorful__saturation {
+  border-radius: 0.5rem 0.5rem 0 0 !important;
+}
+.react-colorful__hue,
+.react-colorful__alpha {
+  height: 14px !important;
+}
+.react-colorful__last-control {
+  border-radius: 0 0 0.5rem 0.5rem !important;
+}

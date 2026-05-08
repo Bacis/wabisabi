@@ -7,7 +7,7 @@ import type { StyleSpec } from './styleSpec.js';
 //
 // Adding a new preset is one entry in this object. The viewer page picks up
 // the description and templateId from `GET /presets` automatically.
-export type TemplateId = 'pop-words' | 'single-word' | 'three-effects' | 'kinetic-burst' | 'reel-clone' | 'kinetic-montage' | 'copacabanna';
+export type TemplateId = 'pop-words' | 'reel-clone';
 
 export type Preset = {
   id: string;
@@ -15,6 +15,12 @@ export type Preset = {
   description: string;
   templateId: TemplateId;
   styleSpec: DeepPartial<StyleSpec>;
+  // When true, the editor's /presets list filters this out — used for
+  // server-only presets the producer pipeline / Telegram bot pick by id
+  // (the story-* set) but that would just be clutter in the editor's
+  // preset picker. Producer code accesses PRESETS directly, so it still
+  // sees them.
+  hidden?: boolean;
 };
 
 // Helper type — Partial<T> only goes one level deep, but our StyleSpec has
@@ -43,185 +49,17 @@ export const PRESETS: Record<string, Preset> = {
       animation: { preset: 'pop', emphasisScale: 1.15, durationMs: 120 },
     },
   },
-  'tiktok-pop': {
-    id: 'tiktok-pop',
-    name: 'TikTok Pop',
+  // Cinematic — the latest reel-clone styleSpec, OCR-derived from the
+  // reference Instagram reel. Position-aware emphasis: anchor words render as
+  // white uppercase blocks; mid-stack emphasis stays inline-colored (yellow /
+  // red). Cascading sizes top→bottom, progressive word-by-word reveal,
+  // left-aligned. The id ends in '-default' so the editor's pickDefaultPreset
+  // helper auto-applies it on a fresh reel-clone job.
+  'reel-clone-default': {
+    id: 'reel-clone-default',
+    name: 'Cinematic',
     description:
-      'Aggressive viral style: heavier weight, pink emphasis, tighter 3-word chunks, bigger pop on emphasis words.',
-    templateId: 'pop-words',
-    styleSpec: {
-      font: { weight: 900, size: 64, textTransform: 'uppercase', letterSpacing: -1 },
-      color: {
-        fill: '#ffffff',
-        stroke: '#000000',
-        strokeWidth: 10,
-        emphasisFill: '#ff3366',
-      },
-      layout: { position: 'bottom', safeMargin: 0.18, maxWordsPerLine: 3 },
-      animation: { preset: 'pop', emphasisScale: 1.25, durationMs: 150 },
-    },
-  },
-  minimal: {
-    id: 'minimal',
-    name: 'Minimal',
-    description:
-      'Quiet, readable, no shouting: mixed-case, lighter weight, no emphasis color, 5 words per line.',
-    templateId: 'pop-words',
-    styleSpec: {
-      font: { weight: 600, size: 56, textTransform: 'none' },
-      color: {
-        fill: '#ffffff',
-        stroke: '#000000',
-        strokeWidth: 4,
-        emphasisFill: '#ffffff',
-      },
-      layout: { position: 'bottom', safeMargin: 0.12, maxWordsPerLine: 5 },
-      animation: { preset: 'fade', emphasisScale: 1.05, durationMs: 200 },
-    },
-  },
-  'big-word': {
-    id: 'big-word',
-    name: 'Big Word',
-    description:
-      'MrBeast-style single-word focus: one huge word at a time, white with yellow emphasis. Best on 1080p+ vertical.',
-    templateId: 'single-word',
-    styleSpec: {
-      font: { weight: 900, size: 96, textTransform: 'uppercase', letterSpacing: -2 },
-      color: {
-        fill: '#ffffff',
-        stroke: '#000000',
-        strokeWidth: 12,
-        emphasisFill: '#ffe14b',
-      },
-      layout: { position: 'middle', safeMargin: 0.2 },
-      animation: { durationMs: 150 },
-    },
-  },
-  'big-word-pink': {
-    id: 'big-word-pink',
-    name: 'Big Word — Pink',
-    description:
-      'Same single-word style with hot-pink emphasis and bottom positioning. Pairs well with talking-head shots.',
-    templateId: 'single-word',
-    styleSpec: {
-      font: { weight: 900, size: 96, textTransform: 'uppercase', letterSpacing: -2 },
-      color: {
-        fill: '#ffffff',
-        stroke: '#000000',
-        strokeWidth: 12,
-        emphasisFill: '#ff3366',
-      },
-      layout: { position: 'bottom', safeMargin: 0.22 },
-      animation: { durationMs: 120 },
-    },
-  },
-  'three-burst': {
-    id: 'three-burst',
-    name: 'Three.js Particle Burst',
-    description:
-      'Experimental WebGL template: each word pops in with a deterministic particle burst, slight z-orbit rotation, and an emphasis-color flash. Renders via react-three-fiber on top of the source video.',
-    templateId: 'three-effects',
-    styleSpec: {
-      font: { weight: 900, size: 64, textTransform: 'uppercase' },
-      color: {
-        fill: '#ffffff',
-        stroke: '#000000',
-        strokeWidth: 12,
-        emphasisFill: '#ffe14b',
-      },
-      layout: { position: 'bottom', safeMargin: 0.18, maxWordsPerLine: 4 },
-      animation: { tailMs: 250 },
-    },
-  },
-  'kinetic-showcase': {
-    id: 'kinetic-showcase',
-    name: 'Kinetic Showcase',
-    description:
-      'Maximum-kinetic Three.js template: words swoop in along bezier arcs with motion-blur ghost trails, lock with a spring overshoot, then sit gently bobbing while emphasis words glow with a stacked additive halo and orbital particle rings spin around them. A twinkling star field adds depth. Best on high-energy talking-head footage where you want every word to feel like a moment.',
-    templateId: 'kinetic-burst',
-    styleSpec: {
-      font: { weight: 900, size: 72, textTransform: 'uppercase', letterSpacing: -1 },
-      color: {
-        fill: '#ffffff',
-        stroke: '#000000',
-        strokeWidth: 14,
-        // Cyan / magenta / amber palette cycles per chunk for visual rhythm.
-        emphasisFill: ['#00eaff', '#ff2bd6', '#ffe14b'],
-      },
-      layout: { position: 'bottom', safeMargin: 0.2, maxWordsPerLine: 4 },
-      animation: { tailMs: 300 },
-    },
-  },
-  neon: {
-    id: 'neon',
-    name: 'Neon',
-    description:
-      'Phase-B showcase: cyan-to-magenta gradient fill on base words, cycling cyan/magenta/yellow emphasis palette, magenta glow shadow. Best on darker footage.',
-    templateId: 'pop-words',
-    styleSpec: {
-      font: { weight: 900, size: 68, textTransform: 'uppercase', letterSpacing: -1 },
-      color: {
-        fill: '#ffffff',
-        stroke: '#000000',
-        strokeWidth: 6,
-        // Palette cycles per chunk: chunk 0 → cyan, chunk 1 → magenta, chunk 2 → yellow, chunk 3 → cyan, …
-        emphasisFill: ['#00eaff', '#ff2bd6', '#ffe14b'],
-        // Vertical gradient on non-emphasis words (white → pale blue).
-        fillGradient: {
-          type: 'linear',
-          angle: 180,
-          stops: [
-            { pos: 0, color: '#ffffff' },
-            { pos: 1, color: '#9fe9ff' },
-          ],
-        },
-        // Magenta glow — large blur, no offset = centered halo effect.
-        shadow: {
-          color: '#ff2bd6cc',
-          blurPx: 18,
-          offsetX: 0,
-          offsetY: 0,
-        },
-      },
-      layout: { position: 'bottom', safeMargin: 0.18, maxWordsPerLine: 3 },
-      animation: { preset: 'pop', emphasisScale: 1.2, durationMs: 140 },
-    },
-  },
-
-  'reel-DXhn5HNhTxy': {
-    id: 'reel-DXhn5HNhTxy',
-    name: 'Karaoke Multi-Color',
-    description:
-      'Bold white sans-serif with multi-color emphasis words (red/blue/purple/gold). Karaoke animation, left-aligned, 3 words per line. Extracted from Instagram reel reference.',
-    templateId: 'reel-clone',
-    styleSpec: {
-      font: { weight: 800, size: 64, textTransform: 'none' },
-      color: {
-        fill: '#ffffff',
-        strokeWidth: 0,
-        emphasisFill: ['#ff3333', '#3366ff', '#cc33ff', '#ffcc33'],
-      },
-      layout: {
-        position: 'bottom',
-        safeMargin: 0.18,
-        maxWordsPerLine: 3,
-        align: 'left',
-      },
-      animation: { durationMs: 150, scaleFrom: 0.7, tailMs: 200 },
-    },
-  },
-
-  // Auto-extracted via the OCR feature pipeline (scripts/reel-analysis/
-  // extract-features.ts → profile-to-preset.ts). Output of analyzing the same
-  // reel as 'reel-DXhn5HNhTxy' but derived programmatically from visual
-  // measurements rather than hand-tuned. Position-aware emphasis: anchor
-  // words render as white uppercase blocks; mid-stack emphasis stays inline
-  // colored (red/yellow). Cascade size growth top→bottom.
-  'reel-DXhn5HNhTxy-auto': {
-    id: 'reel-DXhn5HNhTxy-auto',
-    name: 'Karaoke Cascade (Auto-extracted v2)',
-    description:
-      'Bold Inter Black with yellow + red inline emphasis and white uppercase block anchors. Cascading sizes top→bottom, progressive word-by-word reveal, left-aligned. Auto-derived from OCR analysis of the reference reel — anchor size, char advance, fill ratio, and italic vocabulary all measured from source.',
+      'Bold Inter Black with yellow + red inline emphasis and white uppercase block anchors. Cascading sizes, progressive word-by-word reveal, left-aligned.',
     templateId: 'reel-clone',
     styleSpec: {
       font: {
@@ -243,8 +81,6 @@ export const PRESETS: Record<string, Preset> = {
         align: 'left',
       },
       // Empirically measured char-advance for Inter Black at letterSpacing=-2.
-      // Source-frame OCR reported median bbox_width / (text_len * font_height)
-      // = 0.558. Default 0.58 was conservative and under-sized text.
       charAdvance: 0.558,
       animation: {
         preset: 'karaoke',
@@ -254,9 +90,6 @@ export const PRESETS: Record<string, Preset> = {
       },
       reel: {
         emphasisStyle: 'block',
-        // Derived from anchor_width_pct measured on source: anchor words
-        // occupy ~60% of frame width = ~75% of usable width (after 80%
-        // maxWidthPercent padding).
         emphasisFillRatio: 0.75,
         emphasisMaxHeightRatio: 0.16,
         fillerSizeMultiplier: 1,
@@ -265,127 +98,25 @@ export const PRESETS: Record<string, Preset> = {
         mediumTextTransform: 'lowercase',
         emphasisWeight: 900,
         wordReveal: 'progressive',
-        inferEmphasis: false,
-        columnGapRatio: 0.18,
-        rowGapRatio: 0.04,
-        maxWidthPercent: 80,
-        paddingPercent: 6,
-        cascadeTopRatio: 0.47,
-        cascadeBottomRatio: 1,
-        multiColorEmphasis: true,
-        // Generic italic-accent style rate measured from the source: ~6% of
-        // qualifying long emphasis words rendered italic. Renderer applies
-        // this density to ANY input video by hashing each candidate word and
-        // italicizing the matching fraction — works on any transcript, not
-        // tied to the reference reel's specific vocabulary.
-        italicAccentRate: 0.057,
-      },
-    },
-  },
-
-  'copacabanna-default': {
-    id: 'copacabanna-default',
-    name: 'Copacabanna',
-    description:
-      'Brazilian samba-sway captions in Lobster script: every word cycles through a 5-stop tropical palette (terracotta / forest / grass / lime / flag-yellow), each word enters with a -8° tilt that springs to upright with a slight overshoot, emphasis words lock to flag-yellow at 1.25× size and oscillate ±3° while on screen. Center-aligned, lower-third, no stroke or shadow.',
-    templateId: 'copacabanna',
-    styleSpec: {
-      font: {
-        family: 'Lobster',
-        weight: 400,
-        size: 156,
-        letterSpacing: 0,
-        textTransform: 'none',
-      },
-      color: {
-        fill: '#ffffff',
-        strokeWidth: 0,
-        emphasisFill: '#FDFF55',
-      },
-      layout: {
-        position: 'bottom',
-        safeMargin: 0.2,
-        maxWordsPerLine: 4,
-        align: 'center',
-      },
-      charAdvance: 0.62,
-      animation: {
-        preset: 'pop',
-        tailMs: 220,
-        scaleFrom: 0.85,
-        durationMs: 220,
-        spring: {
-          damping: 8,
-          stiffness: 180,
-          mass: 0.5,
-        },
-      },
-      reel: {
-        palette: ['#CA402A', '#0E694F', '#6EB453', '#AED953', '#FDFF55'],
-        tiltDegrees: -8,
-        swayAmplitudeDegrees: 3,
-        swayHz: 0.8,
-        fillerOpacity: 0.65,
-        emphasisSizeMultiplier: 1.25,
-        wordReveal: 'progressive',
+        // Auto-flag emphasis words from the transcript when the caption
+        // plan has none. Required for the editor's live preview — the
+        // enrich step only runs server-side at render time, so the editor
+        // is otherwise emphasis-less and themes (primary/secondary tiers)
+        // never fire.
         inferEmphasis: true,
-        columnGapRatio: 0.22,
-        rowGapRatio: 0.05,
-        maxWidthPercent: 88,
-        paddingPercent: 6,
-      },
-    },
-  },
-
-  'kinetic-montage-default': {
-    id: 'kinetic-montage-default',
-    name: 'Kinetic Montage',
-    description:
-      'Cascade-anchor-multi-color-progressive-reveal aesthetic in Plus Jakarta Sans ExtraBold: 1–3 line size cascade (top ~47% of bottom anchor), per-word spring reveal at spoken time (70%→100% over 140ms), red/yellow inline emphasis cycling, huge white uppercase anchor blocks for last-word long alpha emphasis, ~6% italic accent on soft content words. Bottom-third, left-aligned, no stroke, no shadow.',
-    templateId: 'kinetic-montage',
-    styleSpec: {
-      font: {
-        family: 'Plus Jakarta Sans',
-        weight: 800,
-        size: 234,
-        letterSpacing: -2,
-        textTransform: 'lowercase',
-      },
-      color: {
-        fill: '#ffffff',
-        strokeWidth: 0,
-        emphasisFill: ['#ff2a2a', '#ffd700'],
-      },
-      layout: {
-        position: 'bottom',
-        safeMargin: 0.18,
-        maxWordsPerLine: 3,
-        align: 'left',
-      },
-      charAdvance: 0.560,
-      animation: {
-        preset: 'karaoke',
-        tailMs: 200,
-        scaleFrom: 0.7,
-        durationMs: 140,
-      },
-      reel: {
-        emphasisFillRatio: 0.75,
-        emphasisMaxHeightRatio: 0.16,
-        emphasisTextTransform: 'uppercase',
-        fillerTextTransform: 'lowercase',
-        mediumTextTransform: 'lowercase',
-        emphasisWeight: 800,
-        wordReveal: 'progressive',
-        inferEmphasis: false,
         columnGapRatio: 0.18,
         rowGapRatio: 0.04,
         maxWidthPercent: 80,
         paddingPercent: 6,
-        cascadeTopRatio: 0.47,
-        cascadeBottomRatio: 1,
+        // Top-down cascade: anchor (big) sits on top, lines below taper
+        // smaller. Swap these two values to invert.
+        cascadeTopRatio: 1,
+        cascadeBottomRatio: 0.47,
         multiColorEmphasis: true,
-        italicAccentRate: 0.06,
+        // ~6% of qualifying long emphasis words rendered italic. The
+        // renderer hashes each candidate word and italicizes the matching
+        // fraction — works on any transcript.
+        italicAccentRate: 0.057,
       },
     },
   },
@@ -402,6 +133,7 @@ export const PRESETS: Record<string, Preset> = {
 
   'story-rainbow': {
     id: 'story-rainbow',
+    hidden: true,
     name: 'Story — Rainbow',
     description:
       'Wide, punchy layout for narrated shorts. 6-color palette cycles per chunk (coral, cyan, gold, lilac, mint, orange). Bold pop animation, uppercase.',
@@ -436,6 +168,7 @@ export const PRESETS: Record<string, Preset> = {
 
   'story-sunset': {
     id: 'story-sunset',
+    hidden: true,
     name: 'Story — Sunset',
     description:
       'Warm gradient fill (white → peach) with coral/amber/rose emphasis cycling. Slide-in animation, wide layout. Pairs with hopeful or nostalgic content.',
@@ -472,6 +205,7 @@ export const PRESETS: Record<string, Preset> = {
 
   'story-cyberpunk': {
     id: 'story-cyberpunk',
+    hidden: true,
     name: 'Story — Cyberpunk',
     description:
       'High-contrast cyan/magenta/acid-green palette on icy-white base. Karaoke animation lights each word as spoken. Wide layout, tech/sci-fi vibe. Subtle magenta accent glow behind emphasis words.',
@@ -507,6 +241,7 @@ export const PRESETS: Record<string, Preset> = {
 
   'story-editorial': {
     id: 'story-editorial',
+    hidden: true,
     name: 'Story — Editorial (Hopecore)',
     description:
       'Editorial serif with dramatic per-word size variance. Emphasis words render HUGE in uppercase, filler words shrink to small italic — think vintage magazine spread. Subtle per-chunk rotation. Best default for narrated b-roll shorts.',
@@ -547,6 +282,7 @@ export const PRESETS: Record<string, Preset> = {
 
   'story-typewriter': {
     id: 'story-typewriter',
+    hidden: true,
     name: 'Story — Typewriter',
     description:
       'Monospace typewriter reveal: words appear one at a time. Paper-white base with warm-amber/teal emphasis cycling, subtle drop shadow, medium width.',

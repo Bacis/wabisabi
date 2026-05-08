@@ -17,7 +17,7 @@ const INPUT = resolve('input_orhan.mp4');
 const WORK_DIR = resolve('storage/work/test-reel-clone');
 const OUTPUT = resolve('storage/outputs/test-reel-clone.mp4');
 
-const preset = PRESETS['reel-DXhn5HNhTxy']!;
+const preset = PRESETS['reel-clone-default']!;
 console.log(`Template: ${preset.templateId}`);
 console.log(`Preset: ${preset.id}\n`);
 

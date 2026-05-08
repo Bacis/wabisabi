@@ -42,7 +42,7 @@ import type {
 //   styleSpec.reel.emphasisLineBreak       — whether emphasis words force their own line (default false)
 //   styleSpec.reel.emphasisWeight          — font weight for emphasis words (default: same as font.weight)
 //   styleSpec.reel.wordReveal              — 'all' | 'progressive' (default 'all')
-//   styleSpec.reel.inferEmphasis           — auto-infer emphasis if plan has none (default false)
+//   styleSpec.reel.inferEmphasis           — auto-infer emphasis if plan has none (default true; opt out with `false`)
 //   styleSpec.reel.columnGapRatio          — gap between words as ratio of baseSize (default 0.2)
 //   styleSpec.reel.rowGapRatio             — gap between lines as ratio of baseSize (default 0.05)
 //   styleSpec.reel.maxWidthPercent         — max width of text container (default 90)
@@ -135,6 +135,124 @@ function applyTransform(word: string, transform: string): string {
   return word;
 }
 
+// Per-letter motion FX adapted from FX Lab Vol.02. Per-letter effects
+// (samba/crystal/magnetic) split the word into character spans with their
+// own transform; full-word effects (breathe/flare) keep the single span and
+// apply CSS filter / text-shadow on top of the existing entry animation.
+//
+// All math is frame-driven (useCurrentFrame + word.start) so renders are
+// deterministic across the Player and headless Lambda render paths.
+
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+const easeOutQuint = (t: number) => 1 - Math.pow(1 - t, 5);
+
+// Deterministic LCG per letter — same seed → same scatter direction every
+// frame, so the shatter / magnetic effects don't rejitter on each render.
+function seedRand(seed: number): () => number {
+  let s = seed | 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) | 0;
+    return ((s >>> 0) % 100000) / 100000;
+  };
+}
+
+// FX-08 Lens Breathe — entry blur 14→0 over 600ms, then sine breath 0..1.4px
+function breatheBlurPx(elapsedMs: number): number {
+  const entryT = Math.min(1, elapsedMs / 600);
+  const entryE = easeOutQuint(entryT);
+  const entryBlur = (1 - entryE) * 14;
+  const hold = Math.max(0, elapsedMs - 600);
+  const breathPhase = (hold / 1800) * Math.PI * 2;
+  const breathBlur = (Math.sin(breathPhase) + 1) * 0.5 * 1.4;
+  return entryBlur + breathBlur;
+}
+
+// FX-09 Anamorphic Flare — bell curve at t=0.25, decays to a low sustain.
+// Approximates the SVG asymmetric blur via CSS text-shadow with horizontal
+// spread (the asymmetry — wide on X, sharp on Y — is what reads anamorphic).
+function flareTextShadow(elapsedMs: number, color: string): string {
+  const t = Math.min(1, elapsedMs / 700);
+  const bell = Math.exp(-Math.pow((t - 0.25) * 5, 2));
+  const sustain = (1 - t) * 0.15 + 0.05;
+  const intensity = Math.max(bell, sustain);
+  const spread = (intensity * 80).toFixed(1);
+  const blur = (intensity * 24 + 4).toFixed(1);
+  return `${spread}px 0 ${blur}px ${color}, -${spread}px 0 ${blur}px ${color}`;
+}
+
+// FX-07 Calçadão — partido alto clave. Sustains during hold (loops).
+function sambaLetterTransform(
+  letterIdx: number,
+  elapsedMs: number,
+  nowMs: number,
+): { transform: string; opacity: number } {
+  const entryT = Math.min(1, elapsedMs / 400);
+  const entryE = easeOutCubic(entryT);
+  const cycleMs = 1200;
+  const cycle = ((nowMs % cycleMs) + cycleMs) % cycleMs / cycleMs;
+  const hits = [0, 0.25, 0.375, 0.625, 0.75];
+  const letterPhase = (cycle + letterIdx * 0.06) % 1;
+  let pulse = 0;
+  for (const h of hits) {
+    const d = Math.abs(letterPhase - h);
+    const dm = Math.min(d, 1 - d);
+    const k = Math.exp(-dm * 32);
+    if (k > pulse) pulse = k;
+  }
+  const yOff = -pulse * 14 * entryE;
+  const sX = (1 + pulse * 0.06) * entryE + (1 - entryE) * 0.7;
+  const sY = (1 + pulse * 0.18) * entryE + (1 - entryE) * 0.7;
+  const xSway = Math.sin(cycle * Math.PI * 2 + letterIdx * 0.5) * 1.5 * entryE;
+  return {
+    transform: `translate(${xSway.toFixed(2)}px, ${yOff.toFixed(2)}px) scale(${sX.toFixed(3)}, ${sY.toFixed(3)})`,
+    opacity: entryE,
+  };
+}
+
+// FX-10 Crystalline Shatter — entry-only fracture, snaps with easeOutQuint.
+function crystalLetterTransform(
+  letterIdx: number,
+  elapsedMs: number,
+): { transform: string; opacity: number } {
+  const t = Math.min(1, elapsedMs / 900);
+  const e = easeOutQuint(t);
+  const rng = seedRand(letterIdx * 73 + 19);
+  const angle = rng() * Math.PI * 2;
+  const dist = 60 + rng() * 90;
+  const dx = Math.cos(angle) * dist * (1 - e);
+  const dy = Math.sin(angle) * dist * (1 - e);
+  const rot = (rng() - 0.5) * 60 * (1 - e);
+  const sc = 0.4 + e * 0.6;
+  return {
+    transform: `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) rotate(${rot.toFixed(1)}deg) scale(${sc.toFixed(3)})`,
+    opacity: e,
+  };
+}
+
+// FX-12 Magnetic Pull — damped oscillator e^(-kt) * cos(ωt) snap-back.
+function magneticLetterTransform(
+  letterIdx: number,
+  elapsedMs: number,
+): { transform: string; opacity: number } {
+  const t = Math.min(1, elapsedMs / 1100);
+  const rng = seedRand(letterIdx * 41 + 7);
+  const angle = rng() * Math.PI * 2;
+  const dist = 80 + rng() * 60;
+  const k = 4.5;
+  const omega = 9;
+  const decay = Math.exp(-k * t);
+  const osc = Math.cos(omega * t);
+  const factor = decay * osc;
+  const dx = Math.cos(angle) * dist * factor;
+  const dy = Math.sin(angle) * dist * factor;
+  const rotMax = (rng() - 0.5) * 80;
+  const rot = rotMax * factor;
+  return {
+    transform: `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) rotate(${rot.toFixed(1)}deg)`,
+    opacity: Math.min(1, t * 2.5),
+  };
+}
+
 type Props = {
   videoFile: string;
   videoMeta: { width: number; height: number; durationInFrames: number; fps: number };
@@ -201,6 +319,37 @@ export const ReelClone: React.FC<Props> = ({
   const cascadeBottomRatio: number =
     typeof reel.cascadeBottomRatio === 'number' ? reel.cascadeBottomRatio : 1.0;
   const multiColorEmphasis: boolean = reel.multiColorEmphasis === true;
+  // Per-tier styling overrides. Editor surfaces these as "Primary emphasis"
+  // (palette index 0), "Secondary emphasis" (palette index 1) and "Italic
+  // accent" tabs. Each tier may override fill (solid hex with alpha or a
+  // linear gradient {type, angle, stops}), fontFamily, fontWeight,
+  // sizeMultiplier, strokeColor, strokeWidth — anything unset falls back
+  // to the base (cascade / palette / fill / weight / etc.) so old presets
+  // keep rendering identically.
+  type GradientFillObj = {
+    type?: 'linear';
+    angle?: number;
+    stops: Array<{ pos: number; color: string }>;
+  };
+  type TierFill = string | GradientFillObj;
+  type EffectId = 'none' | 'samba' | 'breathe' | 'flare' | 'crystal' | 'magnetic';
+  type TierStyle = {
+    fill?: TierFill;
+    fontFamily?: string;
+    fontWeight?: number;
+    sizeMultiplier?: number;
+    strokeColor?: string;
+    strokeWidth?: number;
+    // Motion FX applied to words rendered at this tier. Adapted from FX Lab
+    // Vol.02 — see web/src/lib/templateDescriptors/reel-clone.ts for the
+    // picker. Per-letter effects (samba/crystal/magnetic) split the word
+    // into character spans; full-word effects (breathe/flare) wrap once.
+    effect?: EffectId;
+  };
+  const tiers = (reel.tiers ?? {}) as {
+    byPaletteIndex?: Record<string, TierStyle>;
+    italic?: TierStyle;
+  };
   // Italic style is now a generic *rate*, not a specific vocab list. The
   // preset's italicAccentRate (0..1) declares what fraction of qualifying
   // emphasis-style words the source reel rendered italic. We replicate that
@@ -289,7 +438,11 @@ export const ReelClone: React.FC<Props> = ({
   const emphasisLineBreak = reel.emphasisLineBreak ?? styleDefaults.lineBreak;
   const emphasisWeight = reel.emphasisWeight ?? baseWeight;
   const wordReveal = reel.wordReveal ?? 'all';
-  const doInferEmphasis = reel.inferEmphasis ?? false;
+  // Default ON: when the caption plan has no emphasis flags (LLM enrich
+  // failed, plan never ran, or every word is filler), the renderer falls
+  // back to a heuristic so themes' primary/secondary tiers still fire.
+  // A preset can still opt out with `reel.inferEmphasis: false`.
+  const doInferEmphasis = reel.inferEmphasis ?? true;
   const columnGapRatio = reel.columnGapRatio ?? 0.2;
   const rowGapRatio = reel.rowGapRatio ?? 0.05;
   const maxWidthPercent = reel.maxWidthPercent ?? 90;
@@ -505,14 +658,25 @@ export const ReelClone: React.FC<Props> = ({
                     const filler = !isEmphasis && isFiller(w.word);
 
                     const wordStartFrame = Math.floor(w.start * fps);
-                    if (wordReveal === 'progressive' && frame < wordStartFrame) return null;
+                    // Don't unmount unrevealed words — that would collapse
+                    // their flex slot and the visible row would re-center /
+                    // re-size as later words arrive ("push" effect). Instead
+                    // we leave the element in the DOM so layout reserves the
+                    // final slot from the chunk's first frame; opacity/scale
+                    // (transform doesn't affect CSS layout) handle the
+                    // visual reveal once the word's start time hits.
 
                     const entryFrame =
                       wordReveal === 'progressive'
                         ? wordStartFrame
                         : Math.floor(activeChunk.words[0]!.start * fps);
+                    // Clamp the spring input to >= 0 so unrevealed words
+                    // (frame < entryFrame) sit at progress=0 instead of
+                    // hitting the spring with negative input. Combined
+                    // with the no-null change above, this is what keeps
+                    // pre-reveal slots invisible-but-laid-out.
                     const progress = spring({
-                      frame: frame - entryFrame,
+                      frame: Math.max(0, frame - entryFrame),
                       fps,
                       durationInFrames: Math.max(1, Math.round((animDuration / 1000) * fps)),
                       config: { damping: springDamping, stiffness: springStiffness, mass: springMass },
@@ -568,10 +732,17 @@ export const ReelClone: React.FC<Props> = ({
 
                     // Color: anchor block keeps base fill (white), inline
                     // emphasis uses palette (cycles when multiColorEmphasis).
+                    // Cycle math: within-chunk counter (emphasisSeen) +
+                    // chunk index. Without the chunk-level shift, chunks
+                    // with one emphasis word would all land on palette[0]
+                    // and the rest of the palette would never appear.
                     let resolvedColor = fillColor;
+                    const paletteIdx = isEmphasis && !isAnchorBlock
+                      ? (emphasisSeen + activeChunkIdx) % palette.length
+                      : -1;
                     if (isEmphasis && !isAnchorBlock) {
                       resolvedColor = multiColorEmphasis
-                        ? palette[emphasisSeen % palette.length] ?? emphasisColor
+                        ? palette[paletteIdx] ?? emphasisColor
                         : emphasisColor;
                     } else if (isEmphasis && isAnchorBlock && emphasisUsesColor) {
                       // Legacy 'combined' style still wants colored anchor.
@@ -586,35 +757,164 @@ export const ReelClone: React.FC<Props> = ({
                       ? emphasisTextTransform
                       : filler ? fillerTextTransform : mediumTextTransform;
                     const text = applyTransform(w.word, transform);
-                    const weight = isAnchorBlock ? emphasisWeight : baseWeight;
+                    const baseWordWeight = isAnchorBlock ? emphasisWeight : baseWeight;
                     // Italic if word is in italicVocabulary (script-style accent).
                     // Italic overrides any color emphasis — reference reels render
                     // italic accent words in plain white, with italic carrying the
                     // visual emphasis instead of color.
                     const fontStyle: 'italic' | 'normal' = wordIsItalic ? 'italic' : 'normal';
-                    const finalColor = wordIsItalic ? fillColor : resolvedColor;
+                    const baseFinalColor = wordIsItalic ? fillColor : resolvedColor;
 
+                    // Tier override resolution. Italic tier wins over palette
+                    // tier (an italic word isn't simultaneously "yellow" or
+                    // "red" — italic is its own visual lane).
+                    const tier: TierStyle | undefined = wordIsItalic
+                      ? tiers.italic
+                      : (paletteIdx >= 0
+                          ? tiers.byPaletteIndex?.[String(paletteIdx)]
+                          : undefined);
+                    const tierFontFamily = tier?.fontFamily ?? fontFamily;
+                    const tierFontWeight =
+                      typeof tier?.fontWeight === 'number' ? tier.fontWeight : baseWordWeight;
+                    const tierSizeMul =
+                      typeof tier?.sizeMultiplier === 'number' ? tier.sizeMultiplier : 1.0;
+                    const tierStrokeColor = tier?.strokeColor ?? strokeColor;
+                    const tierStrokeWidth =
+                      typeof tier?.strokeWidth === 'number' ? tier.strokeWidth : strokeWidth;
+                    const adjustedSize = size * tierSizeMul;
+                    // Per-tier motion FX. Full-word effects (none/breathe/
+                    // flare) keep the single span and use the existing
+                    // entry spring; per-letter effects (samba/crystal/
+                    // magnetic) split the word and drive each letter's
+                    // transform/opacity from FX-Lab math (the spring
+                    // entry is bypassed for per-letter so the effect math
+                    // owns the motion).
+                    const tierEffect: 'none' | 'samba' | 'breathe' | 'flare' | 'crystal' | 'magnetic' =
+                      (tier?.effect as any) ?? 'none';
+                    const isPerLetterEffect =
+                      tierEffect === 'samba' || tierEffect === 'crystal' || tierEffect === 'magnetic';
+                    const elapsedMs = ((frame - entryFrame) / fps) * 1000;
+                    const nowMs = (frame / fps) * 1000;
+
+                    // Tier fill: solid hex (with optional alpha) or linear
+                    // gradient. Gradient gets painted via background-clip:text;
+                    // solid sets `color` directly. When tier doesn't override,
+                    // fall back to the existing per-word resolved color.
+                    const tierFill = tier?.fill;
+                    const isGradient =
+                      tierFill && typeof tierFill === 'object' && Array.isArray((tierFill as any).stops);
+                    const fillStyles: React.CSSProperties = isGradient
+                      ? {
+                          backgroundImage: (() => {
+                            const g = tierFill as GradientFillObj;
+                            const sortedStops = g.stops
+                              .slice()
+                              .sort((a, b) => a.pos - b.pos)
+                              .map((s) => `${s.color} ${(s.pos * 100).toFixed(2)}%`)
+                              .join(', ');
+                            return `linear-gradient(${g.angle ?? 90}deg, ${sortedStops})`;
+                          })(),
+                          backgroundClip: 'text',
+                          WebkitBackgroundClip: 'text',
+                          WebkitTextFillColor: 'transparent',
+                          color: 'transparent',
+                        }
+                      : {
+                          color: typeof tierFill === 'string' ? tierFill : baseFinalColor,
+                        };
+
+                    // Build the per-character outer styles common to both
+                    // rendering branches.
+                    const fontStyles: React.CSSProperties = {
+                      fontFamily: `"${tierFontFamily}", sans-serif`,
+                      fontWeight: tierFontWeight,
+                      fontStyle,
+                      fontSize: `${adjustedSize}px`,
+                      lineHeight: 1.0,
+                      letterSpacing: baseLetterSpacing ? `${baseLetterSpacing}px` : undefined,
+                      WebkitTextStroke: tierStrokeWidth > 0
+                        ? `${tierStrokeWidth}px ${tierStrokeColor}`
+                        : undefined,
+                      paintOrder: tierStrokeWidth > 0 ? 'stroke fill' : undefined,
+                      display: 'inline-block',
+                      whiteSpace: 'nowrap',
+                    };
+
+                    // Full-word effects path: keep the single-span render
+                    // (preserves entry spring scale + opacity), augment
+                    // style with breathe blur or flare text-shadow.
+                    if (!isPerLetterEffect) {
+                      const wordExtras: React.CSSProperties = {};
+                      if (tierEffect === 'breathe') {
+                        wordExtras.filter = `blur(${breatheBlurPx(elapsedMs).toFixed(2)}px)`;
+                      } else if (tierEffect === 'flare') {
+                        // Flare color: use solid tier fill if available, else
+                        // a cyan default that matches FX Lab Vol.02 demo.
+                        const flareColor =
+                          typeof tierFill === 'string' ? tierFill
+                          : (typeof baseFinalColor === 'string' ? baseFinalColor : '#6ba5ff');
+                        wordExtras.textShadow = flareTextShadow(elapsedMs, flareColor);
+                      }
+                      return (
+                        <span
+                          key={i}
+                          style={{
+                            ...fontStyles,
+                            ...fillStyles,
+                            ...wordExtras,
+                            transform: scale !== 1 ? `scale(${scale})` : undefined,
+                            transformOrigin: 'left baseline',
+                            opacity,
+                          }}
+                        >
+                          {text}
+                        </span>
+                      );
+                    }
+
+                    // Per-letter effects path: split the word into character
+                    // spans, each with its own transform/opacity. Outer span
+                    // carries the typography + fill; the spring entry is
+                    // intentionally NOT applied here — the effect's own
+                    // math (samba clave / crystal shatter / magnetic snap)
+                    // is the entry animation.
+                    const chars = Array.from(text);
                     return (
                       <span
                         key={i}
                         style={{
-                          fontFamily: `"${fontFamily}", sans-serif`,
-                          fontWeight: weight,
-                          fontStyle,
-                          fontSize: `${size}px`,
-                          lineHeight: 1.0,
-                          letterSpacing: baseLetterSpacing ? `${baseLetterSpacing}px` : undefined,
-                          color: finalColor,
-                          WebkitTextStroke: strokeWidth > 0 ? `${strokeWidth}px ${strokeColor}` : undefined,
-                          paintOrder: strokeWidth > 0 ? 'stroke fill' : undefined,
-                          transform: scale !== 1 ? `scale(${scale})` : undefined,
-                          transformOrigin: 'left baseline',
-                          opacity,
-                          display: 'inline-block',
-                          whiteSpace: 'nowrap',
+                          ...fontStyles,
+                          // For gradient fills, propagate to children: each
+                          // char gets the same gradient via inherit; with
+                          // background-clip:text on the parent, child glyphs
+                          // wouldn't paint, so we duplicate the styles per char.
+                          color: typeof tierFill === 'string' ? tierFill : (isGradient ? undefined : baseFinalColor),
                         }}
                       >
-                        {text}
+                        {chars.map((ch, li) => {
+                          const result =
+                            tierEffect === 'samba' ? sambaLetterTransform(li, elapsedMs, nowMs)
+                            : tierEffect === 'crystal' ? crystalLetterTransform(li, elapsedMs)
+                            : magneticLetterTransform(li, elapsedMs);
+                          return (
+                            <span
+                              key={li}
+                              style={{
+                                display: 'inline-block',
+                                transform: result.transform,
+                                transformOrigin: 'center center',
+                                opacity: result.opacity,
+                                // Per-letter must re-apply gradient styles
+                                // since background-clip:text on parent
+                                // doesn't propagate to children's text.
+                                ...(isGradient ? fillStyles : null),
+                                whiteSpace: 'pre',
+                              }}
+                            >
+                              {ch === ' ' ? ' ' : ch}
+                            </span>
+                          );
+                        })}
                       </span>
                     );
                   })}

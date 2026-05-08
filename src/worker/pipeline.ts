@@ -43,6 +43,7 @@ type JobRow = {
   faces: string | null; // JSON text
   error: string | null;
   attempts: number;
+  keepInputUntil: string | null; // datetime; if set + future, skip end-of-render cleanup
 };
 
 function setStage(jobId: string, stage: string) {
@@ -149,7 +150,17 @@ export async function runPipeline(jobId: string): Promise<void> {
   await rm(workDir, { recursive: true, force: true }).catch((err) =>
     console.warn(`[job ${jobId}] cleanup workDir failed:`, (err as Error).message),
   );
-  await rm(inputAbs, { force: true }).catch((err) =>
-    console.warn(`[job ${jobId}] cleanup input failed:`, (err as Error).message),
-  );
+  // Editor opt-in: if the job declared keepInputUntil and the deadline is
+  // still in the future, leave the input on disk so the editor's still-frame
+  // preview (and Phase 2's @remotion/player) can keep using it. The retention
+  // sweeper checks the same column, so the file will eventually be reaped.
+  const keepUntilStr = row.keepInputUntil;
+  const keepUntilMs = keepUntilStr ? Date.parse(keepUntilStr.replace(' ', 'T') + 'Z') : NaN;
+  if (Number.isFinite(keepUntilMs) && keepUntilMs > Date.now()) {
+    console.log(`[job ${jobId}] keeping input until ${keepUntilStr} (editor opt-in)`);
+  } else {
+    await rm(inputAbs, { force: true }).catch((err) =>
+      console.warn(`[job ${jobId}] cleanup input failed:`, (err as Error).message),
+    );
+  }
 }

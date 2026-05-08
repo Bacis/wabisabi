@@ -33,6 +33,19 @@ function ensureColumn(table: string, column: string, ddl: string): void {
 ensureColumn('jobs', 'captionPlan', 'TEXT');
 ensureColumn('jobs', 'faces', 'TEXT');
 ensureColumn('jobs', 'progress', 'TEXT');
+// Editor opt-in retention: when set (datetime string), the per-job cleanup
+// in pipeline.ts and the sweeper in worker/index.ts both skip deleting the
+// input file until this deadline passes. Lets the new web editor reuse
+// uploaded videos for live preview without fighting the default
+// delete-on-render-complete policy.
+ensureColumn('jobs', 'keepInputUntil', 'TEXT');
+
+// Hidden render jobs: the editor's "Export render" button submits a fresh
+// render with the user's edited styleSpec on top of an existing job's
+// input. That render is a derivative of the job already in the editor —
+// the user shouldn't see it as a separate row in the sidebar / history.
+// 0 = normal job (default), 1 = export-only, hidden from listJobs.
+ensureColumn('jobs', 'hidden', 'INTEGER DEFAULT 0');
 
 // Producer columns added after the initial productions schema landed.
 // ensureColumn is a no-op if the column already exists.

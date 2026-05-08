@@ -69,13 +69,31 @@ export function parseS3Uri(value: string): ParsedS3Uri | null {
  * Sign a time-limited GET URL for a rendered output. One hour is plenty —
  * the API hands this URL to a browser redirect or the Telegram bot which
  * fetches it immediately.
+ *
+ * `downloadFilename` (optional) bakes a `Content-Disposition: attachment`
+ * response-header override into the signed URL so the browser saves the
+ * file instead of navigating to it. This matters for the editor's
+ * "Export render" flow: a plain redirect to S3 would render the mp4
+ * inline; with the disposition set, the same redirect triggers a save.
  */
-export async function presignOutputUrl(uri: string, expiresInSec = 3600): Promise<string> {
+export async function presignOutputUrl(
+  uri: string,
+  expiresInSec = 3600,
+  downloadFilename?: string,
+): Promise<string> {
   const parsed = parseS3Uri(uri);
   if (!parsed) throw new Error(`presignOutputUrl: not an s3:// uri: ${uri}`);
   return getSignedUrl(
     getClient(),
-    new GetObjectCommand({ Bucket: parsed.bucket, Key: parsed.key }),
+    new GetObjectCommand({
+      Bucket: parsed.bucket,
+      Key: parsed.key,
+      ...(downloadFilename
+        ? {
+            ResponseContentDisposition: `attachment; filename="${downloadFilename.replace(/"/g, '')}"`,
+          }
+        : {}),
+    }),
     { expiresIn: expiresInSec },
   );
 }

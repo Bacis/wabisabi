@@ -72,9 +72,7 @@ animation:
 
 templateId (top-level, sibling to styleSpec):
   "pop-words"      standard multi-word caption lines (default)
-  "single-word"    one huge word at a time, MrBeast-style (for "big word", "hyper", "bold" requests)
-  "three-effects"  experimental WebGL template — words pop in with deterministic particle bursts and slight 3D rotation; choose for "particles", "burst", "explosion", "3D", "WebGL", "three.js", "fancy", "experimental" requests
-  "kinetic-burst"  maximum-kinetic WebGL template — words swoop in along bezier arcs with motion-blur ghost trails, spring-overshoot lock, glowing emphasis halos, orbital particle rings, and a twinkling star field. Choose for "kinetic", "cinematic", "showcase", "swoop", "trails", "glow", "neon", "epic", "premium", "high-energy", "intro", "title sequence" requests.
+  "reel-clone"     "Cinematic" — bold Inter Black with cascading sizes top→bottom, progressive word-by-word reveal, position-aware emphasis (white uppercase block anchors + yellow/red inline emphasis), left-aligned. Choose for "cinematic", "reel", "instagram", "karaoke cascade", "block anchor", "premium", "high-energy" requests.
 
 # Rules
 
@@ -85,9 +83,7 @@ templateId (top-level, sibling to styleSpec):
 5. Look names to rules of thumb:
    - "neon" / "glow" → color.shadow with large blurPx, no offset, same hue as the text
    - "karaoke" / "sing-along" → animation.preset: "karaoke"
-   - "MrBeast" / "big word" / "attention-grabbing one word" → templateId: "single-word"
-   - "particles" / "burst" / "explosion" / "3D" / "WebGL" / "fancy" / "experimental" → templateId: "three-effects"
-   - "kinetic" / "cinematic" / "swoop" / "trails" / "title sequence" / "premium" / "epic" / "showcase" → templateId: "kinetic-burst"
+   - "cinematic" / "reel" / "instagram" / "premium" / "epic" / "showcase" → templateId: "reel-clone"
    - "minimal" / "clean" / "understated" → lower weight (400-600), no uppercase, thin stroke, fade preset
    - "retro" / "vintage" → serif font, warm colors, lower saturation
    - "cyberpunk" / "sci-fi" → cool colors, palette of cyan/magenta, glow shadow
@@ -98,7 +94,7 @@ templateId (top-level, sibling to styleSpec):
 # Output format
 
 {
-  "templateId": "pop-words" | "single-word" | "three-effects" | "kinetic-burst"    (optional — omit to keep current),
+  "templateId": "pop-words" | "reel-clone"      (optional — omit to keep current),
   "styleSpec": { ... },                         (required — just the fields you're changing)
   "notes": "short human-readable summary"       (required)
 }`;
@@ -107,7 +103,7 @@ templateId (top-level, sibling to styleSpec):
 // StyleSpec schema. Permissive because the nested shape is validated
 // downstream by StyleSpecSchema.safeParse.
 const llmResponseSchema = z.object({
-  templateId: z.enum(['pop-words', 'single-word', 'three-effects', 'kinetic-burst']).optional(),
+  templateId: z.enum(['pop-words', 'reel-clone']).optional(),
   styleSpec: z.record(z.string(), z.any()),
   notes: z.string().optional(),
 });

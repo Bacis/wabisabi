@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "useDefineForClassFields": true,
+    "verbatimModuleSyntax": false,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@shared/styleSpec": ["../src/shared/styleSpec.ts"],
+      "@shared/presets": ["../src/shared/presets.ts"],
+      "@remotion-templates/*": ["../remotion/src/templates/*"],
+      "@remotion-lib/*": ["../remotion/src/lib/*"]
+    }
+  },
+  "include": ["src", "vite.config.ts", "../remotion/src/templates/**/*", "../remotion/src/lib/**/*"]
+}
