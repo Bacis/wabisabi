@@ -9,17 +9,13 @@
   "scripts": {
     "api": "tsx watch src/api/server.ts",
     "worker": "tsx watch src/worker/index.ts",
-    "worker:producer": "tsx watch src/worker/producerIndex.ts",
-    "telegram": "tsx watch src/telegram/index.ts",
     "start": "sh scripts/start.sh",
     "start:api": "node --import tsx/esm src/api/server.ts",
     "start:worker": "node --import tsx/esm src/worker/index.ts",
     "build": "tsc && npm run build:web",
     "build:web": "npm run build --workspace web",
     "dev:web": "npm run dev --workspace web",
-    "typecheck": "tsc --noEmit",
-    "brain-rot:upload": "tsx scripts/uploadBrainRot.ts",
-    "brain-rot:list": "tsx scripts/uploadBrainRot.ts --list"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
@@ -36,7 +32,6 @@
     "fastify": "^5.1.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "telegraf": "^4.16.3",
     "tsx": "^4.19.2",
     "zod": "^3.23.8"
   },

@@ -74,9 +74,7 @@ export const StyleSpecSchema = z
         // Caption rendering mode. "classic" is the original PopWords-style
         // flex-row layout (bottom/top/middle bar). "editorial" is the
         // hopecore serif layer: per-word size variance, mixed case, big
-        // emphasis words fill the frame. Only the producer's
-        // StoryComposition honors this; the single-video /jobs flow
-        // ignores it.
+        // emphasis words fill the frame.
         mode: z.enum(['classic', 'editorial']).default('classic'),
         position: z.enum(['top', 'middle', 'bottom']).default('bottom'),
         // Fraction of frame height kept clear from the top/bottom edge.
@@ -132,17 +130,6 @@ export const StyleSpecSchema = z
         }),
       )
       .optional(),
-    // Optional structural overlays on top of the base clip rendering. Right
-    // now only `brainRot` exists — when true, the producer picks a random
-    // clip from /storage/brain-rot/ and the composition renders speaker
-    // clips as a vertical split (speaker top / brain-rot bottom, captions
-    // at the seam). Group (vs. bare boolean) leaves room for future split
-    // modes without another schema bump.
-    splitScreen: z
-      .object({
-        brainRot: z.boolean().default(false),
-      })
-      .default({}),
     animation: z
       .object({
         preset: z.enum(['pop', 'fade', 'karaoke', 'typewriter', 'slide']).default('pop'),

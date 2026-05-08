@@ -46,11 +46,3 @@ ensureColumn('jobs', 'keepInputUntil', 'TEXT');
 // the user shouldn't see it as a separate row in the sidebar / history.
 // 0 = normal job (default), 1 = export-only, hidden from listJobs.
 ensureColumn('jobs', 'hidden', 'INTEGER DEFAULT 0');
-
-// Producer columns added after the initial productions schema landed.
-// ensureColumn is a no-op if the column already exists.
-ensureColumn('productions', 'prompt', 'TEXT');
-ensureColumn('productions', 'presetId', 'TEXT');
-ensureColumn('productions', 'userId', 'TEXT');
-ensureColumn('productions', 'username', 'TEXT');
-ensureColumn('productions', 'hookFile', 'TEXT');

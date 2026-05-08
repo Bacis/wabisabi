@@ -31,7 +31,6 @@ function isValidTemplateId(s: string): s is TemplateId {
 }
 import { renderStillFrame } from '../stages/renderStill.js';
 import { generateStyle } from '../stages/generateStyle.js';
-import { registerProductionRoutes } from './productions.js';
 import type { CaptionPlan, FaceData, Transcript } from '../shared/types.js';
 
 const STORAGE_DIR = resolve(process.env.STORAGE_DIR ?? './storage');
@@ -148,13 +147,10 @@ type PresetView = Omit<Preset, 'id'> & {
 };
 
 function listAllPresets(): PresetView[] {
-  // Skip presets flagged hidden — they're server-only (story-*, used by the
-  // producer pipeline + Telegram bot) and would just be clutter in the
-  // editor's preset picker. Producer code reads PRESETS directly, so it
-  // still finds them.
-  const builtin: PresetView[] = Object.values(PRESETS)
-    .filter((p) => !p.hidden)
-    .map((p) => ({ ...p, source: 'builtin' }));
+  const builtin: PresetView[] = Object.values(PRESETS).map((p) => ({
+    ...p,
+    source: 'builtin',
+  }));
   const custom = listCustomPresets.all() as Array<{
     id: string;
     name: string;
@@ -593,10 +589,6 @@ app.post('/style/generate', async (req, reply) => {
     });
   }
 });
-
-// Multi-file video producer routes. Lives in a separate module so it doesn't
-// entangle with the single-video /jobs endpoints.
-await registerProductionRoutes(app);
 
 const port = Number(process.env.PORT ?? 3000);
 await app.listen({ port, host: '0.0.0.0' });
