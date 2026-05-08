@@ -48,7 +48,13 @@ RUN cd remotion && npm ci --ignore-scripts
 # Build the web/ frontend. Vite emits to web/dist/, which the API serves
 # at /. Done in this stage so the final image only carries the static
 # bundle, not the Vite toolchain or web/node_modules.
+#
+# The web build resolves path aliases (web/vite.config.ts) into the
+# backend's src/shared and remotion/src trees, so we need those on disk
+# before invoking vite — not just web/.
 COPY web ./web
+COPY src ./src
+COPY remotion/src ./remotion/src
 RUN npm run build --workspace web
 
 # ---------------------------------------------------------------------------
