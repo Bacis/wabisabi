@@ -9,6 +9,7 @@ import '../env.js';
 import Fastify from 'fastify';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
+import fastifyCookie from '@fastify/cookie';
 import { randomUUID } from 'node:crypto';
 import { createReadStream, createWriteStream, existsSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
@@ -32,6 +33,14 @@ function isValidTemplateId(s: string): s is TemplateId {
 import { renderStillFrame } from '../stages/renderStill.js';
 import { generateStyle } from '../stages/generateStyle.js';
 import type { CaptionPlan, FaceData, Transcript } from '../shared/types.js';
+import { requireAuth } from '../auth/middleware.js';
+import { authenticate } from '../auth/users.js';
+import {
+  SESSION_COOKIE,
+  SESSION_TTL_MS,
+  createSession,
+  revokeSession,
+} from '../auth/sessions.js';
 
 const STORAGE_DIR = resolve(process.env.STORAGE_DIR ?? './storage');
 
@@ -45,6 +54,7 @@ const WEB_DIST = resolve(here, '../../web/dist');
 const WEB_DIST_AVAILABLE = existsSync(join(WEB_DIST, 'index.html'));
 
 const app = Fastify({ logger: true });
+await app.register(fastifyCookie);
 await app.register(multipart, {
   limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2 GB
 });
@@ -58,16 +68,18 @@ if (WEB_DIST_AVAILABLE) {
 
 // Prepared statements — better-sqlite3 caches and reuses these.
 const insertJob = db.prepare(`
-  insert into jobs (id, inputPath, templateId, styleSpec, keepInputUntil, hidden)
-  values (@id, @inputPath, @templateId, @styleSpec, @keepInputUntil, @hidden)
+  insert into jobs (id, userId, inputPath, templateId, styleSpec, keepInputUntil, hidden)
+  values (@id, @userId, @inputPath, @templateId, @styleSpec, @keepInputUntil, @hidden)
   returning id, status, createdAt
 `);
 const selectJob = db.prepare(`select * from jobs where id = ?`);
-const selectJobOutput = db.prepare(`select status, outputPath from jobs where id = ?`);
+const selectJobOutput = db.prepare(
+  `select status, outputPath, userId from jobs where id = ?`,
+);
 const listJobs = db.prepare(`
   select id, status, stage, templateId, createdAt, finishedAt, outputPath
   from jobs
-  where coalesce(hidden, 0) = 0
+  where coalesce(hidden, 0) = 0 and userId = ?
   order by createdAt desc
   limit 50
 `);
@@ -124,18 +136,24 @@ function filterListedJobs(rows: JobListRow[]): Omit<JobListRow, 'outputPath'>[] 
   return out;
 }
 
-// Custom preset statements.
+// Custom preset statements. userId scopes ownership; built-ins are
+// universally available so the listing union doesn't filter them.
 const selectCustomPreset = db.prepare(`select * from custom_presets where id = ?`);
-const listCustomPresets = db.prepare(
-  `select id, name, description, templateId, styleSpec from custom_presets order by createdAt desc`,
+const listCustomPresetsForUser = db.prepare(
+  `select id, name, description, templateId, styleSpec
+   from custom_presets
+   where userId = ?
+   order by createdAt desc`,
 );
 const insertCustomPreset = db.prepare(`
-  insert into custom_presets (id, name, description, templateId, styleSpec)
-  values (@id, @name, @description, @templateId, @styleSpec)
+  insert into custom_presets (id, userId, name, description, templateId, styleSpec)
+  values (@id, @userId, @name, @description, @templateId, @styleSpec)
 `);
-const deleteCustomPreset = db.prepare(`delete from custom_presets where id = ?`);
+const deleteCustomPresetForUser = db.prepare(
+  `delete from custom_presets where id = ? and userId = ?`,
+);
 
-type JobOutputRow = { status: string; outputPath: string | null };
+type JobOutputRow = { status: string; outputPath: string | null; userId: string | null };
 
 // Union built-in and custom presets. Custom rows are marked with
 // `source: "custom"` so the viewer can render them differently. Preset
@@ -146,12 +164,12 @@ type PresetView = Omit<Preset, 'id'> & {
   source: 'builtin' | 'custom';
 };
 
-function listAllPresets(): PresetView[] {
+function listAllPresets(userId: string): PresetView[] {
   const builtin: PresetView[] = Object.values(PRESETS).map((p) => ({
     ...p,
     source: 'builtin',
   }));
-  const custom = listCustomPresets.all() as Array<{
+  const custom = listCustomPresetsForUser.all(userId) as Array<{
     id: string;
     name: string;
     description: string;
@@ -170,9 +188,11 @@ function listAllPresets(): PresetView[] {
 }
 
 // Resolve a preset id to its { templateId, styleSpec }. Looks at built-in
-// first (in-memory, O(1)), then custom_presets (single SQLite query).
+// first (in-memory, O(1)), then a custom preset owned by the supplied
+// user (single SQLite query). Other users' custom presets are invisible.
 function findPresetById(
   id: string,
+  userId: string,
 ): { templateId: string; styleSpec: Record<string, unknown> } | null {
   const builtin = PRESETS[id];
   if (builtin) {
@@ -182,9 +202,9 @@ function findPresetById(
     };
   }
   const custom = selectCustomPreset.get(id) as
-    | { templateId: string; styleSpec: string }
+    | { templateId: string; styleSpec: string; userId: string | null }
     | undefined;
-  if (custom) {
+  if (custom && custom.userId === userId) {
     return {
       templateId: custom.templateId,
       styleSpec: JSON.parse(custom.styleSpec) as Record<string, unknown>,
@@ -209,14 +229,62 @@ if (!WEB_DIST_AVAILABLE) {
   });
 }
 
-// JSON endpoints consumed by the viewer.
-app.get('/jobs', async () => filterListedJobs(listJobs.all() as JobListRow[]));
+// --- Auth ----------------------------------------------------------------
+// Cookie config: HttpOnly + SameSite=Lax keeps it out of JS and out of
+// cross-site requests (good enough CSRF defense for a same-origin SPA with
+// no state-changing GETs). `secure` is on whenever NODE_ENV=production —
+// Railway terminates TLS upstream so the cookie always travels over HTTPS
+// in deployment.
+const COOKIE_SECURE = process.env.NODE_ENV === 'production';
+const SESSION_COOKIE_OPTS = {
+  httpOnly: true as const,
+  sameSite: 'lax' as const,
+  secure: COOKIE_SECURE,
+  path: '/',
+};
 
-app.get('/presets', async () => listAllPresets());
+app.post('/auth/login', async (req, reply) => {
+  const body = req.body as { email?: unknown; password?: unknown } | null;
+  const email = typeof body?.email === 'string' ? body.email : '';
+  const password = typeof body?.password === 'string' ? body.password : '';
+  if (!email || !password) {
+    return reply.code(400).send({ error: 'email and password are required' });
+  }
+  const user = await authenticate(email, password);
+  if (!user) {
+    return reply.code(401).send({ error: 'invalid_credentials' });
+  }
+  const { token, expiresAt } = createSession(user.id);
+  reply.setCookie(SESSION_COOKIE, token, {
+    ...SESSION_COOKIE_OPTS,
+    expires: expiresAt,
+    maxAge: Math.floor(SESSION_TTL_MS / 1000),
+  });
+  return { user };
+});
+
+app.post('/auth/logout', async (req, reply) => {
+  const token = req.cookies?.[SESSION_COOKIE];
+  if (token) revokeSession(token);
+  reply.clearCookie(SESSION_COOKIE, SESSION_COOKIE_OPTS);
+  return { ok: true };
+});
+
+app.get('/auth/me', { preHandler: requireAuth }, async (req) => ({ user: req.user }));
+
+// JSON endpoints consumed by the viewer. All are session-gated; data is
+// scoped to the authenticated user.
+app.get('/jobs', { preHandler: requireAuth }, async (req) =>
+  filterListedJobs(listJobs.all(req.user!.id) as JobListRow[]),
+);
+
+app.get('/presets', { preHandler: requireAuth }, async (req) =>
+  listAllPresets(req.user!.id),
+);
 
 // Save a new custom preset. Rejects collisions with built-in ids and
 // validates the styleSpec via the canonical schema.
-app.post('/presets', async (req, reply) => {
+app.post('/presets', { preHandler: requireAuth }, async (req, reply) => {
   const body = req.body as {
     id?: string;
     name?: string;
@@ -249,6 +317,7 @@ app.post('/presets', async (req, reply) => {
   try {
     insertCustomPreset.run({
       id,
+      userId: req.user!.id,
       name,
       description: String(body.description ?? ''),
       templateId,
@@ -262,19 +331,19 @@ app.post('/presets', async (req, reply) => {
   return { id, name, templateId, source: 'custom' as const };
 });
 
-app.delete('/presets/:id', async (req, reply) => {
+app.delete('/presets/:id', { preHandler: requireAuth }, async (req, reply) => {
   const { id } = req.params as { id: string };
   if (PRESETS[id]) {
     return reply.code(403).send({ error: 'cannot delete a built-in preset' });
   }
-  const result = deleteCustomPreset.run(id);
+  const result = deleteCustomPresetForUser.run(id, req.user!.id);
   if (result.changes === 0) {
     return reply.code(404).send({ error: 'not found' });
   }
   return { id, deleted: true };
 });
 
-app.post('/jobs', async (req, reply) => {
+app.post('/jobs', { preHandler: requireAuth }, async (req, reply) => {
   let videoPath: string | null = null;
   let styleSpecRaw: Record<string, unknown> = {};
   let templateIdField: string | null = null;
@@ -330,11 +399,11 @@ app.post('/jobs', async (req, reply) => {
   let mergedStyle: Record<string, unknown> = styleSpecRaw;
   let resolvedTemplateId = templateIdField ?? 'pop-words';
   if (presetId) {
-    const preset = findPresetById(presetId);
+    const preset = findPresetById(presetId, req.user!.id);
     if (!preset) {
       return reply.code(400).send({
         error: `unknown preset: ${presetId}`,
-        available: listAllPresets().map((p) => p.id),
+        available: listAllPresets(req.user!.id).map((p) => p.id),
       });
     }
     mergedStyle = mergeStyleSpec(preset.styleSpec, styleSpecRaw);
@@ -353,6 +422,7 @@ app.post('/jobs', async (req, reply) => {
 
   const job = insertJob.get({
     id: randomUUID(),
+    userId: req.user!.id,
     inputPath: videoPath,
     templateId: resolvedTemplateId,
     styleSpec: JSON.stringify(parsed.data),
@@ -362,10 +432,12 @@ app.post('/jobs', async (req, reply) => {
   return job;
 });
 
-app.get('/jobs/:id', async (req, reply) => {
+app.get('/jobs/:id', { preHandler: requireAuth }, async (req, reply) => {
   const { id } = req.params as { id: string };
-  const row = selectJob.get(id) as Record<string, unknown> | undefined;
-  if (!row) return reply.code(404).send({ error: 'not found' });
+  const row = selectJob.get(id) as (Record<string, unknown> & { userId?: string | null }) | undefined;
+  if (!row || row.userId !== req.user!.id) {
+    return reply.code(404).send({ error: 'not found' });
+  }
   // Hydrate JSON columns for the response.
   if (typeof row.styleSpec === 'string') row.styleSpec = JSON.parse(row.styleSpec);
   if (typeof row.transcript === 'string') row.transcript = JSON.parse(row.transcript);
@@ -391,10 +463,12 @@ app.get('/jobs/:id', async (req, reply) => {
 // inside the Remotion render bundle. Local jobs stream from disk; Lambda
 // jobs (input copied to S3 by the staging step) get a 302 to a presigned
 // URL. Honors the same expired-input semantics as /jobs/:id/output.
-app.get('/jobs/:id/input', async (req, reply) => {
+app.get('/jobs/:id/input', { preHandler: requireAuth }, async (req, reply) => {
   const { id } = req.params as { id: string };
-  const row = selectJob.get(id) as { inputPath?: string } | undefined;
-  if (!row) return reply.code(404).send({ error: 'not found' });
+  const row = selectJob.get(id) as { inputPath?: string; userId?: string | null } | undefined;
+  if (!row || row.userId !== req.user!.id) {
+    return reply.code(404).send({ error: 'not found' });
+  }
   if (!row.inputPath) return reply.code(404).send({ error: 'no inputPath' });
   const s3 = parseS3Uri(row.inputPath);
   if (s3) {
@@ -422,10 +496,12 @@ app.get('/jobs/:id/input', async (req, reply) => {
   }
 });
 
-app.get('/jobs/:id/output', async (req, reply) => {
+app.get('/jobs/:id/output', { preHandler: requireAuth }, async (req, reply) => {
   const { id } = req.params as { id: string };
   const row = selectJobOutput.get(id) as JobOutputRow | undefined;
-  if (!row) return reply.code(404).send({ error: 'not found' });
+  if (!row || row.userId !== req.user!.id) {
+    return reply.code(404).send({ error: 'not found' });
+  }
   if (row.status !== 'done' || !row.outputPath) {
     return reply.code(409).send({ error: 'not ready', status: row.status });
   }
@@ -472,10 +548,12 @@ app.get('/jobs/:id/output', async (req, reply) => {
 // candidate styleSpec, optional templateId, and a frame time in seconds.
 // Returns a PNG. Renders via renderStill which is ~1-2s — fast enough to
 // debounce at 500ms and feel live-ish.
-app.post('/jobs/:id/preview', async (req, reply) => {
+app.post('/jobs/:id/preview', { preHandler: requireAuth }, async (req, reply) => {
   const { id } = req.params as { id: string };
-  const row = selectJob.get(id) as Record<string, unknown> | undefined;
-  if (!row) return reply.code(404).send({ error: 'not found' });
+  const row = selectJob.get(id) as (Record<string, unknown> & { userId?: string | null }) | undefined;
+  if (!row || row.userId !== req.user!.id) {
+    return reply.code(404).send({ error: 'not found' });
+  }
   if (typeof row.inputPath !== 'string' || typeof row.transcript !== 'string') {
     return reply
       .code(400)
@@ -532,7 +610,7 @@ app.post('/jobs/:id/preview', async (req, reply) => {
 // current spec so incremental edits work. Prompt caching is on inside
 // generateStyle() so the ~2500-token system prompt is cheap after the
 // first call.
-app.post('/style/generate', async (req, reply) => {
+app.post('/style/generate', { preHandler: requireAuth }, async (req, reply) => {
   const body = req.body as {
     query?: string;
     currentSpec?: Record<string, unknown>;
@@ -556,6 +634,19 @@ app.post('/style/generate', async (req, reply) => {
     });
   }
 });
+
+// Heads-up if existing rows are still unowned after the auth migration.
+// First-time setup is: create an admin via `npm run admin:create -- ...`
+// then run `npm run admin:claim -- ...` to assign legacy rows.
+const orphanJobsCount = (
+  db.prepare(`select count(*) as n from jobs where userId is null`).get() as { n: number }
+).n;
+if (orphanJobsCount > 0) {
+  app.log.warn(
+    { orphanJobs: orphanJobsCount },
+    `${orphanJobsCount} job(s) have no userId. Run \`npm run admin:claim -- <email>\` to assign them.`,
+  );
+}
 
 const port = Number(process.env.PORT ?? 3000);
 await app.listen({ port, host: '0.0.0.0' });

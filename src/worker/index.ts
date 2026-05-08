@@ -9,6 +9,7 @@ import { join, resolve } from 'node:path';
 import { db } from '../db.js';
 import { ensureOutputLifecycle } from '../lib/s3Outputs.js';
 import { runPipeline } from './pipeline.js';
+import { pruneExpiredSessions } from '../auth/sessions.js';
 
 const STORAGE_DIR = resolve(process.env.STORAGE_DIR ?? './storage');
 const SWEEP_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
@@ -141,6 +142,12 @@ async function runSweeper(): Promise<void> {
     ]);
   } catch (err) {
     console.warn('sweeper: run failed (continuing):', (err as Error).message);
+  }
+  try {
+    const pruned = pruneExpiredSessions();
+    if (pruned > 0) console.log(`sweeper: pruned ${pruned} expired session(s)`);
+  } catch (err) {
+    console.warn('sweeper: session prune failed (continuing):', (err as Error).message);
   }
 }
 

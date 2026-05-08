@@ -46,3 +46,12 @@ ensureColumn('jobs', 'keepInputUntil', 'TEXT');
 // the user shouldn't see it as a separate row in the sidebar / history.
 // 0 = normal job (default), 1 = export-only, hidden from listJobs.
 ensureColumn('jobs', 'hidden', 'INTEGER DEFAULT 0');
+
+// Auth ownership columns. Older rows were created before user accounts
+// existed; they stay NULL and the admin runs `npm run admin:claim
+// <email>` to assign them to a user post-migration.
+ensureColumn('jobs', 'userId', 'TEXT REFERENCES users(id)');
+ensureColumn('custom_presets', 'userId', 'TEXT REFERENCES users(id)');
+
+db.exec(`create index if not exists jobs_userId_idx on jobs(userId)`);
+db.exec(`create index if not exists custom_presets_userId_idx on custom_presets(userId)`);

@@ -1,6 +1,35 @@
 -- camelCase column names so the app layer can use rows directly without a
 -- snake-to-camel transform. JSON payloads are stored as TEXT — SQLite treats
 -- JSON as plain text and we (de)serialize at the app boundary.
+
+-- Users + sessions for the dashboard. Invite-only — no public signup; an
+-- admin creates users via scripts/admin.ts. passwordHash is scrypt
+-- (`scrypt$N$r$p$saltB64$hashB64`). Email is case-insensitive.
+create table if not exists users (
+  id           text primary key,
+  email        text not null collate nocase,
+  passwordHash text not null,
+  role         text not null default 'user',                 -- 'user' | 'admin'
+  createdAt    text not null default (datetime('now')),
+  updatedAt    text not null default (datetime('now'))
+);
+
+create unique index if not exists users_email_idx on users(email);
+
+-- Server-side sessions. The cookie value is a 32-byte random token; the
+-- column stores its sha256 so a DB read can't replay an active session.
+-- expiresAt slides forward on activity (see src/auth/sessions.ts).
+create table if not exists sessions (
+  id          text primary key,                             -- sha256(token)
+  userId      text not null references users(id) on delete cascade,
+  createdAt   text not null default (datetime('now')),
+  expiresAt   text not null,
+  lastSeenAt  text not null default (datetime('now'))
+);
+
+create index if not exists sessions_userId_idx on sessions(userId);
+create index if not exists sessions_expiresAt_idx on sessions(expiresAt);
+
 create table if not exists jobs (
   id           text primary key,
   status       text not null default 'queued',
