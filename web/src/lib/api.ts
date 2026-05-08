@@ -1,5 +1,64 @@
 // Thin API client. The dev server proxies these paths to the Fastify server
 // (vite.config.ts), so relative URLs work in both dev and production.
+//
+// All requests carry the session cookie (`credentials: 'include'`). The
+// server returns 401 when the session is missing/expired; callers throw
+// `UnauthenticatedError` and the AuthProvider catches it to bounce the
+// user back to the login page.
+
+export class UnauthenticatedError extends Error {
+  constructor() {
+    super('unauthenticated');
+    this.name = 'UnauthenticatedError';
+  }
+}
+
+async function api(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
+  const r = await fetch(path, { ...init, credentials: 'include' });
+  if (r.status === 401) throw new UnauthenticatedError();
+  return r;
+}
+
+export type AuthUser = {
+  id: string;
+  email: string;
+  role: 'user' | 'admin';
+};
+
+// 401 from /auth/me is the expected unauthenticated state, not an error;
+// we resolve `null` so the AuthProvider can render the login page.
+export async function fetchMe(): Promise<AuthUser | null> {
+  const r = await fetch('/auth/me', { credentials: 'include' });
+  if (r.status === 401) return null;
+  if (!r.ok) throw new Error(`GET /auth/me ${r.status}`);
+  const body = (await r.json()) as { user: AuthUser };
+  return body.user;
+}
+
+export async function login(email: string, password: string): Promise<AuthUser> {
+  const r = await fetch('/auth/login', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  });
+  if (r.status === 401) {
+    throw new Error('Invalid email or password.');
+  }
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(body.error ?? `login ${r.status}`);
+  }
+  const { user } = (await r.json()) as { user: AuthUser };
+  return user;
+}
+
+export async function logout(): Promise<void> {
+  await fetch('/auth/logout', { method: 'POST', credentials: 'include' });
+}
 
 export type JobSummary = {
   id: string;
@@ -61,7 +120,7 @@ export type PresetView = {
 };
 
 export async function fetchJobs(): Promise<JobSummary[]> {
-  const r = await fetch('/jobs');
+  const r = await api('/jobs');
   if (!r.ok) throw new Error(`GET /jobs ${r.status}`);
   return r.json();
 }
@@ -80,7 +139,7 @@ export async function uploadForEditing(input: {
   if (input.preset) form.set('preset', input.preset);
   if (input.templateId) form.set('templateId', input.templateId);
   form.set('keepInputMinutes', String(input.keepInputMinutes ?? 60));
-  const r = await fetch('/jobs', { method: 'POST', body: form });
+  const r = await api('/jobs', { method: 'POST', body: form });
   if (!r.ok) {
     const body = await r.json().catch(() => ({}));
     throw new Error(`upload ${r.status}: ${body.error ?? 'failed'}`);
@@ -88,25 +147,32 @@ export async function uploadForEditing(input: {
   return r.json();
 }
 
-// Submit a new render job that reuses an existing job's input file —
-// used by the editor's "Export render" button so the user doesn't have
-// to re-upload. Always flagged hidden=true: it's a derivative render of
-// the job already in the editor and shouldn't show up as a separate row
-// in the sidebar. The server resolves sourceJobId → inputPath and 410s
-// if it's already been swept off disk.
+// Submit a hidden render derived from an existing job. Used by the editor's
+// "Export render" button. We re-fetch the source input (still on disk
+// thanks to keepInputMinutes when the job was created) and re-upload it
+// alongside the edited styleSpec. The new job is flagged hidden=1 so it
+// doesn't show up as a separate row in the sidebar.
 export async function submitRender(input: {
   sourceJobId: string;
   templateId: string;
   styleSpec: Record<string, any>;
   keepInputMinutes?: number;
 }): Promise<{ id: string }> {
+  const inputRes = await api(`/jobs/${input.sourceJobId}/input`);
+  if (!inputRes.ok) {
+    const body = await inputRes.json().catch(() => ({}));
+    throw new Error(
+      `couldn't reuse source input (${inputRes.status}): ${body.error ?? 'fetch failed'}`,
+    );
+  }
+  const blob = await inputRes.blob();
   const form = new FormData();
-  form.set('sourceJobId', input.sourceJobId);
+  form.set('video', blob, `source-${input.sourceJobId}.mp4`);
   form.set('templateId', input.templateId);
   form.set('styleSpec', JSON.stringify(input.styleSpec));
   form.set('keepInputMinutes', String(input.keepInputMinutes ?? 60));
   form.set('hidden', '1');
-  const r = await fetch('/jobs', { method: 'POST', body: form });
+  const r = await api('/jobs', { method: 'POST', body: form });
   if (!r.ok) {
     const body = await r.json().catch(() => ({}));
     throw new Error(`render ${r.status}: ${body.error ?? 'failed'}`);
@@ -115,13 +181,13 @@ export async function submitRender(input: {
 }
 
 export async function fetchJob(id: string): Promise<JobDetail> {
-  const r = await fetch(`/jobs/${id}`);
+  const r = await api(`/jobs/${id}`);
   if (!r.ok) throw new Error(`GET /jobs/${id} ${r.status}`);
   return r.json();
 }
 
 export async function fetchPresets(): Promise<PresetView[]> {
-  const r = await fetch('/presets');
+  const r = await api('/presets');
   if (!r.ok) throw new Error(`GET /presets ${r.status}`);
   return r.json();
 }
@@ -133,7 +199,7 @@ export async function savePreset(input: {
   templateId: string;
   styleSpec: Record<string, any>;
 }): Promise<{ id: string }> {
-  const r = await fetch('/presets', {
+  const r = await api('/presets', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(input),
@@ -146,7 +212,7 @@ export async function savePreset(input: {
 }
 
 export async function deletePreset(id: string): Promise<void> {
-  const r = await fetch(`/presets/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  const r = await api(`/presets/${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (!r.ok) throw new Error(`DELETE /presets/${id} ${r.status}`);
 }
 
@@ -159,7 +225,7 @@ export async function fetchPreviewPng(input: {
   frameSec: number;
   signal?: AbortSignal;
 }): Promise<Blob> {
-  const r = await fetch(`/jobs/${input.jobId}/preview`, {
+  const r = await api(`/jobs/${input.jobId}/preview`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({

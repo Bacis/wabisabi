@@ -22,16 +22,25 @@ import {
   setPassword,
 } from '../src/auth/users.js';
 
+// Shared readline iterator for non-TTY mode (tests / CI). Each call to
+// promptHidden pulls the next line from the same iterator; opening a fresh
+// readline.Interface per call drops buffered input from the previous one.
+let pipedLines: AsyncIterableIterator<string> | null = null;
+function getPipedLines(): AsyncIterableIterator<string> {
+  if (!pipedLines) {
+    const rl = createInterface({ input: process.stdin, terminal: false });
+    pipedLines = rl[Symbol.asyncIterator]();
+  }
+  return pipedLines;
+}
+
 async function promptHidden(question: string): Promise<string> {
   process.stdout.write(question);
   const stdin = process.stdin;
   if (!stdin.isTTY) {
-    // In a pipeline (tests, CI), read one line normally.
-    const rl = createInterface({ input: stdin, terminal: false });
-    const line = (await rl[Symbol.asyncIterator]().next()).value as string | undefined;
-    rl.close();
+    const next = await getPipedLines().next();
     process.stdout.write('\n');
-    return line ?? '';
+    return (next.value as string | undefined) ?? '';
   }
   return new Promise<string>((resolve) => {
     let buf = '';
