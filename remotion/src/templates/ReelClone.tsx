@@ -642,6 +642,54 @@ export const ReelClone: React.FC<Props> = ({
                   : cascadeTopRatio +
                     (cascadeBottomRatio - cascadeTopRatio) *
                       (lineIdx / (lines.length - 1));
+
+              // Pre-pass: compute each word's intended size and the line's
+              // estimated rendered width. The earlier width-budget splitter
+              // assumes uniform `baseSize * factor` per word, but the actual
+              // render scales emphasis tiers (anchor-block fitSize,
+              // emphasisSizeMultiplier, etc.). When that diverges, two words
+              // that "fit" by the splitter's count can still overflow the
+              // frame. This shrinks the whole line uniformly if it does.
+              const isLastLine = lineIdx === lines.length - 1;
+              const cascadeBaseLine = baseSize * lineFactor;
+              const sizeHints: number[] = [];
+              let estLineWidth = 0;
+              for (let lci = 0; lci < line.length; lci++) {
+                const wi = line[lci]!.wordIdx;
+                const ww = activeChunk.words[wi]!;
+                const isEmph = effectiveEmphasis[wi] ?? false;
+                const onOwn = line.length === 1;
+                const hasDigit = /\d/.test(ww.word);
+                const alphaLen = ww.word.replace(/[^A-Za-z]/g, '').length;
+                const keyLower = ww.word.toLowerCase().replace(/[.,!?;:"'()—\-_]/g, '');
+                const isAnchorBlk =
+                  isEmph && isLastLine && onOwn &&
+                  styleDefaults.sizeRule === 'fit' &&
+                  emphasisFillRatio != null &&
+                  !hasDigit && !VALUE_WORDS.has(keyLower) && alphaLen >= 5;
+                const fitSz = isAnchorBlk
+                  ? (USABLE_WIDTH * emphasisFillRatio!) /
+                    Math.max(1, ww.word.length * CHAR_ADVANCE)
+                  : null;
+                const fillerLocal = !isEmph && isFiller(ww.word);
+                const tMul = isEmph && !isAnchorBlk
+                  ? 1.0
+                  : isEmph
+                    ? emphasisSizeMultiplier
+                    : fillerLocal ? fillerSizeMultiplier : 1.0;
+                const rawSz = fitSz != null ? fitSz : cascadeBaseLine * tMul;
+                const hCap = isAnchorBlk
+                  ? frameHeight * emphasisMaxHeightRatio
+                  : frameHeight * 0.4;
+                const sz = Math.min(rawSz, maxSizeForWord(ww.word.length), hCap);
+                sizeHints.push(sz);
+                estLineWidth += sz * Math.max(1, ww.word.length) * CHAR_ADVANCE;
+              }
+              const lineGap = cascadeBaseLine * columnGapRatio;
+              estLineWidth += lineGap * Math.max(0, line.length - 1);
+              const lineScale = estLineWidth > USABLE_WIDTH
+                ? USABLE_WIDTH / estLineWidth
+                : 1;
               return (
                 <div
                   key={lineIdx}
@@ -649,7 +697,7 @@ export const ReelClone: React.FC<Props> = ({
                     display: 'flex',
                     alignItems: 'baseline',
                     justifyContent,
-                    columnGap: `${baseSize * lineFactor * columnGapRatio}px`,
+                    columnGap: `${cascadeBaseLine * lineScale * columnGapRatio}px`,
                   }}
                 >
                   {line.map(({ wordIdx: i }) => {
@@ -728,7 +776,13 @@ export const ReelClone: React.FC<Props> = ({
                     const heightCap = isAnchorBlock
                       ? frameHeight * emphasisMaxHeightRatio
                       : frameHeight * 0.4;
-                    const size = Math.min(rawSize, maxSizeForWord(w.word.length), heightCap);
+                    const sizeUnscaled =
+                      Math.min(rawSize, maxSizeForWord(w.word.length), heightCap);
+                    // Apply the line-level shrink (computed in the pre-pass
+                    // above) so the actual rendered line never overflows
+                    // USABLE_WIDTH even when per-word sizing diverges from
+                    // the splitter's coarse estimate.
+                    const size = sizeUnscaled * lineScale;
 
                     // Color: anchor block keeps base fill (white), inline
                     // emphasis uses palette (cycles when multiColorEmphasis).

@@ -14,7 +14,13 @@ export function UploadButton({ onUploaded }: Props) {
     setBusy(true);
     setError(null);
     try {
-      const { id } = await uploadForEditing({ file, keepInputMinutes: 60 });
+      // Default new uploads to the Cinematic (reel-clone) preset. Editor
+      // can swap templates / presets afterwards via the picker.
+      const { id } = await uploadForEditing({
+        file,
+        keepInputMinutes: 60,
+        preset: 'reel-clone-default',
+      });
       onUploaded(id);
     } catch (err) {
       setError((err as Error).message);
