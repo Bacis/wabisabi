@@ -279,7 +279,6 @@ app.post('/jobs', async (req, reply) => {
   let styleSpecRaw: Record<string, unknown> = {};
   let templateIdField: string | null = null;
   let presetId: string | null = null;
-  let sourceJobId: string | null = null;
   let keepInputMinutes: number | null = null;
   let hidden = 0;
 
@@ -303,8 +302,6 @@ app.post('/jobs', async (req, reply) => {
         templateIdField = value;
       } else if (part.fieldname === 'preset') {
         presetId = value;
-      } else if (part.fieldname === 'sourceJobId') {
-        sourceJobId = value;
       } else if (part.fieldname === 'keepInputMinutes') {
         // Editor opt-in: the new web frontend uploads with this set so the
         // per-job cleanup in pipeline.ts skips deleting the input until the
@@ -323,38 +320,8 @@ app.post('/jobs', async (req, reply) => {
     }
   }
 
-  // sourceJobId lets the viewer's editor re-submit a job using an existing
-  // job's input video without re-uploading the file. The new job points at
-  // the same inputPath on disk. NOTE: on Railway / 24-7 deployments the
-  // per-job cleanup (pipeline.ts) deletes the input immediately after the
-  // render finishes, so this feature only works while the source job is
-  // still in flight. When the file is gone we return 410 so the UI can
-  // prompt the user to re-upload.
-  if (!videoPath && sourceJobId) {
-    const sourceRow = selectJob.get(sourceJobId) as { inputPath?: string } | undefined;
-    if (!sourceRow) {
-      return reply.code(404).send({ error: `sourceJobId not found: ${sourceJobId}` });
-    }
-    if (!sourceRow.inputPath) {
-      return reply.code(400).send({ error: 'source job has no inputPath' });
-    }
-    try {
-      await stat(sourceRow.inputPath);
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-        return reply
-          .code(410)
-          .send({ error: 'source input expired — please re-upload the video' });
-      }
-      throw err;
-    }
-    videoPath = sourceRow.inputPath;
-  }
-
   if (!videoPath) {
-    return reply
-      .code(400)
-      .send({ error: 'video file or sourceJobId is required' });
+    return reply.code(400).send({ error: 'video file is required' });
   }
 
   // Resolve preset (built-in or custom), then merge user styleSpec on top
