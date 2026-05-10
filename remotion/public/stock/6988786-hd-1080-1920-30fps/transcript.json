@@ -1,0 +1,30 @@
+{
+  "language": "en",
+  "duration": 2.281667,
+  "words": [
+    {
+      "word": "Bold",
+      "start": 0,
+      "end": 0.502,
+      "confidence": 1
+    },
+    {
+      "word": "words.",
+      "start": 0.57,
+      "end": 1.072,
+      "confidence": 1
+    },
+    {
+      "word": "Big",
+      "start": 1.141,
+      "end": 1.643,
+      "confidence": 1
+    },
+    {
+      "word": "impact.",
+      "start": 1.711,
+      "end": 2.213,
+      "confidence": 1
+    }
+  ]
+}

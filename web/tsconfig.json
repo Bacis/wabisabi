@@ -20,8 +20,10 @@
     "noEmit": true,
     "baseUrl": ".",
     "paths": {
+      "@/*": ["src/*"],
       "@shared/styleSpec": ["../src/shared/styleSpec.ts"],
       "@shared/presets": ["../src/shared/presets.ts"],
+      "@shared/buildTranscript": ["../src/shared/buildTranscript.ts"],
       "@remotion-templates/*": ["../remotion/src/templates/*"],
       "@remotion-lib/*": ["../remotion/src/lib/*"]
     }

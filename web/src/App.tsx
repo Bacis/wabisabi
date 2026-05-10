@@ -1,97 +1,43 @@
-import { useCallback, useEffect, useState } from 'react';
-import { JobList } from './components/JobList';
-import { Editor } from './components/Editor';
-import { UploadButton } from './components/UploadButton';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { LoginPage } from './components/LoginPage';
-import { fetchJobs, UnauthenticatedError, type JobSummary } from './lib/api';
+import { ProtectedRoute } from './components/layouts/ProtectedRoute';
+import { RootLayout } from './components/layouts/RootLayout';
+import { JobsPage } from './pages/JobsPage';
+import { EditorPage } from './pages/EditorPage';
+import { ThemesPage } from './pages/ThemesPage';
+import { NewThemePage } from './pages/themes/NewThemePage';
+import { ThemeDetailPage } from './pages/themes/ThemeDetailPage';
+import { SettingsPage } from './pages/SettingsPage';
+import { NotFoundPage } from './pages/NotFoundPage';
 import { useAuth } from './lib/auth';
 
-export function App() {
+function LoginRoute() {
   const { state } = useAuth();
-
-  if (state.status === 'loading') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-ink-900 text-ink-400 text-sm">
-        Loading…
-      </div>
-    );
+  if (state.status === 'authenticated') {
+    return <Navigate to="/jobs" replace />;
   }
-  if (state.status === 'unauthenticated') {
-    return <LoginPage />;
-  }
-  return <Dashboard />;
+  return <LoginPage />;
 }
 
-function Dashboard() {
-  const { state, logout, markUnauthenticated } = useAuth();
-  const userEmail = state.status === 'authenticated' ? state.user.email : '';
-  const [jobs, setJobs] = useState<JobSummary[]>([]);
-  const [activeJobId, setActiveJobId] = useState<string | null>(null);
-
-  const refreshJobs = useCallback(() => {
-    fetchJobs()
-      .then(setJobs)
-      .catch((err) => {
-        if (err instanceof UnauthenticatedError) {
-          markUnauthenticated();
-        } else {
-          console.error('jobs fetch failed', err);
-        }
-      });
-  }, [markUnauthenticated]);
-
-  useEffect(() => {
-    refreshJobs();
-    // Light polling so freshly-submitted jobs appear in the list without a
-    // manual refresh; also picks up status/stage transitions on existing jobs.
-    const id = setInterval(refreshJobs, 5000);
-    return () => clearInterval(id);
-  }, [refreshJobs]);
-
-  const handleUploaded = useCallback(
-    (jobId: string) => {
-      refreshJobs();
-      setActiveJobId(jobId);
-    },
-    [refreshJobs],
-  );
-
+export function App() {
   return (
-    <div className="flex h-screen">
-      <aside className="w-72 border-r border-ink-700 bg-ink-800 overflow-y-auto flex flex-col">
-        <header className="px-4 py-3 border-b border-ink-700">
-          <h1 className="text-sm font-semibold tracking-wide uppercase text-ink-300">
-            Caption Studio
-          </h1>
-        </header>
-        <UploadButton onUploaded={handleUploaded} />
-        <JobList
-          jobs={jobs}
-          activeJobId={activeJobId}
-          onPick={setActiveJobId}
-        />
-        <footer className="mt-auto border-t border-ink-700 px-4 py-3 flex items-center justify-between gap-2 text-[11px] text-ink-400">
-          <span className="truncate" title={userEmail}>{userEmail}</span>
-          <button
-            type="button"
-            onClick={() => {
-              void logout();
-            }}
-            className="text-ink-300 hover:text-ink-100 underline-offset-2 hover:underline"
-          >
-            Sign out
-          </button>
-        </footer>
-      </aside>
-      <main className="flex-1 overflow-hidden">
-        {activeJobId ? (
-          <Editor jobId={activeJobId} />
-        ) : (
-          <div className="h-full flex items-center justify-center text-ink-400 text-sm">
-            Upload a video or pick a job from the left to start editing.
-          </div>
-        )}
-      </main>
-    </div>
+    <Routes>
+      <Route path="/login" element={<LoginRoute />} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<RootLayout />}>
+          <Route index element={<Navigate to="/jobs" replace />} />
+          <Route path="jobs" element={<JobsPage />} />
+          <Route path="jobs/:id" element={<EditorPage />} />
+          <Route path="themes" element={<ThemesPage />} />
+          <Route path="themes/new" element={<NewThemePage />} />
+          <Route path="themes/:id" element={<ThemeDetailPage />} />
+          {/* Legacy redirect: old /presets bookmarks land in the new themes
+              gallery. Remove after one release. */}
+          <Route path="presets" element={<Navigate to="/themes" replace />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Route>
+    </Routes>
   );
 }

@@ -241,3 +241,134 @@ export async function fetchPreviewPng(input: {
   }
   return r.blob();
 }
+
+// --- Themes & stock clips ------------------------------------------------
+
+export type StockClipSummary = {
+  id: string;
+  name: string;
+  durationSec: number;
+  width: number;
+  height: number;
+  fps: number;
+  hasTranscript: boolean;
+};
+
+export type StockClipDetail = {
+  id: string;
+  name: string;
+  src: string;
+  durationSec: number;
+  width: number;
+  height: number;
+  fps: number;
+  transcript: Transcript;
+  captionPlan: CaptionPlan | null;
+  faces: null;
+};
+
+export type Theme = {
+  id: string;
+  name: string;
+  description: string;
+  templateId: string;
+  styleSpec: Record<string, any>;
+  showcaseClipId: string | null;
+  isPublished: boolean;
+  publishedAt: string | null;
+  createdAt: string;
+  authorEmail: string | null;
+  isOwner: boolean;
+};
+
+export type ThemeWithShowcase = Theme & {
+  showcaseClip: StockClipDetail | null;
+};
+
+export async function fetchStockClips(): Promise<StockClipSummary[]> {
+  const r = await api('/clips/stock');
+  if (!r.ok) throw new Error(`GET /clips/stock ${r.status}`);
+  return r.json();
+}
+
+export async function fetchStockClip(id: string): Promise<StockClipDetail> {
+  const r = await api(`/clips/stock/${encodeURIComponent(id)}`);
+  if (!r.ok) throw new Error(`GET /clips/stock/${id} ${r.status}`);
+  return r.json();
+}
+
+export async function fetchThemes(): Promise<Theme[]> {
+  const r = await api('/themes');
+  if (!r.ok) throw new Error(`GET /themes ${r.status}`);
+  return r.json();
+}
+
+export async function fetchTheme(id: string): Promise<ThemeWithShowcase> {
+  const r = await api(`/themes/${encodeURIComponent(id)}`);
+  if (!r.ok) throw new Error(`GET /themes/${id} ${r.status}`);
+  return r.json();
+}
+
+export async function createTheme(input: {
+  name: string;
+  description?: string;
+  templateId: string;
+  styleSpec: Record<string, any>;
+  showcaseClipId?: string | null;
+}): Promise<Theme> {
+  const r = await api('/themes', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(`POST /themes ${r.status}: ${body.error ?? 'unknown'}`);
+  }
+  return r.json();
+}
+
+export async function patchTheme(
+  id: string,
+  input: Partial<{
+    name: string;
+    description: string;
+    templateId: string;
+    styleSpec: Record<string, any>;
+    showcaseClipId: string;
+  }>,
+): Promise<Theme> {
+  const r = await api(`/themes/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(`PATCH /themes/${id} ${r.status}: ${body.error ?? 'unknown'}`);
+  }
+  return r.json();
+}
+
+export async function publishTheme(id: string): Promise<Theme> {
+  const r = await api(`/themes/${encodeURIComponent(id)}/publish`, { method: 'POST' });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(`publish ${r.status}: ${body.error ?? 'unknown'}`);
+  }
+  return r.json();
+}
+
+export async function unpublishTheme(id: string): Promise<Theme> {
+  const r = await api(`/themes/${encodeURIComponent(id)}/unpublish`, { method: 'POST' });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(`unpublish ${r.status}: ${body.error ?? 'unknown'}`);
+  }
+  return r.json();
+}
+
+export async function deleteTheme(id: string): Promise<void> {
+  const r = await api(`/themes/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!r.ok) throw new Error(`DELETE /themes/${id} ${r.status}`);
+}

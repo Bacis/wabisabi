@@ -5,7 +5,7 @@ import { StillPreview } from './StillPreview';
 import type { CaptionPlan, Transcript } from '../lib/api';
 
 type Props = {
-  jobId: string;
+  videoSrc: string;
   templateId: string;
   styleSpec: Record<string, any>;
   transcript: Transcript;
@@ -14,9 +14,19 @@ type Props = {
   // When false, the source input was swept off disk so the live <Player>
   // overlay would just show black. We swap to a plain <video> of the
   // rendered output mp4 — captions are baked in already, edits are
-  // disabled, but the user at least sees what was made.
+  // disabled, but the user at least sees what was made. Stock-clip and
+  // theme-detail sources never trip this branch (their video is permanent).
   inputAvailable: boolean;
-  jobStatus: 'queued' | 'running' | 'done' | 'failed';
+  status: 'queued' | 'running' | 'done' | 'failed';
+  outputUrl: string | null;
+  // The /jobs/:id/preview endpoint is the still-preview fallback for
+  // templates without Player support. Stock-clip sources have a parallel
+  // /themes/preview endpoint, but we only need to thread it through if a
+  // future template loses Player support — both currently-registered
+  // templates ('pop-words', 'reel-clone') hit the live Player path, so
+  // this still-fallback is dead code in practice. When the source is a
+  // job we keep wiring it; otherwise we hide the still pane entirely.
+  jobIdForStillPreview?: string;
 };
 
 const FPS = 30;
@@ -24,23 +34,25 @@ const COMP_WIDTH = 1080;
 const COMP_HEIGHT = 1920;
 
 export function PlayerPreview({
-  jobId,
+  videoSrc,
   templateId,
   styleSpec,
   transcript,
   captionPlan,
   fallbackFrameSec,
   inputAvailable,
-  jobStatus,
+  status,
+  outputUrl,
+  jobIdForStillPreview,
 }: Props) {
   // View-only fallback: input gone but the render is done. The output mp4
   // already has captions baked in; just play it as a plain <video>.
-  if (!inputAvailable && jobStatus === 'done') {
+  if (!inputAvailable && status === 'done' && outputUrl) {
     return (
       <div className="space-y-2">
         <div className="aspect-[9/16] w-full max-w-[420px] mx-auto bg-ink-800 rounded-lg overflow-hidden border border-ink-700">
           <video
-            src={`/jobs/${jobId}/output`}
+            src={outputUrl}
             controls
             loop
             preload="metadata"
@@ -60,7 +72,7 @@ export function PlayerPreview({
   // Memoize inputProps so Player doesn't re-mount every render.
   const inputProps = useMemo(
     () => ({
-      videoFile: `/jobs/${jobId}/input`,
+      videoFile: videoSrc,
       videoMeta: {
         width: COMP_WIDTH,
         height: COMP_HEIGHT,
@@ -72,16 +84,21 @@ export function PlayerPreview({
       faces: null,
       styleSpec,
     }),
-    [jobId, transcript, captionPlan, styleSpec],
+    [videoSrc, transcript, captionPlan, styleSpec],
   );
 
   if (!Composition || !hasPlayerSupport(templateId)) {
-    // Templates that aren't registered (kinetic-burst, three-effects,
-    // story-composition) — fall back to the server-side still-frame path.
+    if (!jobIdForStillPreview) {
+      return (
+        <div className="aspect-[9/16] w-full max-w-[420px] mx-auto bg-ink-800 rounded-lg overflow-hidden border border-ink-700 flex items-center justify-center text-ink-400 text-xs px-6 text-center">
+          <code>{templateId}</code> isn't supported in live preview yet.
+        </div>
+      );
+    }
     return (
       <div className="space-y-2">
         <StillPreview
-          jobId={jobId}
+          jobId={jobIdForStillPreview}
           styleSpec={styleSpec}
           templateId={templateId}
           frameSec={fallbackFrameSec}
@@ -112,9 +129,6 @@ export function PlayerPreview({
         loop
         autoPlay={false}
         style={{ width: '100%', height: '100%' }}
-        // The Player tries to honor compositionWidth × compositionHeight at
-        // 1080×1920; we render it at the container's actual size and let
-        // Player scale internally.
       />
     </div>
   );

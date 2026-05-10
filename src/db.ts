@@ -53,5 +53,13 @@ ensureColumn('jobs', 'hidden', 'INTEGER DEFAULT 0');
 ensureColumn('jobs', 'userId', 'TEXT REFERENCES users(id)');
 ensureColumn('custom_presets', 'userId', 'TEXT REFERENCES users(id)');
 
+// Themes feature additions on custom_presets. isPublished gates community
+// visibility; showcaseClipId points at a stock clip in remotion/public/stock/
+// that the live <Player> renders against.
+ensureColumn('custom_presets', 'isPublished', 'INTEGER NOT NULL DEFAULT 0');
+ensureColumn('custom_presets', 'publishedAt', 'TEXT');
+ensureColumn('custom_presets', 'showcaseClipId', 'TEXT');
+
 db.exec(`create index if not exists jobs_userId_idx on jobs(userId)`);
 db.exec(`create index if not exists custom_presets_userId_idx on custom_presets(userId)`);
+db.exec(`create index if not exists custom_presets_published_idx on custom_presets(publishedAt) where isPublished = 1`);

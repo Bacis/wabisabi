@@ -1,0 +1,158 @@
+<h2>Three layout directions</h2>
+<p class="subtitle">All three keep all the existing controls — they just redistribute them. Click one to mark a leaning; we'll iterate on the chosen direction.</p>
+
+<style>
+  .mock-frame {
+    background: #0f1115;
+    border: 1px solid #2a2f3a;
+    border-radius: 8px;
+    padding: 0;
+    height: 320px;
+    display: flex;
+    overflow: hidden;
+    color: #cfd3dc;
+    font-size: 10px;
+  }
+  .mock-frame .col { padding: 8px; box-sizing: border-box; }
+  .mock-frame .label { color: #6b7280; font-size: 8px; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; display: block; font-weight: 700; }
+  .mock-frame .pill { background: #1e222b; border: 1px solid #2a2f3a; border-radius: 4px; padding: 4px 6px; margin-bottom: 4px; }
+  .mock-frame .pill.active { border-color: #facc15; background: #1f1d12; color: #fde68a; }
+  .mock-frame .preview-box { background: linear-gradient(160deg, #2a1a0c, #0f1115); border: 1px solid #2a2f3a; border-radius: 6px; display: flex; align-items: flex-end; justify-content: center; padding: 8px; }
+  .mock-frame .caption { font-weight: 900; font-size: 11px; }
+  .mock-frame .caption .y { color: #facc15; }
+  .mock-frame .caption .r { color: #ef4444; }
+  .mock-frame .tab { background: #1e222b; border: 1px solid #2a2f3a; border-radius: 4px; padding: 3px 6px; font-size: 9px; }
+  .mock-frame .tab.on { background: #facc15; color: #111; border-color: #facc15; font-weight: 700; }
+  .mock-frame .row { display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap; }
+  .mock-frame .slider { background: #1e222b; height: 4px; border-radius: 2px; margin: 6px 0; position: relative; }
+  .mock-frame .slider::after { content: ''; position: absolute; top: -3px; width: 10px; height: 10px; background: #facc15; border-radius: 50%; left: 40%; }
+  .mock-frame .group-collapsed { background: #16191f; border: 1px solid #2a2f3a; border-radius: 4px; padding: 4px 6px; margin-bottom: 3px; display: flex; justify-content: space-between; }
+  .mock-frame .chevron { color: #6b7280; }
+  .ratio-bar { display: flex; gap: 2px; margin-top: 6px; }
+  .ratio-bar div { height: 4px; border-radius: 2px; }
+</style>
+
+<div class="cards">
+
+  <!-- Approach A: Tabbed right rail + bigger preview -->
+  <div class="card" data-choice="tabbed" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock-frame">
+        <!-- Left nav -->
+        <div class="col" style="width:18%; border-right:1px solid #2a2f3a; background:#0b0d11">
+          <span class="label">Studio</span>
+          <div class="pill active">Jobs</div>
+          <div class="pill">Presets</div>
+        </div>
+        <!-- Preview hero -->
+        <div class="col" style="flex:1; display:flex; align-items:center; justify-content:center;">
+          <div class="preview-box" style="width:55%; aspect-ratio: 9/16; height: 270px;">
+            <div class="caption">my <span class="r">partners.</span></div>
+          </div>
+        </div>
+        <!-- Right rail with tabs -->
+        <div class="col" style="width:32%; border-left:1px solid #2a2f3a; background:#0b0d11">
+          <div class="row">
+            <div class="tab on">Look</div>
+            <div class="tab">Type</div>
+            <div class="tab">Layout</div>
+            <div class="tab">Emphasis</div>
+          </div>
+          <span class="label">Theme</span>
+          <div class="row" style="gap:3px;">
+            <div style="width:22px;height:22px;background:linear-gradient(135deg,#facc15,#ef4444);border-radius:3px;"></div>
+            <div style="width:22px;height:22px;background:linear-gradient(135deg,#10b981,#0ea5e9);border-radius:3px;"></div>
+            <div style="width:22px;height:22px;background:linear-gradient(135deg,#f5f5f5,#9ca3af);border-radius:3px;"></div>
+            <div style="width:22px;height:22px;background:linear-gradient(135deg,#7c3aed,#ec4899);border-radius:3px;"></div>
+          </div>
+          <span class="label" style="margin-top:8px;">Template</span>
+          <div class="pill" style="font-size:9px;">Cinematic ▾</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Tabbed right rail</h3>
+      <p>Sections become tabs (Look / Type / Layout / Emphasis). Only the active tab is visible — kills scroll. Preview gets the central stage. The 3 tier groups merge into one Emphasis tab with a tier-picker. <strong>Lowest risk</strong>, biggest comfort win.</p>
+    </div>
+  </div>
+
+  <!-- Approach B: Direct-manipulation canvas -->
+  <div class="card" data-choice="canvas" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock-frame">
+        <div class="col" style="width:18%; border-right:1px solid #2a2f3a; background:#0b0d11">
+          <span class="label">Studio</span>
+          <div class="pill active">Jobs</div>
+          <div class="pill">Presets</div>
+        </div>
+        <!-- Big preview as canvas -->
+        <div class="col" style="flex:1; display:flex; align-items:center; justify-content:center; position:relative;">
+          <div class="preview-box" style="width:65%; aspect-ratio: 9/16; height: 290px; position:relative;">
+            <div class="caption" style="position:relative;">my <span class="r" style="outline:2px dashed #facc15; outline-offset:2px; padding:1px 2px;">partners.</span></div>
+            <!-- floating popover -->
+            <div style="position:absolute; right:-100px; top:60%; background:#1e222b; border:1px solid #facc15; border-radius:6px; padding:6px; width:96px; font-size:8px;">
+              <div style="font-weight:700; color:#fde68a;">Red tier</div>
+              <div style="height:1px; background:#2a2f3a; margin:3px 0;"></div>
+              <div style="background:#ef4444; width:100%; height:8px; border-radius:2px;"></div>
+              <div class="slider" style="margin:4px 0;"></div>
+              <div style="color:#6b7280;">Size · Stroke</div>
+            </div>
+          </div>
+        </div>
+        <!-- thin tools rail -->
+        <div class="col" style="width:14%; border-left:1px solid #2a2f3a; background:#0b0d11">
+          <span class="label">Tools</span>
+          <div class="pill">🎨</div>
+          <div class="pill">Aa</div>
+          <div class="pill">⊞</div>
+          <div class="pill">▶</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Direct-manipulation canvas</h3>
+      <p>Preview becomes a Figma-like canvas. Click a caption tier in the video → floating popover edits just that thing. Thin tools rail replaces the form column. <strong>Most ambitious</strong>; biggest UX leap, biggest implementation cost (hit-testing on the Player, popover positioning).</p>
+    </div>
+  </div>
+
+  <!-- Approach C: Compact accordion + command palette -->
+  <div class="card" data-choice="palette" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock-frame">
+        <div class="col" style="width:18%; border-right:1px solid #2a2f3a; background:#0b0d11">
+          <span class="label">Studio</span>
+          <div class="pill active">Jobs</div>
+          <div class="pill">Presets</div>
+        </div>
+        <!-- denser sidebar with collapsed sections + search -->
+        <div class="col" style="width:30%; border-right:1px solid #2a2f3a; background:#0b0d11; overflow:hidden;">
+          <div style="background:#1e222b; border:1px solid #facc15; border-radius:4px; padding:4px 6px; margin-bottom:6px; font-size:9px; color:#fde68a;">⌘K  Search controls…</div>
+          <div class="group-collapsed">Theme <span class="chevron">▾</span></div>
+          <div class="group-collapsed" style="background:#1e1a10; border-color:#facc15;">Font  <span class="chevron">▴</span></div>
+          <div style="padding:4px 6px;">
+            <span class="label">Family</span>
+            <div class="pill" style="font-size:9px;">Anton</div>
+            <span class="label">Size</span>
+            <div class="slider"></div>
+          </div>
+          <div class="group-collapsed">Color <span class="chevron">▾</span></div>
+          <div class="group-collapsed">Layout <span class="chevron">▾</span></div>
+          <div class="group-collapsed">Emphasis <span class="chevron">▾</span></div>
+        </div>
+        <!-- Preview -->
+        <div class="col" style="flex:1; display:flex; align-items:center; justify-content:center;">
+          <div class="preview-box" style="width:60%; aspect-ratio: 9/16; height: 280px;">
+            <div class="caption">my <span class="r">partners.</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Compact accordion + ⌘K palette</h3>
+      <p>Same single-column form but: only one section open at a time, denser controls, ⌘K command palette to jump straight to any control by name. Tier groups merge into a single Emphasis section. <strong>Smallest visual change</strong>, biggest "I know what I want" win.</p>
+    </div>
+  </div>
+
+</div>
+
+<p class="subtitle" style="margin-top:24px;">My recommendation: <strong>A (tabbed right rail)</strong>. It directly fixes 1 (less visible at once), 3 (preview gets the stage), and 4 (Emphasis tab dedups tiers); 2 (find a specific control) is solved by the tab switching being only 4 buttons away rather than 30+ scroll-pixels. B is more elegant but the per-frame Player overlay makes click-to-edit-tier hard to do well. C helps but doesn't really fix the cramped-preview complaint.</p>

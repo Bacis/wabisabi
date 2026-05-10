@@ -59,13 +59,24 @@ create index if not exists jobs_queued_idx
 -- src/shared/presets.ts as a constant; anything the user saves via
 -- POST /presets lands here and is unioned into GET /presets at read time.
 create table if not exists custom_presets (
-  id          text primary key,
-  name        text not null,
-  description text not null default '',
-  templateId  text not null,
-  styleSpec   text not null,        -- JSON
-  createdAt   text not null default (datetime('now'))
+  id              text primary key,
+  name            text not null,
+  description     text not null default '',
+  templateId      text not null,
+  styleSpec       text not null,        -- JSON
+  createdAt       text not null default (datetime('now')),
+  -- Themes feature: a custom_preset is a "theme" once it has an owner. Drafts
+  -- have isPublished=0 and only the owner sees them; isPublished=1 surfaces
+  -- the row in the community feed. showcaseClipId pins a stock clip
+  -- (remotion/public/stock/<id>/) so the public viewer can render the theme
+  -- live in the browser without storing an MP4 anywhere.
+  isPublished     integer not null default 0,
+  publishedAt     text,
+  showcaseClipId  text
 );
+-- The partial index on (publishedAt) where isPublished = 1 is created in
+-- src/db.ts AFTER the ensureColumn migrations, because pre-existing DBs
+-- need the columns added by ALTER TABLE before the index can be built.
 
 -- Video producer: a "production" is a multi-file batch (images + videos) that
 -- the orchestrator agent analyzes, cuts, and compiles into a short video.

@@ -1,0 +1,162 @@
+{
+  "language": "en",
+  "duration": 27.05,
+  "words": [
+    {
+      "word": "Your",
+      "start": 0,
+      "end": 0.916,
+      "confidence": 1
+    },
+    {
+      "word": "story",
+      "start": 1.04,
+      "end": 1.956,
+      "confidence": 1
+    },
+    {
+      "word": "starts",
+      "start": 2.081,
+      "end": 2.997,
+      "confidence": 1
+    },
+    {
+      "word": "here.",
+      "start": 3.121,
+      "end": 4.037,
+      "confidence": 1
+    },
+    {
+      "word": "Every",
+      "start": 4.162,
+      "end": 5.078,
+      "confidence": 1
+    },
+    {
+      "word": "line",
+      "start": 5.202,
+      "end": 6.118,
+      "confidence": 1
+    },
+    {
+      "word": "you",
+      "start": 6.242,
+      "end": 7.158,
+      "confidence": 1
+    },
+    {
+      "word": "write,",
+      "start": 7.283,
+      "end": 8.199,
+      "confidence": 1
+    },
+    {
+      "word": "every",
+      "start": 8.323,
+      "end": 9.239,
+      "confidence": 1
+    },
+    {
+      "word": "word",
+      "start": 9.363,
+      "end": 10.279,
+      "confidence": 1
+    },
+    {
+      "word": "you",
+      "start": 10.404,
+      "end": 11.32,
+      "confidence": 1
+    },
+    {
+      "word": "choose,",
+      "start": 11.444,
+      "end": 12.36,
+      "confidence": 1
+    },
+    {
+      "word": "lands",
+      "start": 12.485,
+      "end": 13.401,
+      "confidence": 1
+    },
+    {
+      "word": "exactly",
+      "start": 13.525,
+      "end": 14.441,
+      "confidence": 1
+    },
+    {
+      "word": "where",
+      "start": 14.565,
+      "end": 15.481,
+      "confidence": 1
+    },
+    {
+      "word": "it",
+      "start": 15.606,
+      "end": 16.522,
+      "confidence": 1
+    },
+    {
+      "word": "should.",
+      "start": 16.646,
+      "end": 17.562,
+      "confidence": 1
+    },
+    {
+      "word": "This",
+      "start": 17.687,
+      "end": 18.603,
+      "confidence": 1
+    },
+    {
+      "word": "is",
+      "start": 18.727,
+      "end": 19.643,
+      "confidence": 1
+    },
+    {
+      "word": "what",
+      "start": 19.767,
+      "end": 20.683,
+      "confidence": 1
+    },
+    {
+      "word": "your",
+      "start": 20.808,
+      "end": 21.724,
+      "confidence": 1
+    },
+    {
+      "word": "theme",
+      "start": 21.848,
+      "end": 22.764,
+      "confidence": 1
+    },
+    {
+      "word": "looks",
+      "start": 22.888,
+      "end": 23.804,
+      "confidence": 1
+    },
+    {
+      "word": "like",
+      "start": 23.929,
+      "end": 24.845,
+      "confidence": 1
+    },
+    {
+      "word": "in",
+      "start": 24.969,
+      "end": 25.885,
+      "confidence": 1
+    },
+    {
+      "word": "motion.",
+      "start": 26.01,
+      "end": 26.926,
+      "confidence": 1
+    }
+  ]
+}

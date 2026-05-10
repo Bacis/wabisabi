@@ -11,7 +11,7 @@ import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import fastifyCookie from '@fastify/cookie';
 import { randomUUID } from 'node:crypto';
-import { createReadStream, createWriteStream, existsSync } from 'node:fs';
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { pipeline } from 'node:stream/promises';
 import { tmpdir } from 'node:os';
@@ -53,16 +53,54 @@ const here = dirname(fileURLToPath(import.meta.url));
 const WEB_DIST = resolve(here, '../../web/dist');
 const WEB_DIST_AVAILABLE = existsSync(join(WEB_DIST, 'index.html'));
 
+// Themes feature: curated stock clips (mp4 + sidecar transcript/captionPlan
+// JSON) live in remotion/public/stock/. Same dir Remotion's bundler reads
+// from, so a one-time dev run of scripts/seed-stock-clips.ts produces files
+// that work for both render-time (staticFile()) and the browser <Player>
+// (HTTP via the fastifyStatic mount registered below).
+const STOCK_CLIPS_DIR = resolve(here, '../../remotion/public/stock');
+const STOCK_INDEX_PATH = join(STOCK_CLIPS_DIR, 'index.json');
+
 const app = Fastify({ logger: true });
 await app.register(fastifyCookie);
 await app.register(multipart, {
   limits: { fileSize: 2 * 1024 * 1024 * 1024 }, // 2 GB
+});
+// Stock clips static mount. Registered before the web/dist mount so the
+// /stock/ prefix wins over the SPA's catchall. mkdirSync ensures the dir
+// exists at boot — fastifyStatic throws on register if `root` is missing,
+// and we want the mount live before the seeder runs (so a tsx-watch
+// reload picks up freshly seeded files immediately).
+mkdirSync(STOCK_CLIPS_DIR, { recursive: true });
+await app.register(fastifyStatic, {
+  root: STOCK_CLIPS_DIR,
+  prefix: '/stock/',
+  decorateReply: false,
 });
 if (WEB_DIST_AVAILABLE) {
   await app.register(fastifyStatic, {
     root: WEB_DIST,
     prefix: '/',
     decorateReply: false,
+  });
+
+  // SPA fallback. The API and the React app share URL space — e.g. /jobs/:id
+  // is both a JSON endpoint and a react-router route. A browser reload or
+  // deep-link sends `Accept: text/html`; XHR/fetch from app code does not.
+  // For HTML GETs that don't look like a static asset, serve index.html so
+  // react-router can handle the route. JSON requests fall through to the
+  // normal API handlers unchanged.
+  const INDEX_HTML = readFileSync(join(WEB_DIST, 'index.html'), 'utf8');
+  app.addHook('onRequest', async (req, reply) => {
+    if (req.method !== 'GET') return;
+    const accept = req.headers.accept ?? '';
+    if (!accept.includes('text/html')) return;
+    const pathname = req.url.split('?')[0]!;
+    // Asset paths (anything with a file extension) are served by
+    // fastifyStatic — leave them alone. The bare "/" is also handled by
+    // the static plugin (it serves index.html itself).
+    if (pathname === '/' || /\.[a-zA-Z0-9]+$/.test(pathname)) return;
+    reply.type('text/html').send(INDEX_HTML);
   });
 }
 
@@ -152,6 +190,159 @@ const insertCustomPreset = db.prepare(`
 const deleteCustomPresetForUser = db.prepare(
   `delete from custom_presets where id = ? and userId = ?`,
 );
+
+// Theme statements. Themes are the user-facing rename for custom_presets;
+// the table stays put and three columns (isPublished, publishedAt,
+// showcaseClipId) gate the publish flow. Joining users for authorEmail so
+// the community feed can display "by alice@..." next to each card.
+const insertTheme = db.prepare(`
+  insert into custom_presets
+    (id, userId, name, description, templateId, styleSpec, showcaseClipId)
+  values
+    (@id, @userId, @name, @description, @templateId, @styleSpec, @showcaseClipId)
+`);
+const selectThemeRow = db.prepare(`
+  select cp.*, u.email as authorEmail
+  from custom_presets cp
+  left join users u on u.id = cp.userId
+  where cp.id = ?
+`);
+// Own drafts + own published + everyone else's published, newest first
+// inside each bucket. Drafts (own only) come first so the user sees their
+// in-progress work at the top.
+const listThemesForFeed = db.prepare(`
+  select cp.id, cp.userId, cp.name, cp.description, cp.templateId,
+         cp.styleSpec, cp.showcaseClipId, cp.isPublished, cp.publishedAt,
+         cp.createdAt, u.email as authorEmail
+  from custom_presets cp
+  left join users u on u.id = cp.userId
+  where cp.userId = @userId or cp.isPublished = 1
+  order by
+    case when cp.userId = @userId and cp.isPublished = 0 then 0 else 1 end,
+    coalesce(cp.publishedAt, cp.createdAt) desc
+`);
+const updateThemeFields = db.prepare(`
+  update custom_presets
+  set name = coalesce(@name, name),
+      description = coalesce(@description, description),
+      templateId = coalesce(@templateId, templateId),
+      styleSpec = coalesce(@styleSpec, styleSpec),
+      showcaseClipId = coalesce(@showcaseClipId, showcaseClipId)
+  where id = @id and userId = @userId
+`);
+const publishTheme = db.prepare(`
+  update custom_presets
+  set isPublished = 1, publishedAt = datetime('now')
+  where id = @id and userId = @userId
+`);
+const unpublishTheme = db.prepare(`
+  update custom_presets
+  set isPublished = 0, publishedAt = null
+  where id = @id and userId = @userId
+`);
+const deleteThemeForUser = db.prepare(
+  `delete from custom_presets where id = ? and userId = ?`,
+);
+
+type ThemeRow = {
+  id: string;
+  userId: string | null;
+  name: string;
+  description: string;
+  templateId: string;
+  styleSpec: string;
+  showcaseClipId: string | null;
+  isPublished: number;
+  publishedAt: string | null;
+  createdAt: string;
+  authorEmail: string | null;
+};
+
+type ThemeView = {
+  id: string;
+  name: string;
+  description: string;
+  templateId: TemplateId;
+  styleSpec: Record<string, unknown>;
+  showcaseClipId: string | null;
+  isPublished: boolean;
+  publishedAt: string | null;
+  createdAt: string;
+  authorEmail: string | null;
+  isOwner: boolean;
+};
+
+function themeViewFromRow(row: ThemeRow, currentUserId: string): ThemeView {
+  return {
+    id: row.id,
+    name: row.name,
+    description: row.description ?? '',
+    templateId: row.templateId as TemplateId,
+    styleSpec: JSON.parse(row.styleSpec) as Record<string, unknown>,
+    showcaseClipId: row.showcaseClipId,
+    isPublished: row.isPublished === 1,
+    publishedAt: row.publishedAt,
+    createdAt: row.createdAt,
+    authorEmail: row.authorEmail,
+    isOwner: row.userId === currentUserId,
+  };
+}
+
+// --- Stock clip loader ---------------------------------------------------
+
+type StockClipMeta = {
+  id: string;
+  name: string;
+  durationSec: number;
+  width: number;
+  height: number;
+  fps: number;
+};
+type StockClipSummary = StockClipMeta & { hasTranscript: boolean };
+
+function readStockIndex(): StockClipSummary[] {
+  if (!existsSync(STOCK_INDEX_PATH)) return [];
+  try {
+    const parsed = JSON.parse(readFileSync(STOCK_INDEX_PATH, 'utf8'));
+    return Array.isArray(parsed) ? (parsed as StockClipSummary[]) : [];
+  } catch (err) {
+    app.log.warn({ err }, 'stock clip index.json is invalid — treating as empty');
+    return [];
+  }
+}
+
+// Load the full payload for a single stock clip, or null if anything is
+// missing on disk. The transcript/captionPlan files are produced by
+// scripts/seed-stock-clips.ts, never by user runtime.
+function readStockClipDetail(
+  clipId: string,
+): {
+  meta: StockClipMeta;
+  transcript: Transcript;
+  captionPlan: CaptionPlan | null;
+} | null {
+  // Defense in depth: clipId is used as a path segment.
+  if (!/^[a-zA-Z0-9_-]+$/.test(clipId)) return null;
+  const dir = join(STOCK_CLIPS_DIR, clipId);
+  const metaPath = join(dir, 'meta.json');
+  const transcriptPath = join(dir, 'transcript.json');
+  const captionPlanPath = join(dir, 'captionPlan.json');
+  const clipPath = join(dir, 'clip.mp4');
+  if (!existsSync(metaPath) || !existsSync(transcriptPath) || !existsSync(clipPath)) {
+    return null;
+  }
+  try {
+    const meta = JSON.parse(readFileSync(metaPath, 'utf8')) as StockClipMeta;
+    const transcript = JSON.parse(readFileSync(transcriptPath, 'utf8')) as Transcript;
+    const captionPlan = existsSync(captionPlanPath)
+      ? (JSON.parse(readFileSync(captionPlanPath, 'utf8')) as CaptionPlan)
+      : null;
+    return { meta, transcript, captionPlan };
+  } catch (err) {
+    app.log.warn({ err, clipId }, 'failed to load stock clip files');
+    return null;
+  }
+}
 
 type JobOutputRow = { status: string; outputPath: string | null; userId: string | null };
 
@@ -341,6 +532,278 @@ app.delete('/presets/:id', { preHandler: requireAuth }, async (req, reply) => {
     return reply.code(404).send({ error: 'not found' });
   }
   return { id, deleted: true };
+});
+
+// --- Stock clips ---------------------------------------------------------
+// Curated short videos with prebaked transcripts (by scripts/seed-stock-clips.ts).
+// The themes feature uses these as the showcase backdrop so a published theme
+// can be replayed live in the browser without storing a per-theme MP4 — the
+// 24h render-output sweep doesn't apply to /stock/, the files are committed
+// to the repo.
+
+app.get('/clips/stock', { preHandler: requireAuth }, async () => readStockIndex());
+
+app.get('/clips/stock/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const detail = readStockClipDetail(id);
+  if (!detail) {
+    return reply.code(404).send({ error: 'not found' });
+  }
+  return {
+    id: detail.meta.id,
+    name: detail.meta.name,
+    src: `/stock/${detail.meta.id}/clip.mp4`,
+    durationSec: detail.meta.durationSec,
+    width: detail.meta.width,
+    height: detail.meta.height,
+    fps: detail.meta.fps,
+    transcript: detail.transcript,
+    captionPlan: detail.captionPlan,
+    faces: null,
+  };
+});
+
+// --- Themes --------------------------------------------------------------
+// Themes are owned (name, templateId, styleSpec) configs that can be
+// published for other authenticated users to browse. The DB row is in the
+// same custom_presets table as legacy presets — three extra columns
+// (isPublished, publishedAt, showcaseClipId) drive the publish flow.
+
+app.get('/themes', { preHandler: requireAuth }, async (req) => {
+  const rows = listThemesForFeed.all({ userId: req.user!.id }) as ThemeRow[];
+  return rows.map((r) => themeViewFromRow(r, req.user!.id));
+});
+
+app.post('/themes', { preHandler: requireAuth }, async (req, reply) => {
+  const body = req.body as {
+    name?: unknown;
+    description?: unknown;
+    templateId?: unknown;
+    styleSpec?: unknown;
+    showcaseClipId?: unknown;
+  } | null;
+  if (!body || typeof body !== 'object') {
+    return reply.code(400).send({ error: 'body must be a JSON object' });
+  }
+  const name = String(body.name ?? '').trim();
+  if (!name) return reply.code(400).send({ error: 'name is required' });
+  const templateId = String(body.templateId ?? 'pop-words');
+  if (!isValidTemplateId(templateId)) {
+    return reply
+      .code(400)
+      .send({ error: `templateId must be one of: ${VALID_TEMPLATE_IDS.join(', ')}` });
+  }
+  const parsed = StyleSpecSchema.safeParse(body.styleSpec ?? {});
+  if (!parsed.success) {
+    return reply.code(400).send({ error: 'invalid styleSpec', details: parsed.error.flatten() });
+  }
+  let showcaseClipId: string | null = null;
+  if (body.showcaseClipId != null) {
+    const requested = String(body.showcaseClipId);
+    if (!readStockClipDetail(requested)) {
+      return reply.code(400).send({ error: `unknown stock clip: ${requested}` });
+    }
+    showcaseClipId = requested;
+  }
+  const id = randomUUID();
+  insertTheme.run({
+    id,
+    userId: req.user!.id,
+    name,
+    description: String(body.description ?? ''),
+    templateId,
+    styleSpec: JSON.stringify(parsed.data),
+    showcaseClipId,
+  });
+  const row = selectThemeRow.get(id) as ThemeRow | undefined;
+  if (!row) return reply.code(500).send({ error: 'theme insert disappeared' });
+  return themeViewFromRow(row, req.user!.id);
+});
+
+app.get('/themes/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const row = selectThemeRow.get(id) as ThemeRow | undefined;
+  if (!row) return reply.code(404).send({ error: 'not found' });
+  const isOwner = row.userId === req.user!.id;
+  if (!isOwner && row.isPublished !== 1) {
+    return reply.code(404).send({ error: 'not found' });
+  }
+  const view = themeViewFromRow(row, req.user!.id);
+  // Inline the showcase clip payload so the viewer page is one fetch.
+  let showcaseClip = null;
+  if (view.showcaseClipId) {
+    const detail = readStockClipDetail(view.showcaseClipId);
+    if (detail) {
+      showcaseClip = {
+        id: detail.meta.id,
+        name: detail.meta.name,
+        src: `/stock/${detail.meta.id}/clip.mp4`,
+        durationSec: detail.meta.durationSec,
+        width: detail.meta.width,
+        height: detail.meta.height,
+        fps: detail.meta.fps,
+        transcript: detail.transcript,
+        captionPlan: detail.captionPlan,
+        faces: null,
+      };
+    }
+  }
+  return { ...view, showcaseClip };
+});
+
+app.patch('/themes/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const row = selectThemeRow.get(id) as ThemeRow | undefined;
+  if (!row || row.userId !== req.user!.id) {
+    return reply.code(404).send({ error: 'not found' });
+  }
+  const body = req.body as {
+    name?: unknown;
+    description?: unknown;
+    templateId?: unknown;
+    styleSpec?: unknown;
+    showcaseClipId?: unknown;
+  } | null;
+  if (!body || typeof body !== 'object') {
+    return reply.code(400).send({ error: 'body must be a JSON object' });
+  }
+  let nameVal: string | null = null;
+  if (body.name !== undefined) {
+    const n = String(body.name).trim();
+    if (!n) return reply.code(400).send({ error: 'name cannot be empty' });
+    nameVal = n;
+  }
+  let descriptionVal: string | null = null;
+  if (body.description !== undefined) descriptionVal = String(body.description);
+  let templateIdVal: string | null = null;
+  if (body.templateId !== undefined) {
+    const t = String(body.templateId);
+    if (!isValidTemplateId(t)) {
+      return reply
+        .code(400)
+        .send({ error: `templateId must be one of: ${VALID_TEMPLATE_IDS.join(', ')}` });
+    }
+    templateIdVal = t;
+  }
+  let styleSpecVal: string | null = null;
+  if (body.styleSpec !== undefined) {
+    const parsed = StyleSpecSchema.safeParse(body.styleSpec);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'invalid styleSpec', details: parsed.error.flatten() });
+    }
+    styleSpecVal = JSON.stringify(parsed.data);
+  }
+  let showcaseClipIdVal: string | null = null;
+  if (body.showcaseClipId !== undefined && body.showcaseClipId !== null) {
+    const requested = String(body.showcaseClipId);
+    if (!readStockClipDetail(requested)) {
+      return reply.code(400).send({ error: `unknown stock clip: ${requested}` });
+    }
+    showcaseClipIdVal = requested;
+  }
+  updateThemeFields.run({
+    id,
+    userId: req.user!.id,
+    name: nameVal,
+    description: descriptionVal,
+    templateId: templateIdVal,
+    styleSpec: styleSpecVal,
+    showcaseClipId: showcaseClipIdVal,
+  });
+  const updated = selectThemeRow.get(id) as ThemeRow;
+  return themeViewFromRow(updated, req.user!.id);
+});
+
+app.post('/themes/:id/publish', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const row = selectThemeRow.get(id) as ThemeRow | undefined;
+  if (!row || row.userId !== req.user!.id) {
+    return reply.code(404).send({ error: 'not found' });
+  }
+  if (!row.showcaseClipId) {
+    return reply.code(400).send({
+      error: 'showcaseClipId is required to publish — pick a stock clip first',
+    });
+  }
+  publishTheme.run({ id, userId: req.user!.id });
+  const updated = selectThemeRow.get(id) as ThemeRow;
+  return themeViewFromRow(updated, req.user!.id);
+});
+
+app.post('/themes/:id/unpublish', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const row = selectThemeRow.get(id) as ThemeRow | undefined;
+  if (!row || row.userId !== req.user!.id) {
+    return reply.code(404).send({ error: 'not found' });
+  }
+  unpublishTheme.run({ id, userId: req.user!.id });
+  const updated = selectThemeRow.get(id) as ThemeRow;
+  return themeViewFromRow(updated, req.user!.id);
+});
+
+app.delete('/themes/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const result = deleteThemeForUser.run(id, req.user!.id);
+  if (result.changes === 0) {
+    return reply.code(404).send({ error: 'not found' });
+  }
+  return { id, deleted: true };
+});
+
+// Still-frame preview against a stock clip. Mirrors POST /jobs/:id/preview
+// but the source is a stock clip with a prebaked transcript instead of a
+// job row. Used as fallback for templates that don't support live <Player>.
+app.post('/themes/preview', { preHandler: requireAuth }, async (req, reply) => {
+  const body = req.body as {
+    clipId?: unknown;
+    templateId?: unknown;
+    styleSpec?: unknown;
+    frameSec?: unknown;
+  } | null;
+  if (!body || typeof body !== 'object') {
+    return reply.code(400).send({ error: 'body must be a JSON object' });
+  }
+  const clipId = String(body.clipId ?? '');
+  const detail = readStockClipDetail(clipId);
+  if (!detail) {
+    return reply.code(400).send({ error: `unknown stock clip: ${clipId}` });
+  }
+  const templateId = String(body.templateId ?? 'pop-words');
+  if (!isValidTemplateId(templateId)) {
+    return reply
+      .code(400)
+      .send({ error: `templateId must be one of: ${VALID_TEMPLATE_IDS.join(', ')}` });
+  }
+  const parsed = StyleSpecSchema.safeParse(body.styleSpec ?? {});
+  if (!parsed.success) {
+    return reply.code(400).send({ error: 'invalid styleSpec', details: parsed.error.flatten() });
+  }
+  const frameSec = Number.isFinite(body.frameSec) ? Number(body.frameSec) : 0;
+  const tmp = await mkdtemp(join(tmpdir(), 'theme-preview-'));
+  const pngPath = join(tmp, 'preview.png');
+  try {
+    await renderStillFrame({
+      inputVideo: join(STOCK_CLIPS_DIR, detail.meta.id, 'clip.mp4'),
+      transcript: detail.transcript,
+      captionPlan: detail.captionPlan,
+      faces: null,
+      styleSpec: parsed.data as StyleSpec,
+      templateId,
+      frameSec,
+      outputPath: pngPath,
+    });
+    const buf = await readFile(pngPath);
+    reply.header('content-type', 'image/png');
+    reply.header('content-length', buf.length);
+    return reply.send(buf);
+  } catch (err) {
+    req.log.error({ err }, 'theme preview render failed');
+    return reply
+      .code(500)
+      .send({ error: 'theme preview render failed', message: (err as Error).message });
+  } finally {
+    await rm(tmp, { recursive: true, force: true }).catch(() => undefined);
+  }
 });
 
 app.post('/jobs', { preHandler: requireAuth }, async (req, reply) => {
