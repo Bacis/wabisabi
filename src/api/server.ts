@@ -32,7 +32,7 @@ function isValidTemplateId(s: string): s is TemplateId {
 }
 import { renderStillFrame } from '../stages/renderStill.js';
 import { generateStyle } from '../stages/generateStyle.js';
-import { runAgentChat, checkAgentRateLimit } from '../stages/agentChat.js';
+import { runAgentChat } from '../stages/agentChat.js';
 import type { CaptionPlan, FaceData, Transcript } from '../shared/types.js';
 import { requireAuth } from '../auth/middleware.js';
 import { authenticate } from '../auth/users.js';
@@ -1135,17 +1135,6 @@ app.post('/agent/chat', { preHandler: requireAuth }, async (req, reply) => {
   }
   if (!body?.templateId || typeof body.templateId !== 'string') {
     return reply.code(400).send({ error: 'templateId is required' });
-  }
-  const userId = req.user!.id;
-  const rl = checkAgentRateLimit(userId);
-  if (!rl.ok) {
-    return reply
-      .code(429)
-      .header('retry-after', rl.retryAfterSec.toString())
-      .send({
-        error: 'agent rate limit exceeded',
-        message: `Take a breather. Try again in ${rl.retryAfterSec}s.`,
-      });
   }
   try {
     const result = await runAgentChat({
