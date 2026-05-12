@@ -372,3 +372,49 @@ export async function deleteTheme(id: string): Promise<void> {
   const r = await api(`/themes/${encodeURIComponent(id)}`, { method: 'DELETE' });
   if (!r.ok) throw new Error(`DELETE /themes/${id} ${r.status}`);
 }
+
+// --- Agent chat (/agent/new) --------------------------------------------
+
+export type AgentPatch = {
+  scope: 'global' | 'chunk';
+  styleSpec?: Record<string, unknown>;
+  chunkOverride?: { range: [number, number]; overrides: Record<string, unknown> };
+  templateId?: string;
+};
+
+export type AgentToolCall = { name: string; input: Record<string, unknown> };
+
+export type AgentChatRequest = {
+  threadId: string;
+  message: string;
+  currentSpec: Record<string, unknown>;
+  templateId: string;
+  selectedWord?: { idx: number; text: string; t: number; d: number };
+  transcriptSummary?: { totalWords: number; durationSec: number };
+  /** Optional OpenRouter model id override; falls back to AGENT_MODEL env / Haiku. */
+  model?: string;
+};
+
+export type AgentChatResponse = {
+  assistantMessage: string;
+  patch: AgentPatch | null;
+  toolTrace: AgentToolCall[];
+  notes?: string;
+};
+
+export async function postAgentChat(body: AgentChatRequest): Promise<AgentChatResponse> {
+  const r = await api('/agent/chat', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (r.status === 429) {
+    const detail = await r.json().catch(() => ({}));
+    throw new Error(detail.message ?? 'agent rate-limited');
+  }
+  if (!r.ok) {
+    const detail = await r.json().catch(() => ({}));
+    throw new Error(detail.message ?? `POST /agent/chat ${r.status}`);
+  }
+  return r.json();
+}

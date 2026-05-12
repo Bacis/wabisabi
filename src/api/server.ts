@@ -32,6 +32,7 @@ function isValidTemplateId(s: string): s is TemplateId {
 }
 import { renderStillFrame } from '../stages/renderStill.js';
 import { generateStyle } from '../stages/generateStyle.js';
+import { runAgentChat, checkAgentRateLimit } from '../stages/agentChat.js';
 import type { CaptionPlan, FaceData, Transcript } from '../shared/types.js';
 import { requireAuth } from '../auth/middleware.js';
 import { authenticate } from '../auth/users.js';
@@ -1110,6 +1111,61 @@ if (orphanJobsCount > 0) {
     `${orphanJobsCount} job(s) have no userId. Run \`npm run admin:claim -- <email>\` to assign them.`,
   );
 }
+
+// Multi-turn agentic caption editor for /agent/new. Stateless on the wire —
+// LangGraph's MemorySaver owns the conversation history per threadId. The
+// model returns a staged patch which the client applies via applyThemePatch().
+// Soft cap of 30 calls/hour/user lives in agentChat.ts to honor the
+// "avoid API credit burn" preference.
+app.post('/agent/chat', { preHandler: requireAuth }, async (req, reply) => {
+  const body = req.body as {
+    threadId?: string;
+    message?: string;
+    currentSpec?: Record<string, unknown>;
+    templateId?: string;
+    selectedWord?: { idx: number; text: string; t: number; d: number };
+    transcriptSummary?: { totalWords: number; durationSec: number };
+    model?: string;
+  };
+  if (!body?.threadId || typeof body.threadId !== 'string') {
+    return reply.code(400).send({ error: 'threadId is required' });
+  }
+  if (!body?.message || typeof body.message !== 'string' || body.message.trim().length === 0) {
+    return reply.code(400).send({ error: 'message is required' });
+  }
+  if (!body?.templateId || typeof body.templateId !== 'string') {
+    return reply.code(400).send({ error: 'templateId is required' });
+  }
+  const userId = req.user!.id;
+  const rl = checkAgentRateLimit(userId);
+  if (!rl.ok) {
+    return reply
+      .code(429)
+      .header('retry-after', rl.retryAfterSec.toString())
+      .send({
+        error: 'agent rate limit exceeded',
+        message: `Take a breather. Try again in ${rl.retryAfterSec}s.`,
+      });
+  }
+  try {
+    const result = await runAgentChat({
+      threadId: body.threadId,
+      message: body.message.trim(),
+      currentSpec: body.currentSpec ?? {},
+      templateId: body.templateId,
+      selectedWord: body.selectedWord,
+      transcriptSummary: body.transcriptSummary,
+      model: body.model,
+    });
+    return result;
+  } catch (err) {
+    req.log.error({ err }, 'agent chat failed');
+    return reply.code(502).send({
+      error: 'agent failed',
+      message: (err as Error).message,
+    });
+  }
+});
 
 const port = Number(process.env.PORT ?? 3000);
 await app.listen({ port, host: '0.0.0.0' });
