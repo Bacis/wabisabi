@@ -5,6 +5,7 @@
 import type { ComponentType } from 'react';
 import { ReelClone } from '@remotion-templates/ReelClone';
 import { PopWords } from '@remotion-templates/PopWords';
+import { CaptionDesigner } from '@remotion-templates/CaptionDesigner';
 
 // We deliberately type as `any`-props here — the schema is dynamic
 // (StyleSpec is permissive at runtime), and the Player API expects a
@@ -13,6 +14,7 @@ import { PopWords } from '@remotion-templates/PopWords';
 const REGISTRY: Record<string, ComponentType<any>> = {
   'reel-clone': ReelClone,
   'pop-words': PopWords,
+  'caption-designer': CaptionDesigner,
 };
 
 export function getComposition(templateId: string): ComponentType<any> | null {

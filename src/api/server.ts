@@ -26,13 +26,17 @@ import { PRESETS, mergeStyleSpec, type Preset, type TemplateId } from '../shared
 // POST /jobs and POST /presets. Adding a new template means: register it in
 // remotion/src/Root.tsx, add an entry here, expose it in viewer.html's
 // dropdown, and (optionally) add a preset to PRESETS.
-const VALID_TEMPLATE_IDS: readonly TemplateId[] = ['pop-words', 'reel-clone'];
+const VALID_TEMPLATE_IDS: readonly TemplateId[] = ['pop-words', 'reel-clone', 'caption-designer'];
 function isValidTemplateId(s: string): s is TemplateId {
   return (VALID_TEMPLATE_IDS as readonly string[]).includes(s);
 }
 import { renderStillFrame } from '../stages/renderStill.js';
 import { generateStyle } from '../stages/generateStyle.js';
 import { runAgentChat } from '../stages/agentChat.js';
+import {
+  proposeDirectorScript,
+  type PlannerWord,
+} from '../stages/proposeDirectorScript.js';
 import type { CaptionPlan, FaceData, Transcript } from '../shared/types.js';
 import { requireAuth } from '../auth/middleware.js';
 import { authenticate } from '../auth/users.js';
@@ -62,6 +66,13 @@ const WEB_DIST_AVAILABLE = existsSync(join(WEB_DIST, 'index.html'));
 const STOCK_CLIPS_DIR = resolve(here, '../../remotion/public/stock');
 const STOCK_INDEX_PATH = join(STOCK_CLIPS_DIR, 'index.json');
 
+// Director audio samples (remotion/public/audio/<gesture>/NN.mp3). The
+// Remotion <CueLayer> resolves these via staticFile() which maps to
+// `<bundle>/public/audio/...` at render time; for the live editor preview
+// the same path needs to be reachable on the dev server, so we mount
+// `remotion/public/audio/` at `/audio/` and let Vite proxy it.
+const AUDIO_SAMPLES_DIR = resolve(here, '../../remotion/public/audio');
+
 const app = Fastify({ logger: true });
 await app.register(fastifyCookie);
 await app.register(multipart, {
@@ -76,6 +87,14 @@ mkdirSync(STOCK_CLIPS_DIR, { recursive: true });
 await app.register(fastifyStatic, {
   root: STOCK_CLIPS_DIR,
   prefix: '/stock/',
+  decorateReply: false,
+});
+// Director audio samples. Mount BEFORE the SPA fallback so cue mp3 fetches
+// don't hit the index.html catchall.
+mkdirSync(AUDIO_SAMPLES_DIR, { recursive: true });
+await app.register(fastifyStatic, {
+  root: AUDIO_SAMPLES_DIR,
+  prefix: '/audio/',
   decorateReply: false,
 });
 if (WEB_DIST_AVAILABLE) {
@@ -244,6 +263,71 @@ const unpublishTheme = db.prepare(`
 const deleteThemeForUser = db.prepare(
   `delete from custom_presets where id = ? and userId = ?`,
 );
+
+// --- Designs ------------------------------------------------------------
+// A "design" is the Caption Designer editor's persisted state for one
+// session. Each row owns: a name, a source reference (stock clip or upload
+// job), and a JSON blob of the EditorState (tracks, groupStyles, etc.).
+// Rendering a design queues a hidden job with templateId='caption-designer'
+// and a styleSpec.designer payload derived from `state`.
+const insertDesign = db.prepare(`
+  insert into designs (id, userId, name, sourceKind, sourceId, templateId, state)
+  values (@id, @userId, @name, @sourceKind, @sourceId, @templateId, @state)
+`);
+const listDesignsForUser = db.prepare(`
+  select id, name, sourceKind, sourceId, templateId, thumbnailPath, createdAt, updatedAt
+  from designs
+  where userId = ?
+  order by updatedAt desc
+`);
+const selectDesignRow = db.prepare(`select * from designs where id = ?`);
+const updateDesignFields = db.prepare(`
+  update designs
+  set name = coalesce(@name, name),
+      state = coalesce(@state, state),
+      updatedAt = datetime('now')
+  where id = @id and userId = @userId
+`);
+const deleteDesignForUser = db.prepare(
+  `delete from designs where id = ? and userId = ?`,
+);
+
+type DesignRow = {
+  id: string;
+  userId: string;
+  name: string;
+  sourceKind: 'stock' | 'job';
+  sourceId: string;
+  templateId: string;
+  state: string;             // JSON
+  thumbnailPath: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type DesignView = Omit<DesignRow, 'state'> & {
+  state: unknown;            // parsed JSON
+};
+
+function designViewFromRow(row: DesignRow): DesignView {
+  return {
+    ...row,
+    state: JSON.parse(row.state),
+  };
+}
+
+// Insert-with-prebuilt-JSON path used by /designs/:id/render. The standard
+// insertJob doesn't take transcript/captionPlan/faces — they're populated
+// by the worker pipeline. For caption-designer renders we already know all
+// of those (the editor authored them), so the worker can skip transcribe/
+// enrich/face_detect entirely.
+const insertJobWithAnalysis = db.prepare(`
+  insert into jobs
+    (id, userId, inputPath, templateId, styleSpec, transcript, captionPlan, faces, keepInputUntil, hidden)
+  values
+    (@id, @userId, @inputPath, @templateId, @styleSpec, @transcript, @captionPlan, @faces, @keepInputUntil, @hidden)
+  returning id, status, createdAt
+`);
 
 type ThemeRow = {
   id: string;
@@ -751,6 +835,198 @@ app.delete('/themes/:id', { preHandler: requireAuth }, async (req, reply) => {
   return { id, deleted: true };
 });
 
+// --- Designs endpoints --------------------------------------------------
+
+app.get('/designs', { preHandler: requireAuth }, async (req) => {
+  return listDesignsForUser.all(req.user!.id);
+});
+
+app.post('/designs', { preHandler: requireAuth }, async (req, reply) => {
+  const body = req.body as {
+    name?: unknown;
+    sourceKind?: unknown;
+    sourceId?: unknown;
+    state?: unknown;
+  } | null;
+  if (!body || typeof body !== 'object') {
+    return reply.code(400).send({ error: 'body must be a JSON object' });
+  }
+  const name = String(body.name ?? '').trim();
+  if (!name) return reply.code(400).send({ error: 'name is required' });
+  const sourceKind = String(body.sourceKind ?? '');
+  if (sourceKind !== 'stock' && sourceKind !== 'job') {
+    return reply.code(400).send({ error: 'sourceKind must be "stock" or "job"' });
+  }
+  const sourceId = String(body.sourceId ?? '').trim();
+  if (!sourceId) return reply.code(400).send({ error: 'sourceId is required' });
+  if (!body.state || typeof body.state !== 'object') {
+    return reply.code(400).send({ error: 'state must be an object' });
+  }
+
+  const id = randomUUID();
+  insertDesign.run({
+    id,
+    userId: req.user!.id,
+    name,
+    sourceKind,
+    sourceId,
+    templateId: 'caption-designer',
+    state: JSON.stringify(body.state),
+  });
+  const row = selectDesignRow.get(id) as DesignRow | undefined;
+  if (!row) return reply.code(500).send({ error: 'design insert disappeared' });
+  return designViewFromRow(row);
+});
+
+app.get('/designs/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const row = selectDesignRow.get(id) as DesignRow | undefined;
+  if (!row || row.userId !== req.user!.id) {
+    return reply.code(404).send({ error: 'not found' });
+  }
+  return designViewFromRow(row);
+});
+
+app.patch('/designs/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const row = selectDesignRow.get(id) as DesignRow | undefined;
+  if (!row || row.userId !== req.user!.id) {
+    return reply.code(404).send({ error: 'not found' });
+  }
+  const body = req.body as { name?: unknown; state?: unknown } | null;
+  if (!body || typeof body !== 'object') {
+    return reply.code(400).send({ error: 'body must be a JSON object' });
+  }
+  let nameVal: string | null = null;
+  if (body.name !== undefined) {
+    const n = String(body.name).trim();
+    if (!n) return reply.code(400).send({ error: 'name cannot be empty' });
+    nameVal = n;
+  }
+  let stateVal: string | null = null;
+  if (body.state !== undefined) {
+    if (!body.state || typeof body.state !== 'object') {
+      return reply.code(400).send({ error: 'state must be an object' });
+    }
+    stateVal = JSON.stringify(body.state);
+  }
+  updateDesignFields.run({ id, userId: req.user!.id, name: nameVal, state: stateVal });
+  const updated = selectDesignRow.get(id) as DesignRow;
+  return designViewFromRow(updated);
+});
+
+app.delete('/designs/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const result = deleteDesignForUser.run(id, req.user!.id);
+  if (result.changes === 0) {
+    return reply.code(404).send({ error: 'not found' });
+  }
+  return { id, deleted: true };
+});
+
+// Kick off a render of a design. Resolves the source video (stock or job),
+// copies it into storage/inputs/ as the input for the new job, derives
+// transcript + captionPlan from the design's caption track, packs the
+// editor state into styleSpec.designer, and inserts a hidden job. The
+// worker pipeline detects templateId='caption-designer' + a pre-populated
+// transcript and skips the transcribe/enrich/face_detect stages.
+app.post('/designs/:id/render', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const row = selectDesignRow.get(id) as DesignRow | undefined;
+  if (!row || row.userId !== req.user!.id) {
+    return reply.code(404).send({ error: 'not found' });
+  }
+
+  // Resolve source path on disk.
+  let sourceAbs: string;
+  if (row.sourceKind === 'stock') {
+    const detail = readStockClipDetail(row.sourceId);
+    if (!detail) return reply.code(400).send({ error: `stock clip missing: ${row.sourceId}` });
+    sourceAbs = join(STOCK_CLIPS_DIR, detail.meta.id, 'clip.mp4');
+  } else {
+    const job = selectJob.get(row.sourceId) as { inputPath?: string; userId?: string | null } | undefined;
+    if (!job || job.userId !== req.user!.id || !job.inputPath) {
+      return reply.code(400).send({ error: `source job missing or expired: ${row.sourceId}` });
+    }
+    if (!existsSync(job.inputPath)) {
+      return reply.code(400).send({ error: 'source job input file no longer on disk' });
+    }
+    sourceAbs = job.inputPath;
+  }
+
+  // Copy the source into the inputs dir so this render's cleanup doesn't
+  // touch the original (stock clips MUST NOT be deleted; another design
+  // could be sharing the source job).
+  const newJobId = randomUUID();
+  const inputsDir = join(STORAGE_DIR, 'inputs');
+  await mkdir(inputsDir, { recursive: true });
+  const newInputPath = join(inputsDir, `${newJobId}${extname(sourceAbs) || '.mp4'}`);
+  await pipeline(createReadStream(sourceAbs), createWriteStream(newInputPath));
+
+  // Derive transcript + captionPlan from the design's caption track. The
+  // design also carries the user's chosen templateId + base styleSpec, set
+  // via the form pane. For caption-designer renders, the editor's tracks +
+  // groupStyles get packed into styleSpec.designer so the composition can
+  // place groups at their authored positions.
+  const state = JSON.parse(row.state) as {
+    tracks: Array<any>;
+    groupStyles: Record<string, any>;
+    durationSec?: number;
+    templateId?: string;
+    styleSpec?: Record<string, any>;
+  };
+  const captionTrack = state.tracks.find((t) => t?.type === 'captions');
+  const captionWords: Array<{ id: string; text: string; start: number; duration: number; groupId: string }> =
+    captionTrack?.items ?? [];
+  const groups: Array<any> = captionTrack?.groups ?? [];
+  const wordGroupAssignments: Record<string, string> = {};
+  for (const w of captionWords) wordGroupAssignments[w.id] = w.groupId;
+
+  const transcriptJson: Transcript = {
+    language: 'en',
+    duration: state.durationSec ?? 0,
+    words: captionWords.map((w) => ({
+      word: w.text,
+      start: w.start,
+      end: w.start + w.duration,
+      confidence: 1,
+    })),
+  };
+  const captionPlanJson: CaptionPlan = {
+    chunks: [],
+    groups: groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      styleId: g.styleId,
+      transform: g.transform,
+    })),
+    wordGroupAssignments,
+  };
+
+  const renderTemplateId = isValidTemplateId(state.templateId ?? '')
+    ? (state.templateId as TemplateId)
+    : 'caption-designer';
+  const baseStyleSpec = (state.styleSpec ?? {}) as Record<string, unknown>;
+  const renderStyleSpec =
+    renderTemplateId === 'caption-designer'
+      ? { ...baseStyleSpec, designer: { tracks: state.tracks, groupStyles: state.groupStyles } }
+      : baseStyleSpec;
+
+  const newRow = insertJobWithAnalysis.get({
+    id: newJobId,
+    userId: req.user!.id,
+    inputPath: newInputPath,
+    templateId: renderTemplateId,
+    styleSpec: JSON.stringify(renderStyleSpec),
+    transcript: JSON.stringify(transcriptJson),
+    captionPlan: JSON.stringify(captionPlanJson),
+    faces: 'null',
+    keepInputUntil: null,
+    hidden: 0,
+  });
+  return newRow;
+});
+
 // Still-frame preview against a stock clip. Mirrors POST /jobs/:id/preview
 // but the source is a stock clip with a prebaked transcript instead of a
 // job row. Used as fallback for templates that don't support live <Player>.
@@ -1099,19 +1375,6 @@ app.post('/style/generate', { preHandler: requireAuth }, async (req, reply) => {
   }
 });
 
-// Heads-up if existing rows are still unowned after the auth migration.
-// First-time setup is: create an admin via `npm run admin:create -- ...`
-// then run `npm run admin:claim -- ...` to assign legacy rows.
-const orphanJobsCount = (
-  db.prepare(`select count(*) as n from jobs where userId is null`).get() as { n: number }
-).n;
-if (orphanJobsCount > 0) {
-  app.log.warn(
-    { orphanJobs: orphanJobsCount },
-    `${orphanJobsCount} job(s) have no userId. Run \`npm run admin:claim -- <email>\` to assign them.`,
-  );
-}
-
 // Multi-turn agentic caption editor for /agent/new. Stateless on the wire —
 // LangGraph's MemorySaver owns the conversation history per threadId. The
 // model returns a staged patch which the client applies via applyThemePatch().
@@ -1125,6 +1388,7 @@ app.post('/agent/chat', { preHandler: requireAuth }, async (req, reply) => {
     templateId?: string;
     selectedWord?: { idx: number; text: string; t: number; d: number };
     transcriptSummary?: { totalWords: number; durationSec: number };
+    transcript?: PlannerWord[];
     model?: string;
   };
   if (!body?.threadId || typeof body.threadId !== 'string') {
@@ -1144,6 +1408,7 @@ app.post('/agent/chat', { preHandler: requireAuth }, async (req, reply) => {
       templateId: body.templateId,
       selectedWord: body.selectedWord,
       transcriptSummary: body.transcriptSummary,
+      transcript: body.transcript,
       model: body.model,
     });
     return result;
@@ -1155,6 +1420,83 @@ app.post('/agent/chat', { preHandler: requireAuth }, async (req, reply) => {
     });
   }
 });
+
+// POST /director/plan — Director planner endpoint. Day 9 of the Director
+// feature. Takes a compact transcript + user prompt + optional currentScript,
+// runs the proposeDirectorScript LangGraph node, returns a validated
+// DirectorScript or an error. Used by the scaffold-sized agent path
+// ("build me a cinematic reel from this clip") that auto-routes through
+// the planner instead of the per-tweak ReAct loop.
+app.post('/director/plan', { preHandler: requireAuth }, async (req, reply) => {
+  const body = req.body as {
+    transcript?: PlannerWord[];
+    message?: string;
+    currentScript?: unknown;
+    model?: string;
+  };
+  if (!Array.isArray(body?.transcript) || body.transcript.length === 0) {
+    return reply.code(400).send({ error: 'transcript must be a non-empty array of {idx, t, w}' });
+  }
+  if (!body?.message || typeof body.message !== 'string' || body.message.trim().length === 0) {
+    return reply.code(400).send({ error: 'message is required' });
+  }
+  // Light shape check on transcript items — full validation happens inside
+  // the planner if needed. We only protect against obviously broken inputs
+  // here so we don't waste a Sonnet call on garbage.
+  for (let i = 0; i < body.transcript.length; i++) {
+    const w = body.transcript[i];
+    if (
+      !w ||
+      typeof w.idx !== 'number' ||
+      typeof w.t !== 'number' ||
+      typeof w.w !== 'string'
+    ) {
+      return reply
+        .code(400)
+        .send({ error: `transcript[${i}] must be { idx: number, t: number, w: string }` });
+    }
+  }
+  try {
+    const result = await proposeDirectorScript({
+      transcript: body.transcript,
+      message: body.message.trim(),
+      // currentScript validation defers to directorScriptSchema inside the
+      // planner; passing it through untyped keeps this handler thin.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      currentScript: body.currentScript as any,
+      model: body.model,
+    });
+    if (!result.ok) {
+      // Planner reports validation/format failures cleanly — surface as 422
+      // so the client can render the error instead of treating it as 5xx.
+      return reply.code(422).send({
+        error: 'director plan failed validation',
+        message: result.error,
+        attempts: result.attempts,
+      });
+    }
+    return { script: result.script, attempts: result.attempts };
+  } catch (err) {
+    req.log.error({ err }, 'director plan failed');
+    return reply.code(502).send({
+      error: 'director plan failed',
+      message: (err as Error).message,
+    });
+  }
+});
+
+// Heads-up if existing rows are still unowned after the auth migration.
+// First-time setup is: create an admin via `npm run admin:create -- ...`
+// then run `npm run admin:claim -- ...` to assign legacy rows.
+const orphanJobsCount = (
+  db.prepare(`select count(*) as n from jobs where userId is null`).get() as { n: number }
+).n;
+if (orphanJobsCount > 0) {
+  app.log.warn(
+    { orphanJobs: orphanJobsCount },
+    `${orphanJobsCount} job(s) have no userId. Run \`npm run admin:claim -- <email>\` to assign them.`,
+  );
+}
 
 const port = Number(process.env.PORT ?? 3000);
 await app.listen({ port, host: '0.0.0.0' });

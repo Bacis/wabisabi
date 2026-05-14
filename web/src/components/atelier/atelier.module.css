@@ -1,0 +1,715 @@
+/* Atelier — shared CSS module for the design-system atoms. Recipes lifted
+   from web/src/components/AgentChatPane/AgentChatPane.module.css so the
+   workspace and the surrounding pages share one visual vocabulary.
+
+   All values reference --ag-* CSS variables declared in web/src/index.css. */
+
+/* === Layout shell ======================================================== */
+
+.shell {
+  position: relative;
+  min-height: 100vh;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--ag-bg);
+  color: var(--ag-ink);
+  font-family: var(--ag-font-ui);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+.shellHeader {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  background: linear-gradient(180deg, rgba(7, 8, 11, 0.92) 60%, rgba(7, 8, 11, 0));
+  backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+.shellHeader > * {
+  pointer-events: auto;
+}
+.shellHeader .grow {
+  flex: 1;
+}
+
+.shellMain {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The agent designer locks the viewport itself; pad the rest. */
+.pageBleed {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* === Wordmark ============================================================ */
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 10px;
+  padding: 6px 8px;
+  margin: -6px -8px;
+  transition: background 0.12s;
+}
+.wordmark:hover {
+  background: var(--ag-surface);
+}
+.wordmark .wmGlyph {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(150deg, var(--ag-ai-soft), rgba(126, 224, 255, 0.04));
+  box-shadow: inset 0 0 0 1px var(--ag-ai-line), 0 0 18px rgba(126, 224, 255, 0.18);
+  font-family: var(--ag-font-serif);
+  font-style: italic;
+  font-weight: 400;
+  font-size: 19px;
+  color: var(--ag-ai);
+  letter-spacing: -0.02em;
+}
+.wordmark .wmText {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+  gap: 5px;
+}
+.wordmark .wmName {
+  font-family: var(--ag-font-serif);
+  font-style: italic;
+  font-size: 22px;
+  letter-spacing: -0.005em;
+  color: var(--ag-ink);
+}
+.wordmark .wmTagline {
+  font-family: var(--ag-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ag-ink-3);
+}
+
+/* === Mono label ========================================================== */
+
+.monoLabel {
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ag-ink-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.monoLabel.dim {
+  color: var(--ag-ink-4);
+}
+.monoLabel.bright {
+  color: var(--ag-ink-2);
+}
+.monoLabel.amber {
+  color: var(--ag-accent);
+}
+.monoLabel.cyan {
+  color: var(--ag-ai);
+}
+.monoLabel.danger {
+  color: var(--ag-danger);
+}
+.monoLabel .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* === Serif display ======================================================= */
+
+.serif {
+  font-family: var(--ag-font-serif);
+  font-style: italic;
+  font-weight: 400;
+  color: var(--ag-ink);
+  letter-spacing: -0.005em;
+  margin: 0;
+  line-height: 1.05;
+}
+.serif.sm  { font-size: 22px; }
+.serif.md  { font-size: 32px; }
+.serif.lg  { font-size: 44px; }
+.serif.xl  { font-size: 60px; line-height: 1.0; }
+
+/* === Chip (uppercase mono micro-label) =================================== */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  background: var(--ag-surface);
+  border-radius: 4px;
+  border: 1px solid var(--ag-line);
+  color: var(--ag-ink-3);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.chip.subtle {
+  color: var(--ag-ink-4);
+  border-color: var(--ag-line);
+  background: transparent;
+}
+.chip .chipDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+
+/* === Pill (status badge) ================================================= */
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  background: var(--ag-surface);
+  color: var(--ag-ink-3);
+  border: 1px solid var(--ag-line);
+  white-space: nowrap;
+}
+.pill .pillDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+.pill.amber  { color: var(--ag-accent); border-color: var(--ag-accent-line); background: var(--ag-accent-soft); }
+.pill.cyan   { color: var(--ag-ai);     border-color: var(--ag-ai-line);     background: var(--ag-ai-soft); }
+.pill.good   { color: var(--ag-good);   border-color: rgba(110, 231, 168, 0.3); background: rgba(110, 231, 168, 0.08); }
+.pill.danger { color: var(--ag-danger); border-color: rgba(255, 107, 107, 0.32); background: rgba(255, 107, 107, 0.10); }
+.pill.muted  { color: var(--ag-ink-3);  border-color: var(--ag-line);        background: var(--ag-surface); }
+
+/* === Pill toggle (segmented control) ===================================== */
+
+.pillToggle {
+  display: inline-flex;
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-line);
+  border-radius: 999px;
+  padding: 2px;
+  gap: 0;
+}
+.pillToggle button {
+  padding: 5px 12px;
+  font-family: var(--ag-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ag-ink-3);
+  background: none;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.12s, background 0.12s;
+}
+.pillToggle button:hover {
+  color: var(--ag-ink-2);
+}
+.pillToggle button[aria-pressed='true'] {
+  background: var(--ag-ai-soft);
+  color: var(--ag-ai);
+  box-shadow: inset 0 0 0 1px var(--ag-ai-line);
+}
+.pillToggle button[aria-pressed='true'] .ptCount {
+  color: var(--ag-ai);
+}
+.pillToggle .ptCount {
+  font-size: 9.5px;
+  color: var(--ag-ink-4);
+  letter-spacing: 0.04em;
+}
+.pillToggle .ptDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+  opacity: 0.8;
+}
+
+/* === Buttons ============================================================= */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--ag-font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 0;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, box-shadow 0.12s, transform 0.06s;
+  text-decoration: none;
+  color: var(--ag-ink-2);
+  background: none;
+  white-space: nowrap;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn:active:not(:disabled) {
+  transform: translateY(0.5px);
+}
+
+.btn.primary {
+  background: var(--ag-accent);
+  color: #1a1200;
+  box-shadow: 0 0 18px rgba(244, 185, 66, 0.18);
+}
+.btn.primary:hover:not(:disabled) {
+  background: #fde68a;
+}
+
+.btn.cyan {
+  background: var(--ag-ai);
+  color: #04141c;
+  box-shadow: 0 0 18px rgba(126, 224, 255, 0.22);
+}
+.btn.cyan:hover:not(:disabled) {
+  background: #b6efff;
+}
+
+.btn.ghost {
+  background: var(--ag-surface);
+  color: var(--ag-ink-2);
+  box-shadow: inset 0 0 0 1px var(--ag-line);
+}
+.btn.ghost:hover:not(:disabled) {
+  background: var(--ag-surface-hi);
+  color: var(--ag-ink);
+  box-shadow: inset 0 0 0 1px var(--ag-line-strong);
+}
+
+.btn.danger {
+  background: rgba(255, 107, 107, 0.10);
+  color: var(--ag-danger);
+  box-shadow: inset 0 0 0 1px rgba(255, 107, 107, 0.32);
+}
+.btn.danger:hover:not(:disabled) {
+  background: rgba(255, 107, 107, 0.18);
+}
+
+.btn.bare {
+  background: none;
+  color: var(--ag-ink-3);
+  padding: 6px 10px;
+  font-size: 10px;
+}
+.btn.bare:hover:not(:disabled) {
+  color: var(--ag-ink);
+  background: var(--ag-surface);
+}
+
+.btn.sm {
+  padding: 6px 12px;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+.btn.lg {
+  padding: 12px 22px;
+  font-size: 13px;
+}
+.btn.full {
+  width: 100%;
+}
+
+.btn .kbd {
+  margin-left: 4px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.18);
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  color: inherit;
+  opacity: 0.7;
+}
+
+/* === Input field ========================================================= */
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.fieldLabel {
+  font-family: var(--ag-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ag-ink-3);
+}
+.input {
+  width: 100%;
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-line-2);
+  border-radius: 8px;
+  padding: 11px 13px;
+  color: var(--ag-ink);
+  font-family: var(--ag-font-ui);
+  font-size: 14px;
+  outline: 0;
+  transition: border-color 0.12s, box-shadow 0.12s, background 0.12s;
+}
+.input::placeholder {
+  color: var(--ag-ink-4);
+}
+.input:hover {
+  border-color: var(--ag-line-strong);
+}
+.input:focus {
+  border-color: var(--ag-ai-line);
+  box-shadow: 0 0 0 3px var(--ag-ai-soft);
+  background: var(--ag-surface-hi);
+}
+.input:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* === Card ================================================================ */
+
+.card {
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-line);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+.card.flush {
+  border-radius: 12px;
+}
+.card.dashed {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--ag-line-2);
+}
+.card.interactive {
+  cursor: pointer;
+  transition: background 0.14s, border-color 0.14s, transform 0.14s, box-shadow 0.14s;
+}
+.card.interactive:hover {
+  background: var(--ag-surface-hi);
+  border-color: var(--ag-ai-line);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.card.padded {
+  padding: 18px 18px 16px;
+  gap: 12px;
+}
+.card.snug {
+  padding: 14px 14px 12px;
+  gap: 8px;
+}
+
+.cardIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: var(--ag-ai-soft);
+  color: var(--ag-ai);
+  box-shadow: inset 0 0 0 1px var(--ag-ai-line);
+  flex-shrink: 0;
+}
+.cardIcon.amber {
+  background: var(--ag-accent-soft);
+  color: var(--ag-accent);
+  box-shadow: inset 0 0 0 1px var(--ag-accent-line);
+}
+
+/* === Backdrops: stars + halo + dot grid ================================== */
+
+.starField {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 0;
+}
+.star {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.35);
+}
+
+.halo {
+  position: absolute;
+  inset: -10% -10%;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse at 50% 55%, rgba(126, 224, 255, 0.10) 0%, transparent 55%),
+    radial-gradient(ellipse at 30% 75%, rgba(244, 185, 66, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 30%, rgba(192, 132, 252, 0.08) 0%, transparent 50%);
+  filter: blur(12px);
+  z-index: 0;
+}
+.halo.soft {
+  background:
+    radial-gradient(ellipse at 50% 60%, rgba(126, 224, 255, 0.05) 0%, transparent 60%),
+    radial-gradient(ellipse at 25% 30%, rgba(244, 185, 66, 0.04) 0%, transparent 55%);
+}
+
+.dotGrid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    radial-gradient(circle at center, rgba(255, 255, 255, 0.045) 0.7px, transparent 0.8px);
+  background-size: 22px 22px;
+  background-position: 0 0;
+  mask-image: radial-gradient(ellipse at 50% 40%, #000 30%, transparent 80%);
+}
+
+/* === Command menu (popover anchored to •••) ============================== */
+
+.cmTrigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: transparent;
+  border: 1px solid var(--ag-line);
+  color: var(--ag-ink-3);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+  font-family: var(--ag-font-mono);
+  font-size: 18px;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+.cmTrigger:hover {
+  background: var(--ag-surface);
+  color: var(--ag-ink);
+  border-color: var(--ag-line-strong);
+}
+.cmTrigger[aria-expanded='true'] {
+  background: var(--ag-ai-soft);
+  color: var(--ag-ai);
+  border-color: var(--ag-ai-line);
+}
+
+.cmAnchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.cmPopover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 240px;
+  background: var(--ag-panel-2);
+  border: 1px solid var(--ag-line-2);
+  border-radius: 12px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  z-index: 50;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
+}
+.cmHeader {
+  font-family: var(--ag-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ag-ink-4);
+  padding: 8px 10px 4px;
+}
+.cmRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 8px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: var(--ag-ink-2);
+  text-decoration: none;
+  transition: background 0.12s, color 0.12s;
+}
+.cmRow:hover {
+  background: var(--ag-surface);
+  color: var(--ag-ink);
+}
+.cmRow.active {
+  color: var(--ag-ai);
+  background: var(--ag-ai-soft);
+}
+.cmRow .cmLabel {
+  flex: 1;
+  font-size: 13px;
+}
+.cmRow .cmHint {
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  color: var(--ag-ink-4);
+  letter-spacing: 0.06em;
+}
+.cmRow .cmIcon {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  color: currentColor;
+  opacity: 0.85;
+}
+.cmDivider {
+  height: 1px;
+  background: var(--ag-line);
+  margin: 4px 6px;
+}
+
+/* === Empty state panel =================================================== */
+
+.empty {
+  border: 1px dashed var(--ag-line-2);
+  border-radius: 14px;
+  padding: 40px 28px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  color: var(--ag-ink-3);
+  background: linear-gradient(180deg, transparent, rgba(126, 224, 255, 0.015));
+}
+.empty .emptyTitle {
+  font-family: var(--ag-font-serif);
+  font-style: italic;
+  font-size: 24px;
+  color: var(--ag-ink);
+}
+.empty .emptyBody {
+  font-size: 13px;
+  color: var(--ag-ink-3);
+  max-width: 380px;
+  line-height: 1.55;
+}
+
+/* === Page header ========================================================= */
+
+.pageHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+.pageHeader .crown {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+}
+.pageHeader .crownRule {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, var(--ag-line-2), transparent);
+}
+
+/* === Page container layout ============================================== */
+
+.page {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 36px 32px 64px;
+  max-width: 1180px;
+  width: 100%;
+  margin: 0 auto;
+  z-index: 1;
+}
+.page.wide {
+  max-width: 1320px;
+}
+.page.narrow {
+  max-width: 720px;
+}
+
+/* === Grid utilities ====================================================== */
+
+.grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+.grid.tight {
+  gap: 12px;
+}
+.grid.themes {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.grid.jobs {
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+/* === Inline anchor ======================================================= */
+
+.link {
+  color: var(--ag-ai);
+  text-decoration: none;
+  border-bottom: 1px solid var(--ag-ai-line);
+  transition: color 0.12s, border-color 0.12s;
+}
+.link:hover {
+  color: #b6efff;
+  border-color: var(--ag-ai);
+}

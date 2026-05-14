@@ -30,8 +30,32 @@ scripts/reel-analysis/runs/
 tsconfig.tsbuildinfo
 *.tsbuildinfo
 
+# Regression suite scratch dir (re-rendered candidate frames before diff)
+.regression-tmp/
+
+# Heavy binary media — kept locally, never committed. Stock clips live in
+# remotion/public/stock/<id>/clip.mp4 (sidecar meta.json + transcript.json
+# stay tracked). Audio cue samples in remotion/public/audio/<gesture>/NN.mp3
+# are placeholders pending the real curation pass — we're not committing
+# static audio while the pipeline is still in flux.
+remotion/public/stock/*/clip.mp4
+remotion/public/audio/**/*.mp3
+hooks/*.mp4
+tests/fixtures/clips/*.mp4
+tests/quality/references/*/source.mp4
+
 # Local debug screenshots & MCP browser session
 phase*.png
 themes-*.png
 font-picker.png
 .playwright-mcp/
+agent-*.png
+direct-*.png
+director-*.png
+jodie-*.png
+layout-*.png
+longword-*.png
+mine-*.png
+phone-*.png
+proto-*.png
+single-word-*.png

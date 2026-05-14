@@ -24,8 +24,52 @@ export type CaptionChunk = {
   emphasis: boolean[];
 };
 
+// Canvas-space rect (1080×1920 baseline). Used by the Caption Designer for
+// per-group placement on screen and per-overlay-item position.
+export type Transform = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rot: number;
+};
+
+// A caption group bundles a subset of words at a single on-screen position
+// with a shared GroupStyle. Used by the 'caption-designer' template; ignored
+// by reel-clone/pop-words (so legacy renders are unaffected when these
+// fields are absent on CaptionPlan).
+export type CaptionGroup = {
+  id: string;
+  name: string;
+  styleId: string;       // FK → GroupStyle.id in styleSpec.groupStyles
+  transform: Transform;
+};
+
+// Per-group styling. Lives inside styleSpec.groupStyles for the caption-
+// designer template. Adding more is a one-liner.
+export type GroupStyle = {
+  id: string;
+  name: string;
+  bg: string;
+  text: string;
+  activeBg: string;
+  activeText: string;
+  weight: number;          // font-weight
+  scaleActive: number;     // 1.0 - 1.3
+  rotateActive: number;    // degrees applied to active word
+  baseFontSize: number;    // canvas px @ group.w === 1080
+  padX: number;            // ratio of fontSize
+  padY: number;
+  radius: number;
+  glow: string | null;     // active-word box-shadow color or null
+  color: string;           // identity color (timeline strip, swatches)
+};
+
 export type CaptionPlan = {
   chunks: CaptionChunk[];
+  // Additive — caption-designer template consumes these; ReelClone ignores.
+  groups?: CaptionGroup[];
+  wordGroupAssignments?: Record<string, string>;  // wordId → groupId
 };
 
 // Face detection output from the MediaPipe sidecar. Coordinates are

@@ -10,26 +10,16 @@
     "typecheck": "tsc -b --noEmit"
   },
   "dependencies": {
-    "@radix-ui/react-avatar": "^1.1.11",
-    "@radix-ui/react-collapsible": "^1.1.12",
-    "@radix-ui/react-dialog": "^1.1.15",
-    "@radix-ui/react-dropdown-menu": "^2.1.16",
-    "@radix-ui/react-separator": "^1.1.8",
-    "@radix-ui/react-slot": "^1.2.4",
-    "@radix-ui/react-tabs": "^1.1.13",
-    "@radix-ui/react-tooltip": "^1.2.8",
     "@remotion/google-fonts": "^4.0.448",
     "@remotion/player": "^4.0.448",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
     "lucide-react": "^0.469.0",
     "react": "18.3.1",
-    "react-colorful": "^5.6.1",
     "react-dom": "18.3.1",
+    "react-moveable": "^0.56.0",
     "react-router-dom": "^6.30.3",
     "remotion": "^4.0.448",
-    "tailwind-merge": "^2.6.1",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
@@ -38,7 +28,6 @@
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.15",
-    "tailwindcss-animate": "^1.0.7",
     "typescript": "^5.6.3",
     "vite": "^5.4.11"
   }

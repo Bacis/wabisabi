@@ -1,0 +1,11 @@
+Build this clip as a cinematic Jodie-style reel. Direct it explicitly:
+
+- Opening TITLE on the first 3 words: stack ONE WORD PER LINE at MIDDLE CENTER, oversized (≥240px), uppercase, yellow.
+- A CHAPTER stat-callout on the next 4-6 words at MIDDLE CENTER, ONE WORD PER LINE, ≥220px, uppercase, yellow.
+- During the speaker's backstory section, single-word LOWER-THIRD CALLOUTS pop on the punchy words ("wall", "messed", etc.) — bottom center, ONE WORD PER LINE, ~120px uppercase yellow.
+- When he says he built an app: a CHAPTER stat-callout at MIDDLE CENTER, ONE WORD PER LINE, ≥220px uppercase yellow.
+- The brand-name reveal on "Heal Man" (the two-word brand drop): hero-title-card at MIDDLE CENTER, ONE WORD PER LINE, ≥260px uppercase yellow.
+- A LIST role for the "14 disciplines / 4 frameworks" section: lower-third, one item per line, ~140px uppercase yellow.
+- Closing CTA on the last ~25 words: BOTTOM CENTER, ONE WORD PER LINE, ~140px uppercase yellow.
+
+Font: Inter. Brand: yellow #ffd100. All groups uppercase. Where the user has named a placement, fontSize, or maxPerLine, you MUST emit explicit placement/maxPerLine/overrides.fontSize on the affected group — do NOT defer to role defaults.

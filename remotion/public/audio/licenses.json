@@ -1,0 +1,11 @@
+{
+  "_readme": "Per-sample license + source URL. Populated during the curation step before each new mp3 is committed. Day 18 of the Director feature. v1 ship gate: every populated path must have a CC0 or commercially-cleared license + a working source URL. Reject CC-BY-NC and YouTube Audio Library.",
+  "_schema": {
+    "path": "audio/<gesture>/NN.mp3",
+    "source": "URL where the original was downloaded",
+    "license": "CC0 | ElevenLabs | CC-BY (with attribution string) | etc.",
+    "attribution": "Optional — display string when license requires credit",
+    "addedAt": "ISO date the file was committed"
+  },
+  "samples": []
+}

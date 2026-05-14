@@ -1,0 +1,162 @@
+{
+  "$schema": "https://raw.githubusercontent.com/.well-known/director-quality-reference-v1.json",
+  "reference": "jodie",
+  "source": "tests/quality/references/jodie/source.mp4",
+  "duration": 67.78,
+  "dimensions": { "width": 720, "height": 1280, "fps": 30 },
+  "styleDNA": {
+    "font": "Inter Black 900",
+    "emphasisColor": "#ffd100",
+    "baseColor": "#ffffff",
+    "background": "video frame; solid black on chapter cards",
+    "casingDefault": "uppercase"
+  },
+  "beats": [
+    {
+      "id": "title-open",
+      "tSec": [0, 2],
+      "frame": "frames/01-title-open.png",
+      "words": ["THIS", "IS", "JODIE"],
+      "placement": { "anchor": "middle", "alignment": "center" },
+      "maxPerLine": 1,
+      "fontSizeMinPx": 220,
+      "casing": "uppercase",
+      "layoutStrategy": "cascade-stack",
+      "motion": "char-by-char-reveal",
+      "audioGesture": "tick",
+      "capabilities": {
+        "stack": "shipped",
+        "size": "shipped",
+        "char-reveal": "not-shipped"
+      }
+    },
+    {
+      "id": "callout-here",
+      "tSec": [5, 6],
+      "frame": "frames/02-callout-here.png",
+      "words": ["HERE"],
+      "placement": { "anchor": "bottom", "alignment": "center" },
+      "maxPerLine": 1,
+      "fontSizeMinPx": 100,
+      "casing": "uppercase",
+      "layoutStrategy": "lower-third",
+      "audioGesture": "pop",
+      "capabilities": { "all": "shipped" }
+    },
+    {
+      "id": "chapter-25-days",
+      "tSec": [14.5, 16.5],
+      "frame": "frames/03-chapter-25-days.png",
+      "words": ["25", "DAYS", "AGO"],
+      "placement": { "anchor": "middle", "alignment": "center" },
+      "maxPerLine": 1,
+      "fontSizeMinPx": 240,
+      "casing": "uppercase",
+      "layoutStrategy": "chapter-card",
+      "background": "solid-black",
+      "audioGesture": "thud",
+      "capabilities": {
+        "stack": "shipped",
+        "size": "shipped",
+        "solid-black-backdrop": "not-shipped"
+      }
+    },
+    {
+      "id": "callout-then",
+      "tSec": [19.5, 20.5],
+      "frame": "frames/04-callout-then.png",
+      "words": ["THEN"],
+      "placement": { "anchor": "bottom", "alignment": "center" },
+      "maxPerLine": 1,
+      "fontSizeMinPx": 100,
+      "casing": "uppercase",
+      "layoutStrategy": "lower-third",
+      "capabilities": { "all": "shipped" }
+    },
+    {
+      "id": "stack-monestising",
+      "tSec": [25.5, 27.5],
+      "frame": "frames/05-stack-monestising.png",
+      "words": ["MONESTISING", "I LOVE"],
+      "placement": { "anchor": "middle", "alignment": "center" },
+      "maxPerLine": 1,
+      "fontSizeMinPx": 180,
+      "casing": "uppercase",
+      "layoutStrategy": "cascade-stack",
+      "fontMix": ["sans-bold", "serif-italic"],
+      "audioGesture": "rise",
+      "capabilities": {
+        "stack": "shipped",
+        "size": "shipped",
+        "font-mix": "not-shipped"
+      }
+    },
+    {
+      "id": "callout-things",
+      "tSec": [31.5, 32.5],
+      "frame": "frames/06-callout-things.png",
+      "words": ["THINGS"],
+      "placement": { "anchor": "bottom", "alignment": "center" },
+      "maxPerLine": 1,
+      "fontSizeMinPx": 100,
+      "casing": "uppercase",
+      "layoutStrategy": "lower-third",
+      "capabilities": { "all": "shipped" }
+    },
+    {
+      "id": "callout-content",
+      "tSec": [39.5, 40.5],
+      "frame": "frames/07-callout-content.png",
+      "words": ["CONTENT"],
+      "placement": { "anchor": "bottom", "alignment": "center" },
+      "maxPerLine": 1,
+      "fontSizeMinPx": 100,
+      "casing": "uppercase",
+      "layoutStrategy": "lower-third",
+      "capabilities": { "all": "shipped" }
+    },
+    {
+      "id": "callout-potentially",
+      "tSec": [46.5, 47.5],
+      "frame": "frames/08-callout-potentially.png",
+      "words": ["POTENTIALLY"],
+      "placement": { "anchor": "bottom", "alignment": "center" },
+      "maxPerLine": 1,
+      "fontSizeMinPx": 100,
+      "casing": "uppercase",
+      "layoutStrategy": "lower-third",
+      "capabilities": { "all": "shipped" }
+    },
+    {
+      "id": "poll-card",
+      "tSec": [61.5, 63.5],
+      "frame": "frames/09-poll-card.png",
+      "words": ["WHAT", "SHOULD", "DO"],
+      "placement": { "anchor": "middle", "alignment": "center" },
+      "maxPerLine": 1,
+      "fontSizeMinPx": 80,
+      "casing": "uppercase",
+      "layoutStrategy": "poll-card",
+      "audioGesture": "shimmer",
+      "capabilities": {
+        "poll-card-layout": "not-shipped"
+      }
+    },
+    {
+      "id": "callout-dave",
+      "tSec": [64.5, 65.5],
+      "frame": "frames/10-callout-dave.png",
+      "words": ["DAVE"],
+      "placement": { "anchor": "bottom", "alignment": "center" },
+      "maxPerLine": 1,
+      "fontSizeMinPx": 100,
+      "casing": "uppercase",
+      "layoutStrategy": "lower-third",
+      "capabilities": { "all": "shipped" }
+    }
+  ],
+  "globals": {
+    "fontFamily": { "expected": "Inter", "capability": "shipped" },
+    "emphasisFill": { "expected": "#ffd100", "capability": "shipped" }
+  }
+}

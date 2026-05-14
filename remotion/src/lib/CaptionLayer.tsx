@@ -218,17 +218,40 @@ export const CaptionLayer: React.FC<Props> = ({ transcript, captionPlan, faces, 
 
   if (!activeChunk) return null;
 
+  // Optional editor-controlled bounding box. When set, position the
+  // caption container at this transform instead of using positionStyle's
+  // top/bottom anchor.
+  const captionTransform: { x: number; y: number; w: number; h: number; rot: number } | null =
+    (styleSpec as Record<string, any>).captionTransform ?? null;
+
   return (
     <div
-      style={{
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        display: 'flex',
-        justifyContent: justify,
-        padding: '0 5%',
-        ...positionStyle,
-      }}
+      data-caption-container
+      style={
+        captionTransform
+          ? {
+              position: 'absolute',
+              left: `${(captionTransform.x / 1080) * 100}%`,
+              top: `${(captionTransform.y / 1920) * 100}%`,
+              width: `${(captionTransform.w / 1080) * 100}%`,
+              height: `${(captionTransform.h / 1920) * 100}%`,
+              transform: `rotate(${captionTransform.rot}deg)`,
+              transformOrigin: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: justify,
+              padding: '0 5%',
+            }
+          : {
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              display: 'flex',
+              justifyContent: justify,
+              padding: '0 5%',
+              ...positionStyle,
+            }
+      }
     >
       <div
         style={{

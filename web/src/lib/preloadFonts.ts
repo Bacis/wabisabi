@@ -36,6 +36,13 @@ import { loadFont as loadDMSans } from '@remotion/google-fonts/DMSans';
 import { loadFont as loadOutfit } from '@remotion/google-fonts/Outfit';
 import { loadFont as loadArchivoBlack } from '@remotion/google-fonts/ArchivoBlack';
 
+// Atelier UI shell fonts. Referenced in atelier.module.css + AgentChatPane:
+//   --ag-font-serif: 'Instrument Serif' — italic display headlines
+//   --ag-font-display: 'Onest' — currently unused but reserved
+// Without these the cinematic headings flash to the Lora/Inter fallback.
+import { loadFont as loadInstrumentSerif } from '@remotion/google-fonts/InstrumentSerif';
+import { loadFont as loadOnest } from '@remotion/google-fonts/Onest';
+
 // Standard subset for all caption use cases. Adding 'symbols' / 'math' would
 // double network requests for fonts the user is unlikely to need in lyrics.
 const SUBSETS = ['latin'] as const;
@@ -66,3 +73,8 @@ loadPermanentMarker('normal', { weights: ['400'], subsets: SUBSETS as any });
 loadDMSans('normal', { weights: ['400', '700', '900'], subsets: SUBSETS as any });
 loadOutfit('normal', { weights: ['400', '700', '900'], subsets: SUBSETS as any });
 loadArchivoBlack('normal', { weights: ['400'], subsets: SUBSETS as any });
+
+// UI shell — italic display + sans companion.
+loadInstrumentSerif('normal', { weights: ['400'], subsets: SUBSETS as any });
+loadInstrumentSerif('italic', { weights: ['400'], subsets: SUBSETS as any });
+loadOnest('normal', { weights: ['400', '500', '700'], subsets: SUBSETS as any });

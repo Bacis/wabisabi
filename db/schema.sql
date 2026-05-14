@@ -154,3 +154,23 @@ create table if not exists user_hook_history (
 
 create index if not exists user_hook_history_user_idx
   on user_hook_history (userId, usedAt);
+
+-- Caption Designer: a "design" is the persisted state of the canvas+timeline
+-- editor on /themes/new. Independent from custom_presets/themes — themes are
+-- a styleSpec for an existing template; a design carries its own tracks,
+-- caption groups, group styles, and overlays. Rendering a design creates a
+-- (hidden) job using templateId='caption-designer'.
+create table if not exists designs (
+  id            text primary key,
+  userId        text not null references users(id) on delete cascade,
+  name          text not null,
+  sourceKind    text not null,                   -- 'stock' | 'job'
+  sourceId      text not null,                   -- stockClipId or jobId
+  templateId    text not null default 'caption-designer',
+  state         text not null,                   -- JSON: EditorState minus volatile fields
+  thumbnailPath text,
+  createdAt     text not null default (datetime('now')),
+  updatedAt     text not null default (datetime('now'))
+);
+
+create index if not exists designs_user_idx on designs (userId, updatedAt);

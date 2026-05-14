@@ -81,7 +81,44 @@ export type CaptionChunk = {
   emphasis: boolean[];
 };
 
-export type CaptionPlan = { chunks: CaptionChunk[] };
+export type Transform = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  rot: number;
+};
+
+export type CaptionGroup = {
+  id: string;
+  name: string;
+  styleId: string;
+  transform: Transform;
+};
+
+export type GroupStyle = {
+  id: string;
+  name: string;
+  bg: string;
+  text: string;
+  activeBg: string;
+  activeText: string;
+  weight: number;
+  scaleActive: number;
+  rotateActive: number;
+  baseFontSize: number;
+  padX: number;
+  padY: number;
+  radius: number;
+  glow: string | null;
+  color: string;
+};
+
+export type CaptionPlan = {
+  chunks: CaptionChunk[];
+  groups?: CaptionGroup[];
+  wordGroupAssignments?: Record<string, string>;
+};
 
 export type Transcript = {
   language?: string;
@@ -373,16 +410,92 @@ export async function deleteTheme(id: string): Promise<void> {
   if (!r.ok) throw new Error(`DELETE /themes/${id} ${r.status}`);
 }
 
+// --- Designs (Caption Designer) -----------------------------------------
+
+export type DesignSummary = {
+  id: string;
+  name: string;
+  sourceKind: 'stock' | 'job';
+  sourceId: string;
+  templateId: string;
+  thumbnailPath: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type Design = DesignSummary & {
+  userId: string;
+  state: unknown;
+};
+
+export async function listDesigns(): Promise<DesignSummary[]> {
+  const r = await api('/designs');
+  if (!r.ok) throw new Error(`GET /designs ${r.status}`);
+  return r.json();
+}
+
+export async function getDesign(id: string): Promise<Design> {
+  const r = await api(`/designs/${encodeURIComponent(id)}`);
+  if (!r.ok) throw new Error(`GET /designs/${id} ${r.status}`);
+  return r.json();
+}
+
+export async function createDesign(input: {
+  name: string;
+  sourceKind: 'stock' | 'job';
+  sourceId: string;
+  state: unknown;
+}): Promise<Design> {
+  const r = await api('/designs', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(`POST /designs ${r.status}: ${body.error ?? 'unknown'}`);
+  }
+  return r.json();
+}
+
+export async function patchDesign(
+  id: string,
+  input: Partial<{ name: string; state: unknown }>,
+): Promise<Design> {
+  const r = await api(`/designs/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(`PATCH /designs/${id} ${r.status}: ${body.error ?? 'unknown'}`);
+  }
+  return r.json();
+}
+
+export async function deleteDesign(id: string): Promise<void> {
+  const r = await api(`/designs/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!r.ok) throw new Error(`DELETE /designs/${id} ${r.status}`);
+}
+
 // --- Agent chat (/agent/new) --------------------------------------------
+
+import type { DirectorScript } from './director';
+export type { DirectorScript } from './director';
 
 export type AgentPatch = {
   scope: 'global' | 'chunk';
   styleSpec?: Record<string, unknown>;
   chunkOverride?: { range: [number, number]; overrides: Record<string, unknown> };
   templateId?: string;
+  /** Whole-video Director plan, written by the agent's apply_director_script tool. */
+  directorScript?: DirectorScript;
 };
 
 export type AgentToolCall = { name: string; input: Record<string, unknown> };
+
+export type DirectorPlanWord = { idx: number; t: number; w: string };
 
 export type AgentChatRequest = {
   threadId: string;
@@ -391,6 +504,13 @@ export type AgentChatRequest = {
   templateId: string;
   selectedWord?: { idx: number; text: string; t: number; d: number };
   transcriptSummary?: { totalWords: number; durationSec: number };
+  /**
+   * Full timed transcript ({ idx, t, w }). The chat agent doesn't use this
+   * on its own turn (would blow the token budget), but its
+   * apply_director_script tool needs it server-side to delegate to the
+   * Director planner. Always send when known.
+   */
+  transcript?: DirectorPlanWord[];
   /** Optional OpenRouter model id override; falls back to AGENT_MODEL env / Haiku. */
   model?: string;
 };
@@ -415,6 +535,44 @@ export async function postAgentChat(body: AgentChatRequest): Promise<AgentChatRe
   if (!r.ok) {
     const detail = await r.json().catch(() => ({}));
     throw new Error(detail.message ?? `POST /agent/chat ${r.status}`);
+  }
+  return r.json();
+}
+
+// --- Director plan (/director/plan) -------------------------------------
+
+export type DirectorPlanRequest = {
+  transcript: DirectorPlanWord[];
+  message: string;
+  currentScript?: DirectorScript;
+  model?: string;
+};
+
+export type DirectorPlanResponse = {
+  script: DirectorScript;
+  attempts: number;
+};
+
+export async function postDirectorPlan(
+  body: DirectorPlanRequest,
+): Promise<DirectorPlanResponse> {
+  const r = await api('/director/plan', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const detail = await r.json().catch(() => ({}));
+    throw new Error(detail.message ?? `POST /director/plan ${r.status}`);
+  }
+  return r.json();
+}
+
+export async function renderDesign(id: string): Promise<{ id: string }> {
+  const r = await api(`/designs/${encodeURIComponent(id)}/render`, { method: 'POST' });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(`POST /designs/${id}/render ${r.status}: ${body.error ?? 'unknown'}`);
   }
   return r.json();
 }

@@ -61,48 +61,66 @@ export async function runPipeline(jobId: string): Promise<void> {
   const workDir = join(STORAGE_DIR, 'work', jobId);
   await mkdir(workDir, { recursive: true });
 
-  // 1. Extract mono 16kHz audio for the transcriber.
-  setStage(jobId, 'extract_audio');
-  const audioPath = join(workDir, 'audio.wav');
-  await extractAudio(inputAbs, audioPath);
+  // Caption Designer renders (and any other job that was created with a
+  // pre-authored transcript + captionPlan) skip the transcribe / enrich /
+  // face-detect stages. Re-running Whisper would discard the user's word
+  // edits; the editor's caption-track text is the source of truth.
+  const skipAnalysis = row.transcript && row.captionPlan;
 
-  // 2 + 3. Transcribe and face-detect in parallel. They're independent —
-  // transcribe consumes the extracted WAV, detectFaces reads the source
-  // video — and on a typical job transcribe is the slower of the two
-  // (~10s on cached models vs ~6s for face sampling), so the face cost
-  // hides entirely behind transcribe. Each branch saves its own result so
-  // partial progress is durable. Face detection failures are non-fatal —
-  // the render falls back to the user's preferred position.
-  setStage(jobId, 'analyze');
-  console.log(`[job ${jobId}] running transcribe + detect_faces in parallel`);
-  const [transcript, faces] = await Promise.all([
-    transcribe(audioPath).then((t) => {
-      console.log(`[job ${jobId}] transcribe done (${t.words.length} words)`);
-      setTranscriptStmt.run(JSON.stringify(t), jobId);
-      return t;
-    }),
-    detectFaces(inputAbs)
-      .then((f) => {
-        const withFaces = f.samples.filter((s) => s.faces.length > 0).length;
-        console.log(
-          `[job ${jobId}] detect_faces done (${withFaces}/${f.samples.length} samples)`,
-        );
-        setFacesStmt.run(JSON.stringify(f), jobId);
-        return f;
-      })
-      .catch((err) => {
-        console.error(`[job ${jobId}] face detection failed (continuing):`, err);
-        return null;
+  let transcript;
+  let faces;
+  let captionPlan;
+
+  if (skipAnalysis) {
+    setStage(jobId, 'analyze');
+    console.log(`[job ${jobId}] caption-designer: reusing pre-authored transcript + captionPlan`);
+    transcript = JSON.parse(row.transcript!);
+    captionPlan = JSON.parse(row.captionPlan!);
+    faces = row.faces && row.faces !== 'null' ? JSON.parse(row.faces) : null;
+  } else {
+    // 1. Extract mono 16kHz audio for the transcriber.
+    setStage(jobId, 'extract_audio');
+    const audioPath = join(workDir, 'audio.wav');
+    await extractAudio(inputAbs, audioPath);
+
+    // 2 + 3. Transcribe and face-detect in parallel. They're independent —
+    // transcribe consumes the extracted WAV, detectFaces reads the source
+    // video — and on a typical job transcribe is the slower of the two
+    // (~10s on cached models vs ~6s for face sampling), so the face cost
+    // hides entirely behind transcribe. Each branch saves its own result so
+    // partial progress is durable. Face detection failures are non-fatal —
+    // the render falls back to the user's preferred position.
+    setStage(jobId, 'analyze');
+    console.log(`[job ${jobId}] running transcribe + detect_faces in parallel`);
+    [transcript, faces] = await Promise.all([
+      transcribe(audioPath).then((t) => {
+        console.log(`[job ${jobId}] transcribe done (${t.words.length} words)`);
+        setTranscriptStmt.run(JSON.stringify(t), jobId);
+        return t;
       }),
-  ]);
+      detectFaces(inputAbs)
+        .then((f) => {
+          const withFaces = f.samples.filter((s) => s.faces.length > 0).length;
+          console.log(
+            `[job ${jobId}] detect_faces done (${withFaces}/${f.samples.length} samples)`,
+          );
+          setFacesStmt.run(JSON.stringify(f), jobId);
+          return f;
+        })
+        .catch((err) => {
+          console.error(`[job ${jobId}] face detection failed (continuing):`, err);
+          return null;
+        }),
+    ]);
 
-  // 4. LLM enrichment: semantic chunking + per-word emphasis. Returns null
-  // if no API key is set or the call fails — the render template will then
-  // fall back to its built-in fixed-N chunker.
-  setStage(jobId, 'enrich');
-  const captionPlan = await enrichTranscript(transcript);
-  if (captionPlan) {
-    setCaptionPlanStmt.run(JSON.stringify(captionPlan), jobId);
+    // 4. LLM enrichment: semantic chunking + per-word emphasis. Returns null
+    // if no API key is set or the call fails — the render template will then
+    // fall back to its built-in fixed-N chunker.
+    setStage(jobId, 'enrich');
+    captionPlan = await enrichTranscript(transcript);
+    if (captionPlan) {
+      setCaptionPlanStmt.run(JSON.stringify(captionPlan), jobId);
+    }
   }
 
   // 5. Render the final video. Remotion's <OffthreadVideo> plays the source

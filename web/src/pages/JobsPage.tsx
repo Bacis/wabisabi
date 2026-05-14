@@ -1,45 +1,33 @@
+// Read-only render history. Job creation happens in /agent/new → Render;
+// this page lists outcomes and links to completed render output downloads.
+
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { FileVideo, Upload } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Badge } from '@/components/ui/badge';
-import { cn } from '@/lib/utils';
+import { Bot } from 'lucide-react';
+import {
+  Button,
+  EmptyState,
+  MonoLabel,
+  PageHeader,
+  PillToggle,
+  SerifDisplay,
+  atelierStyles as a,
+} from '@/components/atelier';
 import { useJobsContext } from '@/lib/jobsContext';
-import { useUploadJob } from '@/lib/useUploadJob';
 import type { JobSummary } from '@/lib/api';
 import { JobCard } from './jobs/JobCard';
+import styles from './JobsPage.module.css';
 
 type Filter = 'all' | JobSummary['status'];
-const FILTERS: { value: Filter; label: string }[] = [
-  { value: 'all', label: 'All' },
-  { value: 'queued', label: 'Queued' },
-  { value: 'running', label: 'Running' },
-  { value: 'done', label: 'Done' },
-  { value: 'failed', label: 'Failed' },
-];
 
 export function JobsPage() {
-  const { jobs, isLoading, refresh } = useJobsContext();
+  const { jobs, isLoading } = useJobsContext();
   const [filter, setFilter] = useState<Filter>('all');
-  const navigate = useNavigate();
-
-  const upload = useUploadJob({
-    onUploaded: (id) => {
-      // Refresh the list so the new job is in the polled cache before
-      // the editor mounts, then jump straight into editing.
-      refresh();
-      navigate(`/jobs/${id}`);
-    },
-  });
 
   const visible = useMemo(() => {
     if (filter === 'all') return jobs;
     return jobs.filter((j) => j.status === filter);
   }, [jobs, filter]);
 
-  // Per-status counts for the filter pills' trailing badges. Using the
-  // unfiltered list so the totals don't shift when a filter is active.
   const counts = useMemo(() => {
     const out: Record<Filter, number> = {
       all: jobs.length,
@@ -53,108 +41,81 @@ export function JobsPage() {
   }, [jobs]);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6 p-6">
-      <input {...upload.inputProps} />
+    <div className={`${a.page} ${a.wide}`}>
+      <PageHeader
+        eyebrow={
+          <MonoLabel tone="amber" dot>
+            Render Ledger · {jobs.length}
+          </MonoLabel>
+        }
+        title={<SerifDisplay size="xl">Every render, accounted for.</SerifDisplay>}
+        description="Past and in-flight caption renders. Outputs live for 24 hours after completion — pull the file before the sweep, or re-render."
+        rightSlot={
+          <Button
+            as="a"
+            href="/agent/new"
+            variant="cyan"
+            size="md"
+            leadingIcon={<Bot size={13} />}
+          >
+            New session
+          </Button>
+        }
+      />
 
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Jobs</h1>
-          <p className="text-sm text-muted-foreground">
-            Your video caption renders. Upload a clip to start a new one.
-          </p>
-        </div>
-        <Button
-          size="lg"
-          onClick={upload.pickFile}
-          disabled={upload.busy}
-          className="gap-2"
-        >
-          <Upload className="size-4" />
-          {upload.busy ? 'Uploading…' : 'New upload'}
-        </Button>
-      </header>
-
-      {upload.error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-foreground">
-          {upload.error}
-        </div>
-      )}
-
-      <div className="flex flex-wrap gap-2">
-        {FILTERS.map((f) => {
-          const active = filter === f.value;
-          return (
-            <button
-              key={f.value}
-              type="button"
-              onClick={() => setFilter(f.value)}
-              className={cn(
-                'inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm transition-colors',
-                active
-                  ? 'border-primary/50 bg-primary/10 text-primary'
-                  : 'border-border bg-background hover:bg-accent text-muted-foreground hover:text-foreground',
-              )}
-            >
-              <span>{f.label}</span>
-              <Badge
-                variant="secondary"
-                className={cn(
-                  'h-5 min-w-5 justify-center rounded-full px-1.5 text-[10px] font-medium tabular-nums',
-                  active && 'bg-primary text-primary-foreground',
-                )}
-              >
-                {counts[f.value]}
-              </Badge>
-            </button>
-          );
-        })}
+      <div className={styles.toolbar}>
+        <PillToggle<Filter>
+          ariaLabel="Filter jobs"
+          value={filter}
+          onChange={setFilter}
+          options={[
+            { value: 'all', label: 'All', count: counts.all },
+            { value: 'running', label: 'Live', count: counts.running, dot: true },
+            { value: 'queued', label: 'Queued', count: counts.queued },
+            { value: 'done', label: 'Done', count: counts.done },
+            { value: 'failed', label: 'Failed', count: counts.failed },
+          ]}
+        />
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className={`${a.grid} ${a.jobs}`}>
           {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-40 rounded-lg" />
+            <div key={i} className={styles.skeleton} />
           ))}
         </div>
       ) : visible.length === 0 ? (
         jobs.length === 0 ? (
-          <EmptyState onUpload={upload.pickFile} busy={upload.busy} />
+          <EmptyState
+            title={<em>No renders yet.</em>}
+            body="Start a session and queue a render to populate this ledger."
+            action={
+              <Button
+                as="a"
+                href="/agent/new"
+                variant="cyan"
+                leadingIcon={<Bot size={13} />}
+              >
+                Open agent
+              </Button>
+            }
+          />
         ) : (
-          <div className="rounded-lg border border-dashed border-border bg-card/40 p-10 text-center text-sm text-muted-foreground">
-            No {filter} jobs.
-          </div>
+          <EmptyState
+            title={<em>Nothing matches that filter.</em>}
+            body={`No ${filter} renders right now. Try All or queue a new one.`}
+            action={
+              <Button onClick={() => setFilter('all')}>Show all</Button>
+            }
+          />
         )
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className={`${a.grid} ${a.jobs}`}>
           {visible.map((job) => (
             <JobCard key={job.id} job={job} />
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function EmptyState({
-  onUpload,
-  busy,
-}: {
-  onUpload: () => void;
-  busy: boolean;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card/40 p-12 text-center">
-      <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
-        <FileVideo className="size-6" />
-      </div>
-      <h2 className="text-base font-semibold">No jobs yet</h2>
-      <p className="mb-4 mt-1 text-sm text-muted-foreground">
-        Upload a video to generate kinetic captions.
-      </p>
-      <Button onClick={onUpload} disabled={busy} className="gap-2">
-        <Upload className="size-4" />
-        {busy ? 'Uploading…' : 'Upload your first video'}
-      </Button>
     </div>
   );
 }

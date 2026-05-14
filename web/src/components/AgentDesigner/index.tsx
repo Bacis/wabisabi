@@ -10,17 +10,15 @@ import { Loader2 } from 'lucide-react';
 import { useEditableSource, type EditorSource } from '@/lib/useEditableSource';
 import { useEditor } from '@/lib/editor/store';
 import { buildInitialState } from '@/lib/editor/loadFromSource';
-import { useKeyboard } from '@/components/CaptionDesigner/useKeyboard';
-import { AgentTopBar } from './AgentTopBar';
+import { useKeyboard } from '@/components/preview/useKeyboard';
 import { AgentWorkspace } from './AgentWorkspace';
+import { HeaderActions } from './HeaderActions';
 import styles from '@/components/AgentChatPane/AgentChatPane.module.css';
 
 export function AgentDesigner({
   source,
-  onBack,
 }: {
   source: EditorSource;
-  onBack: () => void;
 }) {
   const loaded = useEditableSource(source);
   const loadDesign = useEditor((s) => s.loadDesign);
@@ -66,10 +64,12 @@ export function AgentDesigner({
     return <div className={styles.errorBox}>{loaded.error}</div>;
   }
 
+  // `.root` locks the workspace to the outlet's height so the preview /
+  // timeline stay size-stable; only `.chatBody` scrolls internally.
   return (
-    <>
-      <AgentTopBar onBack={onBack} />
+    <div className={styles.root}>
+      <HeaderActions />
       <AgentWorkspace />
-    </>
+    </div>
   );
 }

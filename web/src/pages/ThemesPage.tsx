@@ -1,27 +1,22 @@
+// Read-only theme gallery. Theme creation/editing now happens via the agent
+// at /agent/new; this page lists drafts and published themes.
+
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Button } from '@/components/ui/button';
+import { Sparkles, Bot } from 'lucide-react';
+import {
+  Button,
+  Card,
+  EmptyState,
+  MonoLabel,
+  PageHeader,
+  Pill,
+  SerifDisplay,
+  atelierStyles as a,
+} from '@/components/atelier';
 import { fetchThemes, type Theme } from '@/lib/api';
-import { ThemeCard } from './themes/ThemeCard';
+import styles from './ThemesPage.module.css';
 
-type Buckets = {
-  drafts: Theme[];
-  ownPublished: Theme[];
-  community: Theme[];
-};
-
-function bucketize(themes: Theme[]): Buckets {
-  const drafts: Theme[] = [];
-  const ownPublished: Theme[] = [];
-  const community: Theme[] = [];
-  for (const t of themes) {
-    if (t.isOwner && !t.isPublished) drafts.push(t);
-    else if (t.isOwner && t.isPublished) ownPublished.push(t);
-    else if (t.isPublished) community.push(t);
-  }
-  return { drafts, ownPublished, community };
-}
+type Buckets = { yours: Theme[]; community: Theme[] };
 
 export function ThemesPage() {
   const [themes, setThemes] = useState<Theme[] | null>(null);
@@ -41,51 +36,65 @@ export function ThemesPage() {
     };
   }, []);
 
-  const buckets = useMemo(() => (themes ? bucketize(themes) : null), [themes]);
+  const buckets = useMemo<Buckets | null>(() => {
+    if (!themes) return null;
+    const yours: Theme[] = [];
+    const community: Theme[] = [];
+    for (const t of themes) {
+      if (t.isOwner) yours.push(t);
+      else if (t.isPublished) community.push(t);
+    }
+    return { yours, community };
+  }, [themes]);
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 p-6">
-      <header className="flex items-end justify-between gap-4 flex-wrap">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Themes</h1>
-          <p className="text-sm text-muted-foreground">
-            Reusable caption looks. Build a theme on a stock clip, save it,
-            then publish for others to remix.
-          </p>
-        </div>
-        <Button asChild>
-          <Link to="/themes/new">New theme</Link>
-        </Button>
-      </header>
+    <div className={`${a.page} ${a.wide}`}>
+      <PageHeader
+        eyebrow={
+          <MonoLabel tone="cyan" dot>
+            Theme Gallery · {themes?.length ?? '—'}
+          </MonoLabel>
+        }
+        title={<SerifDisplay size="xl">Captions, in dialect.</SerifDisplay>}
+        description="Published looks from you and the community. Themes are authored through the agent — there's no separate editor."
+        rightSlot={
+          <Button
+            as="a"
+            href="/agent/new"
+            variant="cyan"
+            leadingIcon={<Bot size={13} />}
+          >
+            New theme
+          </Button>
+        }
+      />
 
       {error && (
-        <div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive-foreground">
-          {error}
+        <div className={styles.errorBox}>
+          <MonoLabel tone="danger" dot>Couldn't load themes</MonoLabel>
+          <span>{error}</span>
         </div>
       )}
 
       {!buckets ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className={`${a.grid} ${a.themes}`}>
           {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-44 rounded-lg" />
+            <div key={i} className={styles.skeleton} />
           ))}
         </div>
       ) : (
-        <div className="space-y-10">
+        <div className={styles.sections}>
           <Section
-            title="Your drafts"
-            empty="No drafts. Create a theme to get started."
-            themes={buckets.drafts}
+            label="Your work"
+            count={buckets.yours.length}
+            themes={buckets.yours}
+            empty="You haven't authored a theme yet."
           />
           <Section
-            title="Your published"
-            empty="None published yet."
-            themes={buckets.ownPublished}
-          />
-          <Section
-            title="Community"
-            empty="No community themes yet."
+            label="Community"
+            count={buckets.community.length}
             themes={buckets.community}
+            empty="The community shelf is empty."
           />
         </div>
       )}
@@ -94,31 +103,81 @@ export function ThemesPage() {
 }
 
 function Section({
-  title,
-  empty,
+  label,
+  count,
   themes,
+  empty,
 }: {
-  title: string;
-  empty: string;
+  label: string;
+  count: number;
   themes: Theme[];
+  empty: string;
 }) {
   return (
-    <section className="space-y-3">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-        {title}
-        <span className="ml-2 font-mono text-[11px]">{themes.length}</span>
-      </h2>
+    <section className={styles.section}>
+      <div className={styles.sectionHead}>
+        <MonoLabel tone="bright">
+          {label} · {count}
+        </MonoLabel>
+        <span className={styles.rule} aria-hidden="true" />
+      </div>
       {themes.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-border bg-card/40 p-6 text-center text-xs text-muted-foreground">
-          {empty}
-        </div>
+        <EmptyState title={<em>{empty}</em>} />
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className={`${a.grid} ${a.themes}`}>
           {themes.map((t) => (
             <ThemeCard key={t.id} theme={t} />
           ))}
         </div>
       )}
     </section>
+  );
+}
+
+function ThemeCard({ theme }: { theme: Theme }) {
+  const showcasePoster = theme.showcaseClipId
+    ? `/stock/${theme.showcaseClipId}/clip.mp4`
+    : null;
+  return (
+    <Card padding="none" interactive className={styles.themeCard}>
+      <div className={styles.poster}>
+        {showcasePoster ? (
+          <video
+            src={showcasePoster}
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            onMouseEnter={(e) => void e.currentTarget.play()}
+            onMouseLeave={(e) => {
+              e.currentTarget.pause();
+              e.currentTarget.currentTime = 0;
+            }}
+          />
+        ) : (
+          <div className={styles.posterFallback}>
+            <Sparkles size={24} />
+          </div>
+        )}
+        <div className={styles.posterTopRight}>
+          {theme.isPublished ? (
+            <Pill tone="amber" dot>Published</Pill>
+          ) : (
+            <Pill tone="muted">Draft</Pill>
+          )}
+        </div>
+      </div>
+      <div className={styles.themeFoot}>
+        <SerifDisplay size="sm" as="h3" className={styles.themeName}>
+          {theme.name}
+        </SerifDisplay>
+        <MonoLabel tone="dim">
+          {theme.isOwner ? 'BY YOU' : `BY ${theme.authorEmail ?? 'COMMUNITY'}`}
+        </MonoLabel>
+        {theme.description && (
+          <p className={styles.themeDesc}>{theme.description}</p>
+        )}
+      </div>
+    </Card>
   );
 }

@@ -7,7 +7,7 @@ import type { StyleSpec } from './styleSpec.js';
 //
 // Adding a new preset is one entry in this object. The viewer page picks up
 // the description and templateId from `GET /presets` automatically.
-export type TemplateId = 'pop-words' | 'reel-clone';
+export type TemplateId = 'pop-words' | 'reel-clone' | 'caption-designer';
 
 export type Preset = {
   id: string;

@@ -1,0 +1,71 @@
+.card {
+  gap: 10px;
+}
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.headText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.headText > * {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.failed {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  color: var(--ag-danger);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.dlBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 9px 12px;
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-line);
+  border-radius: 8px;
+  color: var(--ag-ink-2);
+  text-decoration: none;
+  font-family: var(--ag-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.dlBtn:hover {
+  background: var(--ag-ai-soft);
+  color: var(--ag-ai);
+  border-color: var(--ag-ai-line);
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+  margin-right: 2px;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

@@ -3,6 +3,7 @@ import { Composition } from 'remotion';
 import { z } from 'zod';
 import { PopWords } from './templates/PopWords';
 import { ReelClone } from './templates/ReelClone';
+import { CaptionDesigner } from './templates/CaptionDesigner';
 
 // Schema is intentionally permissive — the API server has already validated
 // the StyleSpec with the canonical Zod schema before queueing the job.
@@ -13,6 +14,14 @@ const wordSchema = z.object({
   confidence: z.number(),
 });
 
+const transformSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+  w: z.number(),
+  h: z.number(),
+  rot: z.number(),
+});
+
 const captionPlanSchema = z
   .object({
     chunks: z.array(
@@ -21,6 +30,18 @@ const captionPlanSchema = z
         emphasis: z.array(z.boolean()),
       }),
     ),
+    // Additive Caption Designer fields. Optional so legacy payloads validate.
+    groups: z
+      .array(
+        z.object({
+          id: z.string(),
+          name: z.string(),
+          styleId: z.string(),
+          transform: transformSchema,
+        }),
+      )
+      .optional(),
+    wordGroupAssignments: z.record(z.string()).optional(),
   })
   .nullable();
 
@@ -105,6 +126,17 @@ export const Root: React.FC = () => {
       <Composition
         id="reel-clone"
         component={ReelClone}
+        schema={propsSchema}
+        fps={30}
+        width={1080}
+        height={1920}
+        durationInFrames={300}
+        defaultProps={defaultProps}
+        calculateMetadata={calculateMetadata}
+      />
+      <Composition
+        id="caption-designer"
+        component={CaptionDesigner}
         schema={propsSchema}
         fps={30}
         width={1080}

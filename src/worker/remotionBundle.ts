@@ -25,7 +25,25 @@ export function getRemotionBundle(): Promise<RemotionBundle> {
   if (!cached) {
     const start = Date.now();
     console.log(`bundling remotion project: ${ENTRY}`);
-    cached = bundle({ entryPoint: ENTRY })
+    cached = bundle({
+      entryPoint: ENTRY,
+      // Cross-project imports from remotion/ to src/shared/ use NodeNext
+      // `.js` extensions on relative imports (TypeScript ESM convention).
+      // Webpack-based Remotion bundler needs explicit extensionAlias to
+      // resolve `.js → .ts` so shared modules (Director schema, lookups)
+      // can be imported by composition code without dual-publishing.
+      webpackOverride: (current) => ({
+        ...current,
+        resolve: {
+          ...current.resolve,
+          extensionAlias: {
+            ...(current.resolve?.extensionAlias ?? {}),
+            '.js': ['.ts', '.tsx', '.js'],
+            '.mjs': ['.mts', '.mjs'],
+          },
+        },
+      }),
+    })
       .then(async (serveUrl) => {
         // bundle() returns a filesystem path to a webpack output dir. The
         // bundled site exposes a `public/` subdir from which the render

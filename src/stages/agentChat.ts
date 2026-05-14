@@ -25,6 +25,14 @@ import {
   type ValidatorResult,
 } from './agentTools.js';
 import { diffFromDefaults, summarizeSpec } from './agentSpecDigest.js';
+import {
+  directorScriptSchema,
+  type DirectorScript,
+} from '../shared/director/schema.js';
+import {
+  proposeDirectorScript,
+  type PlannerWord,
+} from './proposeDirectorScript.js';
 
 // Default model id. Per-request override via RunAgentChatArgs.model wins;
 // otherwise AGENT_MODEL env var; otherwise this constant. Haiku is right for
@@ -43,6 +51,14 @@ export type AgentPatch = {
     overrides: Record<string, unknown>;
   };
   templateId?: string;
+  /**
+   * A whole-video Director plan. Written by the apply_director_script tool
+   * (Day 9 of the Director feature). Coexists with styleSpec patches: the
+   * agent can emit a DirectorScript AND a per-stage tweak in the same turn.
+   * Clients persist this alongside styleSpec for the renderer's per-word
+   * cascade lookup.
+   */
+  directorScript?: DirectorScript;
 };
 
 export type AgentToolCall = {
@@ -57,6 +73,14 @@ export type RunAgentChatArgs = {
   templateId: string;
   selectedWord?: { idx: number; text: string; t: number; d: number };
   transcriptSummary?: { totalWords: number; durationSec: number };
+  /**
+   * Full timed transcript. Used by the apply_director_script tool to
+   * delegate to proposeDirectorScript() — the agent itself never sees
+   * 170+ words on its turn (would blow the cache + tokens), but when it
+   * chooses to scaffold a Director plan the tool body has access via
+   * this field. Pass null/undefined for tweak-only chats.
+   */
+  transcript?: PlannerWord[];
   /**
    * OpenRouter model id. Defaults to the AGENT_MODEL env var, then to
    * DEFAULT_AGENT_MODEL. Switching this rebuilds the ChatAnthropic client;
@@ -99,16 +123,19 @@ shockwave / ferro / samba / crystal / flare / etc.) they mean EFFECT.
 
 # Tool priority — pick the FIRST tool that fits, top to bottom
 
-1. apply_preset_pack — user names a known archetype (Hormozi, Submagic, MrBeast, karaoke, …) or a slot+presetId from the registry. Fires once per slot; fire multiple in the same turn to compose.
-2. set_effect — user names an effect from the registry (shockwave, plasma, ferro, samba, …).
-3. set_layout_strategy — user describes layout SHAPE (stack, single line, centered pop).
-4. apply_style_patch — anything else (custom color, font name, size, animation tweaks not covered by a preset).
-5. tune_field — escape-hatch single dial under font / color / layout / animation / reel / charAdvance. Use for one specific knob a preset doesn't cover.
-6. add_chunk_override — ONLY when the user has scoped to a single word AND used local language ("THIS one", "just this word").
-7. switch_template — only when the user clearly asks for a different template family.
-8. acknowledge_no_change — questions, "looks good", explanations, anything where no style should change.
+1. apply_director_script — SCAFFOLD-SIZED requests that segment the whole video into functional regions ("build me a reel", "make this cinematic", "turn this into a 5-section plan", "plan this clip"). Emits the entire DirectorScript in one shot. Only fire when the user asks for a VIDEO-LEVEL plan, not a tweak.
+2. apply_preset_pack — user names a known archetype (Hormozi, Submagic, MrBeast, karaoke, …) or a slot+presetId from the registry. Fires once per slot; fire multiple in the same turn to compose.
+3. set_effect — user names an effect from the registry (shockwave, plasma, ferro, samba, …).
+4. set_layout_strategy — user describes layout SHAPE (stack, single line, centered pop).
+5. apply_style_patch — anything else (custom color, font name, size, animation tweaks not covered by a preset).
+6. tune_field — escape-hatch single dial under font / color / layout / animation / reel / charAdvance. Use for one specific knob a preset doesn't cover.
+7. add_chunk_override — ONLY when the user has scoped to a single word AND used local language ("THIS one", "just this word").
+8. switch_template — only when the user clearly asks for a different template family.
+9. acknowledge_no_change — questions, "looks good", explanations, anything where no style should change.
 
 # Tools
+
+apply_director_script({ intent }) — builds a whole-video DirectorScript by delegating to the dedicated Director planner. Pass ONLY 'intent' — a one-sentence paraphrase of the desired plan shape. You do NOT see the timed transcript on your turn and you MUST NOT ask the user for it; the planner has access server-side. The planner segments the transcript by FUNCTIONAL ROLE from the closed set: intro-hook | hero-title-card | backstory-beat | enumerated-list | stat-callout | pull-quote | pov-shift | comparison-pair | cta-overlay | outro. Use ONLY for scaffold-sized requests like "build me a reel from this clip" or "make this cinematic". For per-tweak edits ("make the yellow brighter"), DO NOT fire this tool — use the lower-priority tools instead.
 
 apply_preset_pack({ slot, presetId }) — composes a slotted preset pack onto the draft. Slots and ids:
   theme   : cinematicCascade | popMinimal
@@ -221,6 +248,17 @@ Custom dials (fall back to apply_style_patch / tune_field) —
                              (BOTH fields together — wordReveal alone only progressively reveals within a chunk; you ALSO need maxWordsPerLine: 1 so each chunk holds exactly one word.)
   "two words per line" / "three words per line" / etc. → tune_field("layout.maxWordsPerLine", N)
 
+  Caption size — final on-screen size is baseSize × cascade × multipliers. The cinematicCascade preset deliberately tapers (cascadeBottomRatio 0.47) so lower lines shrink, AND emphasisSizeMultiplier/fillerSizeMultiplier scale individual words. Bumping font.size alone keeps the variance — half the words still look small. When the user asks for UNIFORM or CONSISTENTLY large captions, ALWAYS flatten cascade + multipliers together with the size bump.
+  "make them larger" / "bigger" (subtle bump, keep look)
+                           → tune_field("font.size", current_size * 1.3)
+                             (only size — preserves the preset's cascade identity)
+  "make them large" / "bold large captions" / "every word big" / "all of them, not just one" / "consistent size"
+                           → apply_style_patch { font: { size: 96 }, reel: { cascadeTopRatio: 1, cascadeBottomRatio: 1, fillerSizeMultiplier: 1, emphasisSizeMultiplier: 1 } }
+  "super large" / "massive" / "huge" / "dominating" / "fill the screen"
+                           → apply_style_patch { font: { size: 130 }, reel: { cascadeTopRatio: 1, cascadeBottomRatio: 1, fillerSizeMultiplier: 1, emphasisSizeMultiplier: 1, maxWidthPercent: 92, paddingPercent: 4 } }
+  "smaller" / "shrink" (reverse direction)
+                           → tune_field("font.size", current_size * 0.8)
+
   ENTRY animation (per-word reveal) — all set animation.preset + the matching scaleFrom/durationMs.
   "pop in" / "punchy entry" / "snap on"
                            → apply_style_patch { animation: { preset: "pop", scaleFrom: 0.6, durationMs: 180, spring: { damping: 14, stiffness: 240 } } }
@@ -269,6 +307,7 @@ Selection is a HINT, not a constraint. Read the user's language:
 - Don't ask clarifying questions when the request is composable. Apply and move on.
 - Don't use add_chunk_override for global language ("everything", "all captions", "make it"). Selection is a HINT.
 - Don't invent presetIds. The complete list is above; if it's not there, use apply_style_patch or tune_field.
+- Don't bump only font.size when the user wants uniformly large captions. The cascade + size multipliers will keep ~half the words small. Flatten cascadeTopRatio/cascadeBottomRatio to 1 and reset filler/emphasisSizeMultiplier to 1 in the SAME patch. See "Caption size" in Custom dials.
 
 # Voice — assistantMessage
 
@@ -538,6 +577,109 @@ export async function runAgentChat(args: RunAgentChatArgs): Promise<RunAgentChat
     },
   );
 
+  // apply_director_script — delegates to the dedicated Director planner
+  // (proposeDirectorScript) which has access to the full timed transcript
+  // and a tuned system prompt for scaffold-sized plans. The chat agent
+  // doesn't see the transcript on its turn (would blow the cache + tokens
+  // for tweak-sized chats), so it can't hand-build a script with valid
+  // word ranges. Instead, the agent signals intent — a paraphrased
+  // description of what the user wants — and the tool body fetches the
+  // planner result and writes it to draftPatch.
+  //
+  // Two-input compat: callers may still pass a full `script` object
+  // (skips the planner call, validates + writes directly). That keeps
+  // unit tests and admin tooling working without a transcript.
+  const applyDirectorScriptTool = tool(
+    async (input: { intent?: string; script?: unknown }) => {
+      // Path A: full script supplied — validate and use as-is.
+      if (input.script) {
+        const parsed = directorScriptSchema.safeParse(input.script);
+        if (!parsed.success) {
+          const issues = parsed.error.issues
+            .slice(0, 5)
+            .map((i) => `${i.path.join('.')}: ${i.message}`)
+            .join('; ');
+          return JSON.stringify({ ok: false, error: `directorScript validation failed: ${issues}` });
+        }
+        draftPatch = {
+          scope: 'global',
+          ...(draftPatch?.styleSpec ? { styleSpec: draftPatch.styleSpec } : {}),
+          ...(draftPatch?.templateId ? { templateId: draftPatch.templateId } : {}),
+          directorScript: parsed.data,
+        };
+        toolTrace.push({
+          name: 'apply_director_script',
+          input: { groups: parsed.data.groups.length, beats: parsed.data.beats.length, source: 'inline' },
+        });
+        return JSON.stringify({
+          ok: true,
+          applied: 'directorScript',
+          groups: parsed.data.groups.length,
+          beats: parsed.data.beats.length,
+          source: 'inline',
+        });
+      }
+
+      // Path B: agent only signals intent; tool calls the dedicated planner.
+      if (!args.transcript || args.transcript.length === 0) {
+        return JSON.stringify({
+          ok: false,
+          error:
+            'No transcript available on this turn. The Director planner needs the timed transcript to build word ranges. The web client should be passing it via the /agent/chat request body.',
+        });
+      }
+      const intent = (input.intent ?? args.message).trim();
+      const result = await proposeDirectorScript({
+        transcript: args.transcript,
+        message: intent,
+      });
+      if (!result.ok) {
+        return JSON.stringify({
+          ok: false,
+          error: `director planner failed: ${result.error}`,
+          attempts: result.attempts,
+        });
+      }
+      draftPatch = {
+        scope: 'global',
+        ...(draftPatch?.styleSpec ? { styleSpec: draftPatch.styleSpec } : {}),
+        ...(draftPatch?.templateId ? { templateId: draftPatch.templateId } : {}),
+        directorScript: result.script,
+      };
+      toolTrace.push({
+        name: 'apply_director_script',
+        input: { intent, groups: result.script.groups.length, beats: result.script.beats.length, source: 'planner', attempts: result.attempts },
+      });
+      return JSON.stringify({
+        ok: true,
+        applied: 'directorScript',
+        groups: result.script.groups.length,
+        beats: result.script.beats.length,
+        source: 'planner',
+        attempts: result.attempts,
+      });
+    },
+    {
+      name: 'apply_director_script',
+      description:
+        "Build a whole-video DirectorScript. Used for scaffold-sized requests ('build a reel', 'make this cinematic', 'plan the sections'). PASS ONLY THE `intent` PARAMETER — a one-sentence paraphrase of what the user wants the plan to express. The tool delegates to the dedicated Director planner which has the full timed transcript; you do NOT need to construct word ranges yourself. The planner segments the transcript by FUNCTIONAL ROLE (intro-hook, hero-title-card, backstory-beat, enumerated-list, stat-callout, pull-quote, pov-shift, comparison-pair, cta-overlay, outro).",
+      schema: z.object({
+        intent: z
+          .string()
+          .min(8)
+          .describe(
+            "REQUIRED. A one-sentence paraphrase of the user's scaffold intent — what shape of reel they want, what beats and audio cues to land. The planner uses this to make role/layout choices. Example: 'Cinematic 7-shot reel with stacked title, chapter callouts, brand drop on Heal Man, audio cues on each chapter'.",
+          ),
+        script: z
+          .record(z.string(), z.unknown())
+          .optional()
+          .describe(
+            'ADVANCED escape hatch: pass a fully-formed DirectorScript JSON to skip the planner. Almost always you should pass `intent` instead.',
+          ),
+      }),
+    },
+  );
+
   const agent = createReactAgent({
     // ChatAnthropic implements the LanguageModelLike interface used by
     // createReactAgent — the cast is for the cache between getDeps()
@@ -546,6 +688,7 @@ export async function runAgentChat(args: RunAgentChatArgs): Promise<RunAgentChat
     tools: [
       applyStylePatch, addChunkOverride, switchTemplate, acknowledgeNoChange,
       applyPresetTool, setEffectTool, setLayoutStrategyTool, tuneFieldTool,
+      applyDirectorScriptTool,
     ],
     prompt: systemMessage as Parameters<typeof createReactAgent>[0]['prompt'],
     checkpointer: checkpointer as Parameters<typeof createReactAgent>[0]['checkpointer'],

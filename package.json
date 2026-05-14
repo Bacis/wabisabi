@@ -16,6 +16,12 @@
     "build:web": "npm run build --workspace web",
     "dev:web": "npm run dev --workspace web",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:regression": "vitest run tests/regression",
+    "test:quality": "vitest run tests/quality",
+    "regression:seed": "tsx scripts/regression/render-golden-frames.ts",
+    "quality:live": "tsx scripts/quality-live.ts",
     "admin:create": "tsx scripts/admin.ts create-user",
     "admin:list": "tsx scripts/admin.ts list-users",
     "admin:reset": "tsx scripts/admin.ts reset-password",
@@ -30,6 +36,9 @@
     "@fastify/cookie": "^11.0.2",
     "@fastify/multipart": "^9.0.1",
     "@fastify/static": "^9.1.3",
+    "@langchain/anthropic": "^1.3.29",
+    "@langchain/core": "^1.1.45",
+    "@langchain/langgraph": "^1.3.0",
     "@remotion/bundler": "^4.0.448",
     "@remotion/lambda": "^4.0.448",
     "@remotion/renderer": "^4.0.448",
@@ -43,6 +52,10 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.9.0",
-    "typescript": "^5.6.3"
+    "@types/pngjs": "^6.0.5",
+    "pixelmatch": "^6.0.0",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.9"
   }
 }

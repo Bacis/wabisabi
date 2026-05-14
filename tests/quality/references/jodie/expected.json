@@ -1,0 +1,125 @@
+{
+  "reference": "jodie",
+  "target": "orhan",
+  "globals": [
+    { "id": "project-font-inter", "kind": "global", "path": "project.font", "equals": "Inter", "capability": "shipped" },
+    { "id": "project-emphasis-yellow", "kind": "global", "path": "project.emphasisFill", "equals": "#ffd100", "capability": "shipped" }
+  ],
+  "beats": [
+    {
+      "id": "title-open",
+      "description": "Opening 3-word title card stacked center-middle, oversized uppercase",
+      "groupMatcher": { "wordRangeContains": 0 },
+      "assertions": [
+        { "kind": "role-in", "values": ["hero-title-card", "intro-hook", "stat-callout"] },
+        { "kind": "placement-anchor", "equals": "middle" },
+        { "kind": "placement-alignment", "equals": "center" },
+        { "kind": "max-per-line", "equals": 1 },
+        { "kind": "font-size-min", "min": 220 },
+        { "kind": "casing", "equals": "uppercase" }
+      ],
+      "capability": "shipped"
+    },
+    {
+      "id": "title-char-reveal",
+      "description": "Title card reveals character-by-character via typewriter motion",
+      "groupMatcher": { "wordRangeContains": 0 },
+      "assertions": [
+        { "kind": "audio-pattern-type", "equals": "typewriter" },
+        { "kind": "motion-preset-equals", "equals": "char-reveal" }
+      ],
+      "capability": "not-shipped",
+      "knownGapNote": "Renderer has no per-character opacity gate driven off audioPattern. Schema field exists; visual reveal does not. Ticket: add charRevealFrame() helper in ReelClone."
+    },
+    {
+      "id": "chapter-card-stat",
+      "description": "Chapter-card stat callout at middle-center, oversized uppercase, solid-black backdrop ideal",
+      "groupMatcher": { "roleIn": ["stat-callout"] },
+      "assertions": [
+        { "kind": "placement-anchor", "equals": "middle" },
+        { "kind": "placement-alignment", "equals": "center" },
+        { "kind": "max-per-line", "equals": 1 },
+        { "kind": "font-size-min", "min": 200 },
+        { "kind": "casing", "equals": "uppercase" }
+      ],
+      "capability": "shipped"
+    },
+    {
+      "id": "chapter-card-backdrop",
+      "description": "Chapter-card emits a solid-black backdrop covering the video frame",
+      "groupMatcher": { "roleIn": ["stat-callout"] },
+      "assertions": [
+        { "kind": "layout-strategy", "equals": "chapter-card" }
+      ],
+      "capability": "not-shipped",
+      "knownGapNote": "No chapter-card layout strategy exists. Renderer paints over video; cannot blank to solid black. Ticket: add chapter-card strategy emitting AbsoluteFill behind the words."
+    },
+    {
+      "id": "brand-reveal-heal-man",
+      "description": "Hero-title-card brand drop on the Heal Man phrase: stacked, oversized, uppercase, middle-center",
+      "groupMatcher": { "roleIn": ["hero-title-card"] },
+      "assertions": [
+        { "kind": "placement-anchor", "equals": "middle" },
+        { "kind": "placement-alignment", "equals": "center" },
+        { "kind": "max-per-line", "equals": 1 },
+        { "kind": "font-size-min", "min": 240 },
+        { "kind": "casing", "equals": "uppercase" }
+      ],
+      "capability": "shipped"
+    },
+    {
+      "id": "list-disciplines",
+      "description": "Enumerated list on disciplines/frameworks — lower-third, one item per line",
+      "groupMatcher": { "roleIn": ["enumerated-list"] },
+      "assertions": [
+        { "kind": "placement-anchor", "equals": "bottom" },
+        { "kind": "layout-strategy", "equals": "lower-third" },
+        { "kind": "casing", "equals": "uppercase" }
+      ],
+      "capability": "shipped"
+    },
+    {
+      "id": "cta-closing",
+      "description": "Closing CTA on the final stretch: bottom center, one-word stack, uppercase yellow",
+      "groupMatcher": { "roleIn": ["cta-overlay"] },
+      "assertions": [
+        { "kind": "placement-anchor", "equals": "bottom" },
+        { "kind": "placement-alignment", "equals": "center" },
+        { "kind": "max-per-line", "equals": 1 },
+        { "kind": "font-size-min", "min": 120 },
+        { "kind": "casing", "equals": "uppercase" }
+      ],
+      "capability": "shipped"
+    },
+    {
+      "id": "poll-card",
+      "description": "Closing poll card with headline + bullet list, mid-frame",
+      "groupMatcher": { "roleIn": ["cta-overlay", "outro"] },
+      "assertions": [
+        { "kind": "layout-strategy", "equals": "poll-card" }
+      ],
+      "capability": "not-shipped",
+      "knownGapNote": "No poll-card layout strategy. Needs new strategy + schema support for bulleted children."
+    },
+    {
+      "id": "font-mix-phrase-stack",
+      "description": "Mixed serif+sans accent on a chapter phrase (Jodie's MONESTISING / I LOVE)",
+      "groupMatcher": { "roleIn": ["pull-quote", "hero-title-card"] },
+      "assertions": [
+        { "kind": "font-family-override", "anyOf": ["serif", "italic"] }
+      ],
+      "capability": "not-shipped",
+      "knownGapNote": "Schema and renderer support one family per chunk. Per-word/per-beat font override requires beat-level overrides.font + renderer plumbing."
+    },
+    {
+      "id": "audio-cue-coverage",
+      "description": "Chapter-card and CTA groups carry audioCue gestures",
+      "groupMatcher": { "roleIn": ["stat-callout", "cta-overlay", "hero-title-card"] },
+      "assertions": [
+        { "kind": "audio-cue-present" }
+      ],
+      "capability": "partial",
+      "knownGapNote": "Schema + emitter ship. mp3 sample library is empty pending curation; cues fire but produce silence today."
+    }
+  ]
+}

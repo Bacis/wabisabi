@@ -1,0 +1,2246 @@
+/* Caption Studio — Agent. Cinematic surfaces for the chat panel, picker,
+   and workspace. Cinematic palette tokens (--ag-*) and scrollbars now live
+   in index.css so they apply app-wide. */
+
+/* `.root` is applied to the AgentDesigner's outermost div so the workspace
+   stays viewport-locked: only the chat body scrolls internally; preview +
+   timeline are size-locked. (Picker and other pages do NOT use this — they
+   inherit RootLayout's overflow-auto outlet.) */
+.root {
+  background: var(--ag-bg);
+  color: var(--ag-ink);
+  font-family: var(--ag-font-ui);
+  font-size: 13px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* === Header ============================================================== */
+.header {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 18px;
+  background: var(--ag-panel);
+  border-bottom: 1px solid var(--ag-line);
+  gap: 14px;
+  height: 52px;
+  flex-shrink: 0;
+}
+.hLeft,
+.hMid,
+.hRight {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.hRight {
+  justify-content: flex-end;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--ag-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.18em;
+  color: var(--ag-ink-3);
+  text-transform: uppercase;
+}
+.brand .mark {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: linear-gradient(140deg, var(--ag-accent), var(--ag-accent-2));
+  display: grid;
+  place-items: center;
+  color: #1a1200;
+  font-weight: 800;
+  font-size: 12px;
+  position: relative;
+  box-shadow: 0 0 12px rgba(244, 185, 66, 0.25);
+}
+.themeName {
+  font-family: var(--ag-font-serif);
+  font-style: italic;
+  font-size: 22px;
+  font-weight: 400;
+  color: var(--ag-ink);
+  background: transparent;
+  border: 0;
+  outline: 0;
+  padding: 4px 8px;
+  border-radius: 6px;
+  min-width: 200px;
+  letter-spacing: -0.005em;
+}
+.themeName:hover {
+  background: var(--ag-surface);
+}
+.themeName:focus {
+  background: var(--ag-surface);
+  box-shadow: inset 0 0 0 1px var(--ag-accent-line);
+}
+.hDivider {
+  width: 1px;
+  height: 20px;
+  background: var(--ag-line);
+}
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ag-ink-2);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+}
+.btn:hover {
+  background: var(--ag-surface);
+  color: var(--ag-ink);
+}
+.btnGhost {
+  color: var(--ag-ink-3);
+}
+.btnGhost:hover {
+  color: var(--ag-ink);
+  background: var(--ag-surface);
+}
+.btnPrimary {
+  background: var(--ag-accent);
+  color: #1a1200;
+  font-weight: 600;
+}
+.btnPrimary:hover {
+  background: #fde68a;
+}
+
+/* === Workspace grid ====================================================== */
+.workspace {
+  display: grid;
+  grid-template-columns: 440px 1fr;
+  /* `minmax(0, 1fr)` forces the grid row to consume parent's height
+     instead of stretching to fit content. Without it, the chat panel
+     (or preview column) can blow past the viewport when its content is
+     tall, and the page-level wrapper scrolls instead of the chat. */
+  grid-template-rows: minmax(0, 1fr);
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--ag-bg);
+}
+
+.zoneChat {
+  min-width: 0;
+  min-height: 0;
+  /* The grid cell is fixed-height; this `height: 100%` + flex column lets
+     the chat panel size its children to fit, with chatBody owning the
+     overflow. Without this, the cell auto-fits content and the chat
+     itself stretches the grid row. */
+  height: 100%;
+  border-right: 1px solid var(--ag-line);
+  background: var(--ag-panel);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Preview column — stacks the preview bar, phone-frame stage, transport,
+   and timeline vertically. The chat panel on the left spans the full
+   workspace height, matching the prototype's layout. */
+.zonePreviewCol {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--ag-bg);
+  overflow: hidden;
+}
+.zonePreview {
+  flex: 1;
+  min-width: 0;
+  /* Allow the preview stage to shrink with the viewport — flex distribution
+     of the preview column (between preview / transport / timeline) keeps
+     proportions stable, and `overflow: hidden` on the column prevents
+     content from pushing the workspace past viewport height. The chat
+     panel on the other column owns its own scrollback. */
+  min-height: 0;
+  background: var(--ag-bg);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  container-type: size;
+  container-name: stage;
+}
+
+/* Preview bar — clip metadata + mode toggle. Mirrors the prototype's bar
+   above the phone frame: clip name, aspect tag, duration, and the
+   POINT / PLAYBACK pill toggle on the right. */
+.previewBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--ag-line);
+  font-family: var(--ag-font-mono);
+  font-size: 10.5px;
+  color: var(--ag-ink-3);
+  flex-shrink: 0;
+  gap: 12px;
+}
+.previewBar .left,
+.previewBar .right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.previewBar .clipName {
+  color: var(--ag-ink-2);
+  letter-spacing: 0.04em;
+}
+.previewBar .tag {
+  padding: 2px 7px;
+  background: var(--ag-surface);
+  border-radius: 3px;
+  border: 1px solid var(--ag-line);
+  color: var(--ag-ink-4);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 9.5px;
+}
+.modeToggle {
+  display: inline-flex;
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-line);
+  border-radius: 6px;
+  padding: 1px;
+}
+.modeToggle button {
+  padding: 4px 9px;
+  font-family: var(--ag-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ag-ink-3);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.modeToggle button.active {
+  background: var(--ag-ai-soft);
+  color: var(--ag-ai);
+  box-shadow: inset 0 0 0 1px var(--ag-ai-line);
+}
+.modeToggle .dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+}
+
+/* Preview stage — holds the phone frame, centered with padding. Container
+   queries (set on .zonePreview) let the bezel + caption scale fluidly. */
+.previewStage {
+  flex: 1;
+  position: relative;
+  display: grid;
+  place-items: center;
+  padding: 28px 28px 36px;
+  min-height: 0;
+  overflow: hidden;
+}
+.zoneTimeline {
+  min-width: 0;
+  min-height: 156px;
+  flex-shrink: 0;
+  border-top: 1px solid var(--ag-line);
+  background: var(--ag-panel);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.zoneTimeline.collapsed {
+  min-height: 36px;
+}
+
+/* === Cinematic timeline (custom, replaces imported Timeline) ============
+   Caption-focused: one lane of colored word lozenges + decorative audio
+   waveform peaks below, with a ruler on top and an amber playhead. */
+.ctlBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px;
+  border-bottom: 1px solid var(--ag-line);
+  flex-shrink: 0;
+  gap: 10px;
+}
+.ctlBar .ttl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ag-ink-3);
+}
+.ctlBar .ttl .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ag-accent);
+  box-shadow: 0 0 8px var(--ag-accent);
+}
+.ctlBar .ico {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  color: var(--ag-ink-3);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.ctlBar .ico:hover {
+  color: var(--ag-ink);
+  background: var(--ag-surface);
+}
+
+.ctlBody {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+  background: var(--ag-bg-2);
+}
+.ctlRuler {
+  height: 22px;
+  position: relative;
+  border-bottom: 1px solid var(--ag-line);
+  background: var(--ag-panel);
+  cursor: pointer;
+}
+.ctlTick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--ag-line);
+}
+.ctlTickLbl {
+  position: absolute;
+  top: 5px;
+  left: 4px;
+  font-family: var(--ag-font-mono);
+  font-size: 9px;
+  color: var(--ag-ink-4);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.ctlLane {
+  position: relative;
+  height: 36px;
+  border-bottom: 1px solid var(--ag-line);
+  cursor: pointer;
+}
+.ctlLane.audio {
+  height: 28px;
+  background: rgba(0, 0, 0, 0.18);
+}
+/* Director groups lane — sits above the word-pill lane. Slimmer than
+   .ctlLane so it doesn't compete for visual weight; pills span dozens
+   of words so they're already wider than word pills. */
+.ctlLane.groupsLane {
+  height: 24px;
+  border-bottom: 1px solid var(--ag-line);
+  background: rgba(0, 0, 0, 0.08);
+}
+.groupPill {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border: 1px solid;
+  border-radius: 4px;
+  font-family: var(--ag-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.groupPill:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+  z-index: 2;
+}
+.groupPill.selected {
+  outline: 2px solid var(--ag-ai);
+  outline-offset: 1px;
+  z-index: 3;
+}
+.gpBadge {
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.gpLabel {
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-family: var(--ag-font-ui);
+  font-size: 10.5px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Drag-edge handles. 6px wide invisible-but-cursor-resize zones on each
+   side of the pill so users can grab without aiming for a 1px border. */
+.gpEdge {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  width: 6px;
+  cursor: ew-resize;
+  z-index: 2;
+}
+.gpEdge:hover {
+  background: var(--ag-ai-soft);
+}
+/* Role-change popover. Anchored beneath the pill on double-click. Day 17
+   scope keeps it as a vertical list of role buttons — no search, no
+   keyboard navigation beyond what the buttons already support. */
+.gpRoleMenu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 4px;
+  background: var(--ag-panel-2);
+  border: 1px solid var(--ag-line-2);
+  border-radius: 6px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  min-width: 180px;
+  padding: 4px;
+  z-index: 100;
+}
+.gpRoleItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: 0;
+  padding: 6px 8px;
+  color: var(--ag-ink-2);
+  font-family: var(--ag-font-ui);
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  text-align: left;
+}
+.gpRoleItem:hover {
+  background: var(--ag-surface);
+  color: var(--ag-ink);
+}
+.gpRoleActive {
+  background: var(--ag-ai-soft);
+  color: var(--ag-ai);
+}
+.gpRoleBadge {
+  font-family: var(--ag-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ag-ink-4);
+  background: var(--ag-bg-2);
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.ctlWord {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  background: var(--vc, var(--ag-v0));
+  color: #07080b;
+  border-radius: 5px;
+  font-size: 11.5px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  cursor: pointer;
+  transition: transform 0.12s, box-shadow 0.12s;
+  overflow: hidden;
+  white-space: nowrap;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3);
+}
+.ctlWord:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  z-index: 2;
+}
+.ctlWord.selected {
+  outline: 2px solid var(--ag-ai);
+  outline-offset: 1px;
+  z-index: 3;
+  box-shadow: 0 0 18px var(--ag-ai-soft);
+}
+.ctlAudioBar {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  background: rgba(110, 231, 168, 0.12);
+  border: 1px solid rgba(110, 231, 168, 0.28);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  gap: 1px;
+  overflow: hidden;
+}
+.ctlAudioBar .wv {
+  width: 2px;
+  background: var(--ag-good);
+  opacity: 0.65;
+  border-radius: 1px;
+}
+.ctlPlayhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--ag-accent);
+  pointer-events: none;
+  z-index: 4;
+  box-shadow: 0 0 12px var(--ag-accent);
+}
+.ctlPlayhead::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 10px;
+  height: 10px;
+  background: var(--ag-accent);
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+.ctlPlayhead .stamp {
+  position: absolute;
+  top: -22px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--ag-font-mono);
+  font-size: 9.5px;
+  color: #1a1200;
+  background: var(--ag-accent);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.ctlAttn {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px dashed var(--ag-ai-line);
+  border-right: 1px dashed var(--ag-ai-line);
+  background: var(--ag-ai-soft);
+  pointer-events: none;
+  z-index: 1;
+}
+.ctlAttn .lbl {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  font-family: var(--ag-font-mono);
+  font-size: 9px;
+  color: var(--ag-ai);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  background: var(--ag-ai-soft);
+  border: 1px solid var(--ag-ai-line);
+  border-radius: 3px;
+}
+
+/* === Word styler — floating pill toolbar that appears when a word is
+   selected. Sits at the top of the preview stage, mirrors the prototype's
+   `.word-styler` chip-rail design. */
+.wordStyler {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  background: linear-gradient(180deg, rgba(20, 22, 30, 0.96), rgba(13, 15, 20, 0.96));
+  border: 1px solid var(--ag-line-strong);
+  border-radius: 999px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  max-width: calc(100% - 32px);
+  height: 44px;
+  padding: 0 6px 0 4px;
+  overflow: hidden;
+}
+.wsSection {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-right: 1px solid var(--ag-line);
+  min-width: 0;
+  height: 100%;
+}
+.wsSection:last-child {
+  border-right: 0;
+}
+.wsTarget {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.wsTarget .aa {
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  display: grid;
+  place-items: center;
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-ai-line);
+  color: var(--ag-ai);
+  font-weight: 800;
+  font-size: 12px;
+  box-shadow: 0 0 10px var(--ag-ai-soft);
+}
+.wsTarget .meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.wsTarget .word {
+  font-family: var(--ag-font-serif);
+  font-style: italic;
+  font-size: 14px;
+  color: var(--ag-ink);
+  line-height: 1;
+  letter-spacing: -0.005em;
+}
+.wsTarget .word .quo {
+  color: var(--ag-ink-4);
+  font-style: normal;
+}
+.wsTarget .sub {
+  font-family: var(--ag-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ag-ink-3);
+}
+.wsTarget .sub b {
+  color: var(--ag-ai);
+  font-weight: 600;
+}
+.wsPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 7px;
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-line);
+  border-radius: 5px;
+  font-size: 12px;
+  color: var(--ag-ink-2);
+  cursor: pointer;
+  font-family: var(--ag-font-ui);
+  white-space: nowrap;
+}
+.wsPill:hover {
+  background: var(--ag-surface-hi);
+  color: var(--ag-ink);
+  border-color: var(--ag-line-strong);
+}
+.wsPill.mono {
+  font-family: var(--ag-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+.wsSizeTrack {
+  width: 84px;
+  height: 4px;
+  background: var(--ag-surface);
+  border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+}
+.wsSizeFill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--ag-accent);
+  border-radius: 2px;
+}
+.wsSizeHead {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--ag-accent);
+  border: 2px solid var(--ag-bg-2);
+}
+.wsSizeVal {
+  font-family: var(--ag-font-mono);
+  font-size: 10.5px;
+  color: var(--ag-ink-2);
+  min-width: 36px;
+  text-align: right;
+}
+.wsToggleGrp {
+  display: inline-flex;
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-line);
+  border-radius: 5px;
+  padding: 1px;
+}
+.wsToggleGrp button {
+  padding: 3px 7px;
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ag-ink-3);
+  border-radius: 4px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.wsToggleGrp button.on {
+  background: var(--ag-surface-hi);
+  color: var(--ag-ink);
+}
+.wsColorChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 6px 3px 4px;
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-line);
+  border-radius: 999px;
+  color: var(--ag-ink-3);
+  cursor: pointer;
+  height: 24px;
+}
+.wsColorChip:hover {
+  border-color: var(--ag-line-strong);
+  color: var(--ag-ink);
+}
+.wsColorDot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
+  display: inline-block;
+}
+.wsAsk {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: var(--ag-ai);
+  color: #04141c;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: var(--ag-font-ui);
+  border: 0;
+  cursor: pointer;
+  transition: all 0.12s;
+  white-space: nowrap;
+}
+.wsAsk:hover {
+  background: #a4ecff;
+  box-shadow: 0 0 18px var(--ag-ai-soft);
+}
+.wsIconBtn {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  color: var(--ag-ink-3);
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-line);
+  cursor: pointer;
+}
+.wsIconBtn:hover {
+  color: var(--ag-ink);
+  background: var(--ag-surface-hi);
+}
+.wsIconBtn.danger:hover {
+  color: var(--ag-danger);
+  border-color: rgba(255, 107, 107, 0.4);
+}
+.wsClose {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--ag-ink);
+  color: #07080b;
+  display: grid;
+  place-items: center;
+  border: 2px solid var(--ag-bg);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+}
+.wsClose:hover {
+  background: var(--ag-accent);
+}
+
+/* === Hera watermark (top-right of phone frame) ========================= */
+.heraMark {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--ag-font-serif);
+  font-style: italic;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 13px;
+  letter-spacing: -0.005em;
+  z-index: 3;
+  pointer-events: none;
+}
+.heraMark .glyph {
+  width: 11px;
+  height: 11px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, #fff, #aaa);
+  display: inline-block;
+}
+
+/* === Aspect-ratio mini-icon (inside preview-bar tag) ==================== */
+.fmtIco {
+  display: inline-grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin-right: 4px;
+  color: currentColor;
+}
+.fmtIco .box {
+  display: block;
+  width: 9px;
+  border: 1.4px solid currentColor;
+  border-radius: 2px;
+}
+
+/* === Suggestion polish: clip-transcribed line ========================== */
+.transcribed {
+  font-size: 12px;
+  color: var(--ag-ink-3);
+  line-height: 1.55;
+  margin-bottom: 8px;
+}
+.transcribed b {
+  color: var(--ag-ink);
+  font-weight: 500;
+}
+.transcribed .kw {
+  color: var(--ag-ai);
+  font-weight: 500;
+}
+
+/* Phone frame — bezel + ambient halo + film vignette around the Player.
+   The .previewBackdrop layer sits BEHIND the Player and bleeds a deep
+   purple-blue gradient + glow + scattered stars beyond the bezel for the
+   prototype's "phone in space" feel. The .previewFrame is the actual
+   bezel that clips the Player. */
+.previewBackdrop {
+  position: relative;
+  height: min(100%, 720px);
+  aspect-ratio: 9 / 16;
+  max-width: 100%;
+  display: grid;
+  place-items: center;
+}
+.previewBackdrop .halo {
+  position: absolute;
+  inset: -22% -18%;
+  background:
+    radial-gradient(ellipse at 50% 55%, rgba(126, 224, 255, 0.10) 0%, transparent 55%),
+    radial-gradient(ellipse at 30% 75%, rgba(244, 185, 66, 0.10) 0%, transparent 50%),
+    radial-gradient(ellipse at 70% 30%, rgba(192, 132, 252, 0.10) 0%, transparent 50%);
+  filter: blur(8px);
+  pointer-events: none;
+  z-index: 0;
+}
+.previewBackdrop .stars {
+  position: absolute;
+  inset: -10%;
+  pointer-events: none;
+  z-index: 0;
+}
+.previewBackdrop .stars .star {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 50%;
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.35);
+}
+.previewFrame {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  aspect-ratio: 9 / 16;
+  max-width: 100%;
+  border-radius: clamp(18px, 4cqh, 32px);
+  overflow: hidden;
+  background: linear-gradient(180deg, #0e1530 0%, #2a1d4a 45%, #0a0a18 100%);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 30px 100px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04),
+    inset 0 -120px 200px rgba(0, 0, 0, 0.42);
+}
+/* Film vignette layered ON TOP of the Player but UNDER the caption — the
+   Player itself is inside an iframe-less DOM mount, so we layer the
+   vignette as an absolutely-positioned overlay with pointer-events:none. */
+.previewFrame::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 55%, rgba(0, 0, 0, 0.55) 100%);
+  pointer-events: none;
+  z-index: 2;
+}
+.previewBackdrop.pointOn .previewFrame {
+  box-shadow:
+    0 0 0 1px var(--ag-ai-line),
+    0 0 30px var(--ag-ai-soft),
+    0 30px 100px rgba(0, 0, 0, 0.7),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+/* === Cinematic transport (replaces shadcn TransportBar) ================= */
+.transport {
+  padding: 10px 18px;
+  border-top: 1px solid var(--ag-line);
+  background: var(--ag-panel);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--ag-ink-3);
+  flex-shrink: 0;
+}
+.transport .play {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--ag-surface-hi);
+  color: var(--ag-ink);
+  display: grid;
+  place-items: center;
+  border: 0;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.transport .play:hover {
+  background: var(--ag-accent);
+  color: #1a1200;
+}
+.transport .play.playing {
+  background: var(--ag-accent);
+  color: #1a1200;
+}
+.transport .time {
+  font-family: var(--ag-font-mono);
+  font-size: 12px;
+  color: var(--ag-ink-2);
+  letter-spacing: 0.04em;
+  min-width: 110px;
+}
+.transport .time .total {
+  color: var(--ag-ink-4);
+}
+.transport .scrub {
+  flex: 1;
+  height: 4px;
+  background: var(--ag-surface);
+  border-radius: 2px;
+  position: relative;
+  cursor: pointer;
+}
+.transport .scrub .fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: var(--ag-accent);
+  border-radius: 2px;
+}
+.transport .scrub .head {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  background: var(--ag-accent);
+  border-radius: 50%;
+  border: 2px solid var(--ag-bg);
+}
+.transport .snap {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--ag-ink-3);
+  background: none;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+.transport .snap.on {
+  color: var(--ag-accent);
+  border-color: var(--ag-accent-line);
+  background: var(--ag-accent-soft);
+}
+.transport .zoomGrp {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-family: var(--ag-font-mono);
+}
+.transport .zoomGrp button {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  color: var(--ag-ink-3);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.transport .zoomGrp button:hover {
+  color: var(--ag-ink);
+  background: var(--ag-surface);
+}
+.transport .zoomGrp .val {
+  font-size: 10.5px;
+  color: var(--ag-ink-4);
+  min-width: 32px;
+  text-align: center;
+}
+.transport .kbd {
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-line);
+  color: var(--ag-ink-3);
+}
+
+/* === Chat panel ========================================================== */
+.chat {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.chatHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid var(--ag-line);
+  flex-shrink: 0;
+}
+.chatHead .title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.chatHead .agentMark {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: radial-gradient(circle at 30% 30%, var(--ag-ai), var(--ag-ai-2) 70%);
+  display: grid;
+  place-items: center;
+  color: #04141c;
+  font-family: var(--ag-font-serif);
+  font-style: italic;
+  font-size: 16px;
+  font-weight: 600;
+  box-shadow: 0 0 16px var(--ag-ai-soft), inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.chatHead .agentName {
+  font-family: var(--ag-font-serif);
+  font-style: italic;
+  font-size: 17px;
+  color: var(--ag-ink);
+  letter-spacing: -0.005em;
+}
+.chatHead .agentSub {
+  font-family: var(--ag-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ag-ink-3);
+  margin-top: 1px;
+}
+.chatHead .actions {
+  display: flex;
+  gap: 2px;
+}
+.iconBtn {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  color: var(--ag-ink-3);
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.iconBtn:hover {
+  color: var(--ag-ink);
+  background: var(--ag-surface);
+}
+
+/* Branch bar — V1 stub: cosmetic */
+.branchBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--ag-line);
+  font-family: var(--ag-font-mono);
+  font-size: 10.5px;
+  color: var(--ag-ink-3);
+  background: linear-gradient(180deg, rgba(126, 224, 255, 0.03), transparent);
+  flex-shrink: 0;
+}
+.branchBar svg {
+  color: var(--ag-ai);
+  opacity: 0.7;
+}
+.branchBar .crumb {
+  color: var(--ag-ink-4);
+}
+.branchBar .crumb.cur {
+  color: var(--ag-ai);
+}
+.branchBar .arr {
+  color: var(--ag-ink-5);
+  margin: 0 2px;
+}
+.branchBar .grow {
+  flex: 1;
+}
+.branchBar .fork {
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ag-ink-3);
+  padding: 3px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--ag-line);
+  background: none;
+  cursor: pointer;
+}
+.branchBar .fork:hover {
+  color: var(--ag-ai);
+  border-color: var(--ag-ai-line);
+  background: var(--ag-ai-soft);
+}
+
+.chatBody {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* === Suggestions ========================================================== */
+.suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 0 0;
+}
+.sugHead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.sugHead .eyebrow {
+  font-family: var(--ag-font-serif);
+  font-style: italic;
+  font-size: 22px;
+  color: var(--ag-ink);
+  letter-spacing: -0.01em;
+}
+.sugHead .small {
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ag-ink-4);
+}
+.sugContext {
+  font-size: 12px;
+  color: var(--ag-ink-3);
+  line-height: 1.55;
+  margin-bottom: 8px;
+}
+.sugContext b {
+  color: var(--ag-ink);
+  font-weight: 500;
+}
+.sugContext .kw {
+  color: var(--ag-ai);
+  font-weight: 500;
+}
+.sugList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sug {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 13px;
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-line);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.12s;
+  text-align: left;
+  width: 100%;
+  color: inherit;
+  font: inherit;
+}
+.sug:hover {
+  background: var(--ag-surface-hi);
+  border-color: var(--ag-ai-line);
+}
+.sug .ico {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background: var(--ag-ai-soft);
+  color: var(--ag-ai);
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px var(--ag-ai-line);
+}
+.sug .copy {
+  flex: 1;
+  min-width: 0;
+}
+.sug .copy .t {
+  color: var(--ag-ink);
+  font-size: 13px;
+  font-weight: 500;
+}
+.sug .copy .d {
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  color: var(--ag-ink-4);
+  margin-top: 2px;
+}
+.sug .arr {
+  color: var(--ag-ink-4);
+  flex-shrink: 0;
+}
+.sug:hover .arr {
+  color: var(--ag-ai);
+}
+
+/* === Transcript strip ===================================================== */
+.transcriptStrip {
+  background: var(--ag-panel-2);
+  border: 1px solid var(--ag-line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.transcriptStripHead {
+  font-family: var(--ag-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ag-ink-4);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.transcriptStripBody {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+.wordChip {
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  cursor: pointer;
+  color: var(--ag-ink-2);
+  font: inherit;
+  border-radius: 3px;
+  transition: color 0.1s;
+}
+.wordChip:hover {
+  color: var(--ag-ai);
+  background: rgba(126, 224, 255, 0.06);
+}
+.wordChip.selected {
+  color: var(--ag-ai);
+  background: var(--ag-ai-soft);
+  box-shadow: inset 0 -1.5px 0 var(--ag-ai);
+}
+
+/* === Messages ============================================================= */
+.msgUser {
+  align-self: flex-end;
+  max-width: 86%;
+  background: var(--ag-surface-hi);
+  border: 1px solid var(--ag-line-2);
+  color: var(--ag-ink);
+  padding: 9px 12px;
+  border-radius: 12px 12px 4px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.msgUser .refTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-right: 6px;
+  padding: 1px 7px;
+  background: var(--ag-ai-soft);
+  border: 1px solid var(--ag-ai-line);
+  color: var(--ag-ai);
+  border-radius: 4px;
+  font-family: var(--ag-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+  vertical-align: 1px;
+}
+.msgAgent {
+  align-self: flex-start;
+  max-width: 92%;
+  display: flex;
+  gap: 10px;
+}
+.msgAgent .av {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  background: radial-gradient(circle at 30% 30%, var(--ag-ai), var(--ag-ai-2) 70%);
+  flex-shrink: 0;
+  margin-top: 2px;
+  box-shadow: 0 0 10px var(--ag-ai-soft), inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  position: relative;
+}
+.msgAgent .av::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: 5px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.msgAgent .body {
+  flex: 1;
+  min-width: 0;
+}
+.msgAgent .applied {
+  font-family: var(--ag-font-serif);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--ag-ink);
+  letter-spacing: -0.005em;
+}
+.msgAgent .applied .verb {
+  color: var(--ag-ai);
+}
+.msgAgent .summary {
+  font-size: 12.5px;
+  color: var(--ag-ink-3);
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+/* === Action card ========================================================== */
+.actionCard {
+  margin-top: 10px;
+  background: var(--ag-panel-2);
+  border: 1px solid var(--ag-line-2);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.actionCard .head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--ag-line);
+  background: linear-gradient(180deg, rgba(126, 224, 255, 0.03), transparent);
+}
+.actionCard .head .ico {
+  width: 16px;
+  height: 16px;
+  color: var(--ag-ai);
+  flex-shrink: 0;
+}
+.actionCard .head .lbl {
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ag-ink-3);
+  flex: 1;
+}
+.actionCard .head .pill {
+  font-family: var(--ag-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  color: var(--ag-ai);
+  background: var(--ag-ai-soft);
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--ag-ai-line);
+}
+.diffGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+}
+.diffLine {
+  display: grid;
+  grid-template-columns: 100px 1fr 14px 1fr;
+  gap: 8px;
+  align-items: center;
+  font-family: var(--ag-font-mono);
+  font-size: 11px;
+}
+.diffLine .k {
+  color: var(--ag-ink-4);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 9.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.diffLine .v0 {
+  color: var(--ag-ink-3);
+  text-decoration: line-through;
+  text-decoration-color: var(--ag-ink-5);
+  text-decoration-thickness: 1px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.diffLine .arr {
+  text-align: center;
+  color: var(--ag-ink-5);
+}
+.diffLine .v1 {
+  color: var(--ag-ai);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.diffLine .swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid var(--ag-line-2);
+  vertical-align: -1px;
+  margin-right: 4px;
+}
+.actionCard.applied {
+  border-color: rgba(110, 231, 168, 0.25);
+}
+.actionCard.applied .head {
+  background: linear-gradient(180deg, rgba(110, 231, 168, 0.05), transparent);
+}
+
+/* Accept / Tweak / Reject action row — mirrors the prototype's three-chip
+   row at the bottom of every action card. Auto-apply flow means Accept
+   confirms (cosmetic), Tweak puts a follow-up in the input, Reject rolls
+   back this specific turn. */
+.acts {
+  display: flex;
+  gap: 1px;
+  border-top: 1px solid var(--ag-line);
+  background: var(--ag-bg-2);
+}
+.acts button {
+  flex: 1;
+  padding: 9px;
+  font-family: var(--ag-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ag-ink-3);
+  background: none;
+  border: 0;
+  border-right: 1px solid var(--ag-line);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: all 0.12s;
+}
+.acts button:last-child {
+  border-right: 0;
+}
+.acts button:hover {
+  background: var(--ag-surface);
+  color: var(--ag-ink);
+}
+.acts button.accept {
+  color: var(--ag-ai);
+}
+.acts button.accept:hover {
+  background: var(--ag-ai-soft);
+  color: var(--ag-ai);
+}
+.acts button.reject:hover {
+  color: var(--ag-danger);
+  background: rgba(255, 107, 107, 0.07);
+}
+.actionCard.applied .acts button.accept {
+  color: var(--ag-good);
+  background: rgba(110, 231, 168, 0.05);
+  pointer-events: none;
+}
+
+/* === Director checklist — Day 10 of the Director feature ================= */
+/* Per-group rows for an apply_director_script turn. Each row is tinted by
+   role family (purple/teal/amber/pink/blue) so the eye scans by function. */
+.dsCard {
+  /* Inherits .actionCard base; ds-specific overrides only. */
+}
+.dsList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+}
+.dsGroup {
+  border: 1px solid;
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.dsHeadRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--ag-font-mono);
+  font-size: 11px;
+}
+.dsIdx {
+  width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--ag-bg-2);
+  color: var(--ag-ink-4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  letter-spacing: 0;
+  flex-shrink: 0;
+}
+.dsBadge {
+  font-family: var(--ag-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  border: 1px solid;
+  padding: 2px 6px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.dsLabel {
+  color: var(--ag-ink-2);
+  font-family: var(--ag-font-ui);
+  font-size: 12px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dsRange {
+  color: var(--ag-ink-4);
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.dsRationale {
+  color: var(--ag-ink-3);
+  font-size: 11.5px;
+  line-height: 1.4;
+  padding-left: 26px; /* aligns under .dsLabel after .dsIdx */
+}
+.dsMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-left: 26px;
+}
+.dsMetaPill {
+  font-family: var(--ag-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--ag-ink-4);
+  background: var(--ag-bg-2);
+  border: 1px solid var(--ag-line);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+/* === Checkpoint marker between turns ==================================== */
+.checkpoint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px 0;
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ag-ink-4);
+  position: relative;
+  cursor: pointer;
+}
+.checkpoint::before {
+  content: '';
+  flex: 0 0 10px;
+  height: 1px;
+  background: var(--ag-line-2);
+  margin-right: 2px;
+}
+.checkpoint .num {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-line-2);
+  font-size: 9px;
+  color: var(--ag-ink-3);
+  letter-spacing: 0;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.checkpoint .lbl {
+  color: var(--ag-ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.checkpoint .grow {
+  flex: 1;
+  height: 1px;
+  background: var(--ag-line);
+}
+.checkpoint .revert {
+  opacity: 0;
+  font-family: var(--ag-font-mono);
+  font-size: 9.5px;
+  color: var(--ag-ai);
+  padding: 1px 7px;
+  border: 1px solid var(--ag-ai-line);
+  border-radius: 4px;
+  background: var(--ag-ai-soft);
+  letter-spacing: 0.1em;
+  transition: opacity 0.12s;
+}
+.checkpoint:hover .revert {
+  opacity: 1;
+}
+.checkpoint:hover .num {
+  background: var(--ag-ai-soft);
+  border-color: var(--ag-ai-line);
+  color: var(--ag-ai);
+}
+
+/* The agent route uses its own CinematicTimeline (not the imported one);
+   no Tailwind overrides needed here anymore. */
+
+/* === Chat input ========================================================== */
+.chatFoot {
+  padding: 12px 14px 14px;
+  border-top: 1px solid var(--ag-line);
+  background: var(--ag-panel);
+  flex-shrink: 0;
+}
+.attachedRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.attachedChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 5px 4px 7px;
+  background: var(--ag-ai-soft);
+  border: 1px solid var(--ag-ai-line);
+  border-radius: 6px;
+  color: var(--ag-ai);
+  font-family: var(--ag-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+.attachedChip .x {
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  opacity: 0.7;
+  cursor: pointer;
+  background: none;
+  border: 0;
+  color: inherit;
+}
+.attachedChip .x:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.3);
+}
+.attachedChip.word {
+  color: var(--ag-ink);
+  background: var(--ag-surface-hi);
+  border-color: var(--ag-line-strong);
+}
+.attachedChip.word .swatch {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.inputWrap {
+  position: relative;
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-line-2);
+  border-radius: 10px;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.inputWrap:focus-within {
+  border-color: var(--ag-ai-line);
+  box-shadow: 0 0 0 3px var(--ag-ai-soft);
+}
+.inputWrap textarea {
+  width: 100%;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  padding: 11px 12px 8px;
+  color: var(--ag-ink);
+  font-size: 13px;
+  font-family: var(--ag-font-ui);
+  resize: none;
+  line-height: 1.5;
+  max-height: 120px;
+}
+.inputWrap textarea::placeholder {
+  color: var(--ag-ink-4);
+}
+.inputControls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 6px 6px 8px;
+  border-top: 1px solid var(--ag-line);
+}
+.inputControls .grow {
+  flex: 1;
+}
+.icBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 8px;
+  border-radius: 5px;
+  color: var(--ag-ink-3);
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.icBtn:hover {
+  color: var(--ag-ink);
+  background: var(--ag-surface-hi);
+}
+.icBtn.on {
+  color: var(--ag-ai);
+  background: var(--ag-ai-soft);
+}
+.sendBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  background: var(--ag-ai);
+  color: #04141c;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 11.5px;
+  letter-spacing: 0.02em;
+  border: 0;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.sendBtn:hover {
+  background: #a4ecff;
+  box-shadow: 0 0 14px var(--ag-ai-soft);
+}
+.sendBtn[disabled] {
+  background: var(--ag-surface-hi);
+  color: var(--ag-ink-4);
+  cursor: not-allowed;
+  box-shadow: none;
+}
+.kbdHint {
+  font-family: var(--ag-font-mono);
+  font-size: 9.5px;
+  color: var(--ag-ink-4);
+  letter-spacing: 0.08em;
+  margin-right: 6px;
+}
+
+/* Slash menu */
+.slashMenu {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  background: var(--ag-panel-2);
+  border: 1px solid var(--ag-line-strong);
+  border-radius: 10px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  z-index: 10;
+}
+.slashHead {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--ag-line);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ag-ink-4);
+}
+.slashHead .key {
+  color: var(--ag-ai);
+}
+.slashList {
+  max-height: 260px;
+  overflow: auto;
+  padding: 4px 0;
+}
+.slashItem {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 12px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+}
+.slashItem:hover,
+.slashItem.sel {
+  background: var(--ag-ai-soft);
+}
+.slashItem .ic {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
+  background: var(--ag-surface);
+  color: var(--ag-ai);
+}
+.slashItem .cmd {
+  font-family: var(--ag-font-mono);
+  font-size: 11.5px;
+  color: var(--ag-ink);
+}
+.slashItem .cmd .arg {
+  color: var(--ag-ink-3);
+}
+.slashItem .desc {
+  font-size: 11px;
+  color: var(--ag-ink-3);
+  margin-top: 1px;
+}
+
+/* === Error toast ========================================================= */
+.errorBar {
+  margin: 8px 0;
+  padding: 8px 10px;
+  background: rgba(255, 107, 107, 0.08);
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  color: var(--ag-danger);
+  font-family: var(--ag-font-mono);
+  font-size: 11px;
+  border-radius: 6px;
+}
+
+/* === Picker step (cinematic-themed) ====================================== */
+.pickerWrap {
+  flex: 1;
+  overflow: auto;
+  padding: 32px 24px;
+  display: flex;
+  justify-content: center;
+}
+.pickerInner {
+  width: 100%;
+  max-width: 880px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.pickerHeader h1 {
+  font-family: var(--ag-font-serif);
+  font-style: italic;
+  font-size: 32px;
+  color: var(--ag-ink);
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.pickerHeader p {
+  font-size: 13px;
+  color: var(--ag-ink-3);
+  line-height: 1.55;
+  max-width: 540px;
+  margin: 8px 0 0;
+}
+.pickerTabs {
+  display: inline-flex;
+  background: var(--ag-surface);
+  border: 1px solid var(--ag-line);
+  border-radius: 6px;
+  padding: 1px;
+}
+.pickerTab {
+  padding: 6px 14px;
+  font-family: var(--ag-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ag-ink-3);
+  background: none;
+  border: 0;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.pickerTab.active {
+  background: var(--ag-ai-soft);
+  color: var(--ag-ai);
+  box-shadow: inset 0 0 0 1px var(--ag-ai-line);
+}
+.clipGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+.clipCard {
+  background: var(--ag-panel-2);
+  border: 1px solid var(--ag-line);
+  border-radius: 10px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.12s, transform 0.12s;
+}
+.clipCard:hover {
+  border-color: var(--ag-ai-line);
+  transform: translateY(-1px);
+}
+.clipCard video {
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  max-height: 280px;
+  object-fit: cover;
+  background: var(--ag-surface);
+}
+.clipMeta {
+  padding: 10px 12px;
+  border-top: 1px solid var(--ag-line);
+}
+.clipMeta .name {
+  font-family: var(--ag-font-serif);
+  font-style: italic;
+  font-size: 15px;
+  color: var(--ag-ink);
+  letter-spacing: -0.005em;
+}
+.clipMeta .sub {
+  font-family: var(--ag-font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ag-ink-4);
+  margin-top: 3px;
+}
+.uploadPanel {
+  border: 1px dashed var(--ag-line-strong);
+  border-radius: 10px;
+  padding: 36px 24px;
+  text-align: center;
+  color: var(--ag-ink-3);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+}
+.uploadPanel button {
+  background: var(--ag-ai);
+  color: #04141c;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 12px;
+  border: 0;
+  cursor: pointer;
+}
+.uploadPanel button:hover {
+  background: #a4ecff;
+}
+.uploadPanel button:disabled {
+  background: var(--ag-surface-hi);
+  color: var(--ag-ink-4);
+  cursor: not-allowed;
+}
+.loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ag-ink-3);
+  font-size: 12.5px;
+}
+.errorBox {
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  background: rgba(255, 107, 107, 0.08);
+  border-radius: 8px;
+  color: var(--ag-danger);
+  font-size: 12.5px;
+}
+
+.designingHeader {
+  border-bottom: 1px solid var(--ag-line);
+  padding: 8px 18px;
+  font-family: var(--ag-font-mono);
+  font-size: 10.5px;
+  color: var(--ag-ink-3);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.designingHeader .backLink {
+  color: var(--ag-ink-4);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.designingHeader .backLink:hover {
+  color: var(--ag-ai);
+}
+
+/* === Director checklist =================================================== */
+/* Rendered inside ActionCard when the agent's tool trace includes an
+   apply_director_script call. Role-family colors are surfaced both on
+   the inline badge and as a left-edge accent strip on each row. */
+
+.directorChecklist {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+}
+.directorHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--ag-line);
+  margin-bottom: 8px;
+}
+.directorTitle {
+  font-family: var(--ag-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ag-ink-3);
+}
+.directorMeta {
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  color: var(--ag-ink-4);
+  letter-spacing: 0.04em;
+}
+.directorList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.directorRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 8px;
+  border-left: 2px solid var(--family-color, var(--ag-line-2));
+  background: var(--ag-panel);
+  border-radius: 4px;
+}
+.directorRow[data-family='structural'] { --family-color: #b388ff; }
+.directorRow[data-family='narrative']  { --family-color: #4dd0c1; }
+.directorRow[data-family='enumerative'] { --family-color: #ffc452; }
+.directorRow[data-family='editorial']  { --family-color: #ff79c6; }
+.directorRow[data-family='interactive'] { --family-color: #7ee0ff; }
+.directorRow[data-family='other']      { --family-color: var(--ag-line-2); }
+.directorBadge {
+  font-family: var(--ag-font-mono);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--family-color, var(--ag-line-2));
+  color: var(--family-color, var(--ag-ink-3));
+  flex-shrink: 0;
+  min-width: 42px;
+  text-align: center;
+}
+.directorBadge[data-family='structural'] { --family-color: #b388ff; }
+.directorBadge[data-family='narrative']  { --family-color: #4dd0c1; }
+.directorBadge[data-family='enumerative'] { --family-color: #ffc452; }
+.directorBadge[data-family='editorial']  { --family-color: #ff79c6; }
+.directorBadge[data-family='interactive'] { --family-color: #7ee0ff; }
+.directorBadge[data-family='other']      { --family-color: var(--ag-line-2); }
+.directorRowBody {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.directorRowMain {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.directorRowLabel {
+  font-size: 12px;
+  color: var(--ag-ink-2);
+  text-transform: capitalize;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.directorRowRange {
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  color: var(--ag-ink-4);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.directorRowRationale {
+  font-size: 11px;
+  color: var(--ag-ink-3);
+  line-height: 1.35;
+}

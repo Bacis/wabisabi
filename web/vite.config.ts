@@ -14,8 +14,18 @@ const API_PATHS = [
   '/health',
   '/auth',
   '/themes',
+  '/designs',
   '/clips',
   '/stock',
+  // Director audio cue samples (remotion/public/audio/<gesture>/NN.mp3).
+  // Served by fastify-static on the API; vite proxies the URL through
+  // so the live Player's <Audio> elements can fetch them at the same
+  // path Remotion's render-time staticFile() resolves to.
+  '/audio',
+  // POST /agent/chat — the agentic editor experiment. `/agent` also matches
+  // the SPA route `/agent/new`, but the bypass below routes HTML
+  // navigations back to index.html so the SPA still owns that URL.
+  '/agent',
 ];
 
 export default defineConfig({

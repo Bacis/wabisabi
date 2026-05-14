@@ -1,15 +1,16 @@
 import { useState } from 'react';
-import { Loader2, Sparkles } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Loader2 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
+import {
+  Wordmark,
+  SerifDisplay,
+  MonoLabel,
+  TextField,
+  Button,
+  StarField,
+  Halo,
+} from '@/components/atelier';
+import styles from './LoginPage.module.css';
 
 export function LoginPage() {
   const { login } = useAuth();
@@ -32,79 +33,76 @@ export function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4">
-      <Card className="w-full max-w-sm">
-        <CardHeader className="space-y-3">
-          <div className="flex size-10 items-center justify-center rounded-lg bg-primary/15 text-primary">
-            <Sparkles className="size-5" />
-          </div>
-          <div>
-            <CardTitle>Caption Studio</CardTitle>
-            <CardDescription>Sign in to continue.</CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onSubmit} noValidate className="space-y-4">
-            <div className="space-y-1.5">
-              <label
-                htmlFor="email"
-                className="text-xs font-medium text-muted-foreground"
-              >
-                Email
-              </label>
-              <Input
-                id="email"
-                type="email"
-                autoComplete="username"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={submitting}
-              />
+    <div className={styles.scene}>
+      <StarField count={96} opacity={0.5} />
+      <Halo />
+      <div className={styles.frame}>
+        <header className={styles.head}>
+          <Wordmark to="/login" tagline="GATE · INVITE ONLY" />
+        </header>
+
+        <div className={styles.crown}>
+          <MonoLabel tone="cyan" dot>
+            Authenticate
+          </MonoLabel>
+          <SerifDisplay size="lg" as="h1">
+            Welcome back.
+          </SerifDisplay>
+          <p className={styles.lede}>
+            Pick up where you left off. Sessions stay live for 30 days; we
+            never store your password in plaintext.
+          </p>
+        </div>
+
+        <form className={styles.form} onSubmit={onSubmit} noValidate>
+          <TextField
+            label="Email"
+            type="email"
+            autoComplete="username"
+            autoFocus
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={submitting}
+            placeholder="you@studio.io"
+          />
+          <TextField
+            label="Password"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={submitting}
+            placeholder="••••••••"
+          />
+
+          {error && (
+            <div className={styles.error} role="alert">
+              <MonoLabel tone="danger" dot>Error</MonoLabel>
+              <span>{error}</span>
             </div>
+          )}
 
-            <div className="space-y-1.5">
-              <label
-                htmlFor="password"
-                className="text-xs font-medium text-muted-foreground"
-              >
-                Password
-              </label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={submitting}
-              />
-            </div>
+          <Button
+            type="submit"
+            variant="cyan"
+            size="lg"
+            fullWidth
+            disabled={submitting || !email || !password}
+            leadingIcon={
+              submitting ? <Loader2 size={14} className={styles.spin} /> : null
+            }
+            kbd="⌘↩"
+          >
+            {submitting ? 'Entering…' : 'Enter Atelier'}
+          </Button>
 
-            {error && (
-              <p
-                className="break-words text-sm text-destructive"
-                role="alert"
-              >
-                {error}
-              </p>
-            )}
-
-            <Button
-              type="submit"
-              className="w-full gap-2"
-              disabled={submitting || !email || !password}
-            >
-              {submitting && <Loader2 className="size-4 animate-spin" />}
-              {submitting ? 'Signing in…' : 'Sign in'}
-            </Button>
-
-            <p className="text-center text-xs text-muted-foreground">
-              Need access? Contact the admin.
-            </p>
-          </form>
-        </CardContent>
-      </Card>
+          <p className={styles.footnote}>
+            Need access? Ping the workspace admin for an invite.
+          </p>
+        </form>
+      </div>
     </div>
   );
 }

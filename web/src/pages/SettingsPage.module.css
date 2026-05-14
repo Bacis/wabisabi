@@ -1,0 +1,51 @@
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.card {
+  gap: 16px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--ag-line);
+}
+.row:last-of-type {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.rowKey {
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ag-ink-4);
+}
+.rowVal {
+  color: var(--ag-ink);
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.copy {
+  margin: 0;
+  color: var(--ag-ink-3);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.spin {
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

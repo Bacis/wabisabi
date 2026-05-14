@@ -1,0 +1,83 @@
+{
+  "project": {
+    "fill": "#ffffff",
+    "emphasisFill": "#ffd100",
+    "font": "Inter",
+    "fontSize": 64,
+    "casing": "none",
+    "defaultEffect": "none",
+    "defaultIntensity": 0.5
+  },
+  "groups": [
+    {
+      "id": "g-title",
+      "role": "hero-title-card",
+      "wordRange": [
+        0,
+        2
+      ],
+      "label": "Opening Title",
+      "maxPerLine": 1,
+      "placement": {
+        "anchor": "middle",
+        "alignment": "center"
+      },
+      "overrides": {
+        "emphasisFill": "#ffd100",
+        "fontSize": 240
+      },
+      "relation": {
+        "kind": "cut"
+      },
+      "rationale": "First 3 words stacked one-per-line at middle center, oversized yellow uppercase."
+    },
+    {
+      "id": "g-chapter-stat",
+      "role": "stat-callout",
+      "wordRange": [
+        3,
+        5
+      ],
+      "label": "Chapter Stat",
+      "maxPerLine": 1,
+      "placement": {
+        "anchor": "middle",
+        "alignment": "center"
+      },
+      "overrides": {
+        "emphasisFill": "#ffd100",
+        "fontSize": 220
+      },
+      "relation": {
+        "kind": "cut"
+      },
+      "rationale": "Next 3 words (4-6 range adjusted to available) at middle center, one-per-line, oversized yellow uppercase."
+    },
+    {
+      "id": "g-cta",
+      "role": "cta-overlay",
+      "wordRange": [
+        6,
+        6
+      ],
+      "label": "Closing CTA",
+      "maxPerLine": 1,
+      "placement": {
+        "anchor": "bottom",
+        "alignment": "center"
+      },
+      "overrides": {
+        "emphasisFill": "#ffd100",
+        "fontSize": 140
+      },
+      "audioCue": {
+        "gesture": "pop"
+      },
+      "relation": {
+        "kind": "cut"
+      },
+      "rationale": "Final word as bottom center CTA, one-per-line, uppercase yellow."
+    }
+  ],
+  "beats": []
+}

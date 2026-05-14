@@ -8,6 +8,44 @@ import type {
   Word,
   CaptionChunk,
 } from '../lib/CaptionLayer';
+import {
+  FILLER_WORDS,
+  VALUE_WORDS,
+  applyTransform,
+  inferEmphasis,
+  isFiller,
+  makeItalicMatcher,
+  normalize,
+  toPalette,
+} from '../lib/linguistics';
+import { selectChunks } from '../lib/chunking';
+import { makeSizing } from '../lib/sizing';
+import { pickActiveChunk } from '../lib/motion/activeChunk';
+import { pickEntryFrame } from '../lib/motion/wordReveal';
+import { computeEntrySpring } from '../lib/motion/springEntry';
+import {
+  valueKey as anchorValueKey,
+} from '../lib/layout/anchorRules';
+import { getLayoutStrategy } from '../lib/layout/registry';
+import type { LayoutStrategyId, StrategyInput } from '../lib/layout/types';
+import { placementToContainerStyle, resolvePlacement } from '../lib/layout/placement';
+import { resolveChunkStyle, type ChunkOverride } from '../lib/styleMerge';
+import { CueLayer } from '../audio/CueLayer';
+import type { DirectorScript } from '../../../src/shared/director/schema';
+import {
+  breatheBlurPx,
+  crystalLetterTransform,
+  flareTextShadow,
+  FxFilterDefs,
+  getEffectKind,
+  isVol03Effect,
+  magneticLetterTransform,
+  sambaLetterTransform,
+  SliceWord,
+  type EffectId,
+  type FxRequest,
+  type Vol03Effect,
+} from '../lib/fx';
 
 // Fully StyleSpec-driven caption template. Every visual behavior is
 // controlled via styleSpec fields — no hardcoded multipliers, transforms,
@@ -57,469 +95,6 @@ loadFont('italic', {
   subsets: ['latin'],
 });
 
-const FILLER_WORDS = new Set([
-  'a', 'an', 'the', 'of', 'to', 'in', 'on', 'at', 'by', 'for', 'with', 'as',
-  'is', 'are', 'was', 'were', 'be', 'been', 'am',
-  'i', 'me', 'my', 'we', 'us', 'our', 'you', 'your', 'he', 'him', 'his',
-  'she', 'her', 'it', 'its', 'they', 'them', 'their',
-  'and', 'or', 'but', 'so', 'if', 'then', 'than',
-  "it's", "i'm", "we're", "you're", "they're", "that's", "what's",
-  'um', 'uh', 'er', 'oh',
-]);
-
-// Value-words carry inline-color emphasis (red), never block treatment.
-// References render these as colored words at base size, not as huge anchor
-// blocks — the color does the visual work, not size dramatics.
-const VALUE_WORDS = new Set([
-  'never', 'always', 'no', 'not', 'only', 'every', 'all', 'none',
-  'best', 'worst', 'better', 'worse',
-  'most', 'more', 'less', 'least',
-  'big', 'huge', 'tiny', 'small',
-  'first', 'last', 'one',
-  'really', 'very', 'truly',
-  'so',
-]);
-
-function normalize(word: string): string {
-  return word.toLowerCase().replace(/[.,!?;:"'()—-]/g, '');
-}
-
-function isFiller(word: string): boolean {
-  return FILLER_WORDS.has(normalize(word));
-}
-
-function inferEmphasis(words: Word[]): boolean[] {
-  const out = words.map(() => false);
-  if (words.length === 0) return out;
-  const candidates: { idx: number; length: number }[] = [];
-  for (let i = 0; i < words.length; i++) {
-    const w = words[i]!;
-    if (isFiller(w.word)) continue;
-    const alphaLen = w.word.replace(/[^A-Za-z]/g, '').length;
-    if (alphaLen >= 3) candidates.push({ idx: i, length: alphaLen });
-  }
-  if (candidates.length === 0) {
-    let best = 0;
-    for (let i = 1; i < words.length; i++) {
-      if (words[i]!.word.length > words[best]!.word.length) best = i;
-    }
-    out[best] = true;
-    return out;
-  }
-  candidates.sort((a, b) => b.length - a.length || a.idx - b.idx);
-  const picks = words.length <= 3 ? 1 : 2;
-  for (let i = 0; i < Math.min(picks, candidates.length); i++) {
-    out[candidates[i]!.idx] = true;
-  }
-  return out;
-}
-
-function fallbackChunks(words: Word[], maxPerLine: number): CaptionChunk[] {
-  const out: CaptionChunk[] = [];
-  for (let i = 0; i < words.length; i += maxPerLine) {
-    const slice = words.slice(i, i + maxPerLine);
-    out.push({ words: slice, emphasis: slice.map(() => false) });
-  }
-  return out;
-}
-
-function toPalette(ef: string | string[] | undefined, fallback: string): string[] {
-  if (Array.isArray(ef)) return ef.length > 0 ? ef : [fallback];
-  if (typeof ef === 'string') return [ef];
-  return [fallback];
-}
-
-function applyTransform(word: string, transform: string): string {
-  if (transform === 'uppercase') return word.toUpperCase();
-  if (transform === 'lowercase') return word.toLowerCase();
-  return word;
-}
-
-// Per-letter motion FX adapted from FX Lab Vol.02. Per-letter effects
-// (samba/crystal/magnetic) split the word into character spans with their
-// own transform; full-word effects (breathe/flare) keep the single span and
-// apply CSS filter / text-shadow on top of the existing entry animation.
-//
-// All math is frame-driven (useCurrentFrame + word.start) so renders are
-// deterministic across the Player and headless Lambda render paths.
-
-const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
-const easeOutQuint = (t: number) => 1 - Math.pow(1 - t, 5);
-
-// Deterministic LCG per letter — same seed → same scatter direction every
-// frame, so the shatter / magnetic effects don't rejitter on each render.
-function seedRand(seed: number): () => number {
-  let s = seed | 0;
-  return () => {
-    s = (s * 1664525 + 1013904223) | 0;
-    return ((s >>> 0) % 100000) / 100000;
-  };
-}
-
-// FX-08 Lens Breathe — entry blur 14→0 over 600ms, then sine breath 0..1.4px
-function breatheBlurPx(elapsedMs: number): number {
-  const entryT = Math.min(1, elapsedMs / 600);
-  const entryE = easeOutQuint(entryT);
-  const entryBlur = (1 - entryE) * 14;
-  const hold = Math.max(0, elapsedMs - 600);
-  const breathPhase = (hold / 1800) * Math.PI * 2;
-  const breathBlur = (Math.sin(breathPhase) + 1) * 0.5 * 1.4;
-  return entryBlur + breathBlur;
-}
-
-// FX-09 Anamorphic Flare — bell curve at t=0.25, decays to a low sustain.
-// Approximates the SVG asymmetric blur via CSS text-shadow with horizontal
-// spread (the asymmetry — wide on X, sharp on Y — is what reads anamorphic).
-function flareTextShadow(elapsedMs: number, color: string): string {
-  const t = Math.min(1, elapsedMs / 700);
-  const bell = Math.exp(-Math.pow((t - 0.25) * 5, 2));
-  const sustain = (1 - t) * 0.15 + 0.05;
-  const intensity = Math.max(bell, sustain);
-  const spread = (intensity * 80).toFixed(1);
-  const blur = (intensity * 24 + 4).toFixed(1);
-  return `${spread}px 0 ${blur}px ${color}, -${spread}px 0 ${blur}px ${color}`;
-}
-
-// FX-07 Calçadão — partido alto clave. Sustains during hold (loops).
-function sambaLetterTransform(
-  letterIdx: number,
-  elapsedMs: number,
-  nowMs: number,
-): { transform: string; opacity: number } {
-  const entryT = Math.min(1, elapsedMs / 400);
-  const entryE = easeOutCubic(entryT);
-  const cycleMs = 1200;
-  const cycle = ((nowMs % cycleMs) + cycleMs) % cycleMs / cycleMs;
-  const hits = [0, 0.25, 0.375, 0.625, 0.75];
-  const letterPhase = (cycle + letterIdx * 0.06) % 1;
-  let pulse = 0;
-  for (const h of hits) {
-    const d = Math.abs(letterPhase - h);
-    const dm = Math.min(d, 1 - d);
-    const k = Math.exp(-dm * 32);
-    if (k > pulse) pulse = k;
-  }
-  const yOff = -pulse * 14 * entryE;
-  const sX = (1 + pulse * 0.06) * entryE + (1 - entryE) * 0.7;
-  const sY = (1 + pulse * 0.18) * entryE + (1 - entryE) * 0.7;
-  const xSway = Math.sin(cycle * Math.PI * 2 + letterIdx * 0.5) * 1.5 * entryE;
-  return {
-    transform: `translate(${xSway.toFixed(2)}px, ${yOff.toFixed(2)}px) scale(${sX.toFixed(3)}, ${sY.toFixed(3)})`,
-    opacity: entryE,
-  };
-}
-
-// FX-10 Crystalline Shatter — entry-only fracture, snaps with easeOutQuint.
-function crystalLetterTransform(
-  letterIdx: number,
-  elapsedMs: number,
-): { transform: string; opacity: number } {
-  const t = Math.min(1, elapsedMs / 900);
-  const e = easeOutQuint(t);
-  const rng = seedRand(letterIdx * 73 + 19);
-  const angle = rng() * Math.PI * 2;
-  const dist = 60 + rng() * 90;
-  const dx = Math.cos(angle) * dist * (1 - e);
-  const dy = Math.sin(angle) * dist * (1 - e);
-  const rot = (rng() - 0.5) * 60 * (1 - e);
-  const sc = 0.4 + e * 0.6;
-  return {
-    transform: `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) rotate(${rot.toFixed(1)}deg) scale(${sc.toFixed(3)})`,
-    opacity: e,
-  };
-}
-
-// FX-12 Magnetic Pull — damped oscillator e^(-kt) * cos(ωt) snap-back.
-function magneticLetterTransform(
-  letterIdx: number,
-  elapsedMs: number,
-): { transform: string; opacity: number } {
-  const t = Math.min(1, elapsedMs / 1100);
-  const rng = seedRand(letterIdx * 41 + 7);
-  const angle = rng() * Math.PI * 2;
-  const dist = 80 + rng() * 60;
-  const k = 4.5;
-  const omega = 9;
-  const decay = Math.exp(-k * t);
-  const osc = Math.cos(omega * t);
-  const factor = decay * osc;
-  const dx = Math.cos(angle) * dist * factor;
-  const dy = Math.sin(angle) * dist * factor;
-  const rotMax = (rng() - 0.5) * 80;
-  const rot = rotMax * factor;
-  return {
-    transform: `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) rotate(${rot.toFixed(1)}deg)`,
-    opacity: Math.min(1, t * 2.5),
-  };
-}
-
-// FX Lab Vol.03 — intensity-driven body motion (resonance / plasma / inflation
-// / ferro / shockwave). Each takes a single 0..1 intensity that scales BOTH
-// amplitude AND rate; primitive attributes are recomputed per frame from
-// useCurrentFrame() inside the React tree, so seeds advance deterministically
-// and the same frame always produces the same render (Player + Lambda parity).
-//
-// Slice glitch lives separately — it's structural (10 stacked clip-path bands)
-// not filter-based — and is rendered inline in the per-word branch.
-
-type Vol03Effect = 'resonance' | 'plasma' | 'inflation' | 'ferro' | 'shockwave';
-
-const VOL03_EFFECTS: ReadonlyArray<Vol03Effect> = [
-  'resonance', 'plasma', 'inflation', 'ferro', 'shockwave',
-];
-
-function isVol03Effect(e: string | undefined): e is Vol03Effect {
-  return e === 'resonance' || e === 'plasma' || e === 'inflation'
-    || e === 'ferro' || e === 'shockwave';
-}
-
-function hexToRgb(hex: string): [number, number, number] {
-  let h = hex.trim().replace('#', '');
-  if (h.length === 3) h = h.split('').map((c) => c + c).join('');
-  if (h.length === 8) h = h.slice(0, 6);
-  const n = parseInt(h, 16);
-  if (Number.isNaN(n)) return [255, 255, 255];
-  return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
-}
-
-function blendRgbHex(a: [number, number, number], b: [number, number, number], t: number): string {
-  const r = Math.round(a[0] + (b[0] - a[0]) * t);
-  const g = Math.round(a[1] + (b[1] - a[1]) * t);
-  const bl = Math.round(a[2] + (b[2] - a[2]) * t);
-  return `rgb(${r}, ${g}, ${bl})`;
-}
-
-const FX_FILTER_REGION = { x: '-30%', y: '-50%', width: '160%', height: '200%' };
-
-function FxFilter({
-  id,
-  effect,
-  intensity,
-  frameSec,
-  tierFillHex,
-}: {
-  id: string;
-  effect: Vol03Effect;
-  intensity: number;
-  frameSec: number;
-  tierFillHex: string;
-}) {
-  const I = Math.max(0, Math.min(1, intensity));
-  const t = frameSec;
-
-  if (effect === 'resonance') {
-    const seed1 = Math.floor(t * 6) % 200;
-    const seed2 = Math.floor(t * 9) % 200;
-    const freqLow = 5 + I * 8;
-    const freqHigh = 14 + I * 18;
-    const scale1 = I * 18 * Math.sin(t * freqLow);
-    const scale2 = I * 10 * Math.sin(t * freqHigh + 1.7);
-    return (
-      <filter id={id} {...FX_FILTER_REGION}>
-        <feTurbulence type="turbulence" baseFrequency="0.018" numOctaves={2} seed={seed1} result="t1" />
-        <feDisplacementMap in="SourceGraphic" in2="t1" scale={scale1} result="d1" />
-        <feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves={2} seed={seed2} result="t2" />
-        <feDisplacementMap in="d1" in2="t2" scale={scale2} />
-      </filter>
-    );
-  }
-
-  if (effect === 'plasma') {
-    const seed = Math.floor(t * (1 + I * 4)) % 100;
-    const bf1 = (0.018 + I * 0.012).toFixed(4);
-    const bf2 = (0.025 + I * 0.018).toFixed(4);
-    const alphaMul = Math.min(1, I * 1.1).toFixed(3);
-    return (
-      <filter id={id} x="-10%" y="-10%" width="120%" height="120%">
-        <feTurbulence type="fractalNoise" baseFrequency={`${bf1} ${bf2}`} numOctaves={2} seed={seed} result="noise" />
-        <feComponentTransfer in="noise" result="hot">
-          <feFuncR type="table" tableValues="0.05 0.4 0.95 1 0.95" />
-          <feFuncG type="table" tableValues="0 0.05 0.5 0.85 0.95" />
-          <feFuncB type="table" tableValues="0.2 0 0 0.05 0.4" />
-          <feFuncA type="table" tableValues="0 1 1 1 1" />
-        </feComponentTransfer>
-        <feComposite in="hot" in2="SourceGraphic" operator="in" result="masked" />
-        <feColorMatrix
-          in="masked"
-          type="matrix"
-          values={`1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ${alphaMul} 0`}
-          result="opacityCtl"
-        />
-        <feMerge>
-          <feMergeNode in="SourceGraphic" />
-          <feMergeNode in="opacityCtl" />
-        </feMerge>
-      </filter>
-    );
-  }
-
-  if (effect === 'inflation') {
-    const breathRate = 1.6 + I * 3.0;
-    const breathPhase = Math.sin(t * breathRate);
-    const breathBias = I * 0.4;
-    const breathOsc = breathPhase * (0.05 + I * 0.4);
-    const radius = Math.max(0, breathBias + breathOsc);
-    return (
-      <filter id={id} x="-15%" y="-25%" width="130%" height="150%">
-        <feMorphology operator="dilate" radius={radius} in="SourceGraphic" />
-      </filter>
-    );
-  }
-
-  if (effect === 'ferro') {
-    const radius = 0.5 + I * 7.5;
-    const dispScale = I * 28;
-    const bf = (0.35 + I * 0.4).toFixed(3);
-    const seedRate = 8 + I * 30;
-    const seed = Math.floor(t * seedRate) % 250;
-    const baseRgb = hexToRgb(tierFillHex);
-    const hotRgb: [number, number, number] = [0xff, 0x5b, 0x3c];
-    const floodColor = blendRgbHex(baseRgb, hotRgb, I);
-    return (
-      <filter id={id} {...FX_FILTER_REGION}>
-        <feMorphology operator="dilate" radius={radius} in="SourceGraphic" result="dilated" />
-        <feComposite operator="out" in="dilated" in2="SourceGraphic" result="halo" />
-        <feTurbulence type="fractalNoise" baseFrequency={bf} numOctaves={2} seed={seed} result="spikeNoise" />
-        <feDisplacementMap in="halo" in2="spikeNoise" scale={dispScale} result="spikes" />
-        <feFlood floodColor={floodColor} result="flood" />
-        <feComposite operator="in" in="flood" in2="spikes" result="coloredSpikes" />
-        <feMerge>
-          <feMergeNode in="coloredSpikes" />
-          <feMergeNode in="SourceGraphic" />
-        </feMerge>
-      </filter>
-    );
-  }
-
-  // shockwave
-  const omega = 9 + I * 50;
-  const pulse = Math.abs(Math.sin(t * omega));
-  const dispScale = pulse * I * 32;
-  const bf = (0.018 + I * 0.04).toFixed(4);
-  const seed = Math.floor(t * 2) % 200;
-  return (
-    <filter id={id} x="-15%" y="-25%" width="130%" height="150%">
-      <feTurbulence type="turbulence" baseFrequency={bf} numOctaves={1} seed={seed} result="wave" />
-      <feDisplacementMap in="SourceGraphic" in2="wave" scale={dispScale} />
-    </filter>
-  );
-}
-
-type FxRequest = { id: string; effect: Vol03Effect; intensity: number; tierFillHex: string };
-
-function FxFilterDefs({ requests, frameSec }: { requests: FxRequest[]; frameSec: number }) {
-  if (requests.length === 0) return null;
-  return (
-    <svg
-      width="0"
-      height="0"
-      style={{ position: 'absolute', width: 0, height: 0, pointerEvents: 'none' }}
-      aria-hidden="true"
-    >
-      <defs>
-        {requests.map((r) => (
-          <FxFilter
-            key={r.id}
-            id={r.id}
-            effect={r.effect}
-            intensity={r.intensity}
-            frameSec={frameSec}
-            tierFillHex={r.tierFillHex}
-          />
-        ))}
-      </defs>
-    </svg>
-  );
-}
-
-// Slice glitch — 10 horizontal-band stacked copies, per-band offsets driven
-// by deterministic frame-tick pseudo-random. Bypasses the per-letter render.
-function SliceWord({
-  text,
-  intensity,
-  frameSec,
-  fontStyles,
-  fillStyles,
-  baseColor,
-  scale,
-  opacity,
-}: {
-  text: string;
-  intensity: number;
-  frameSec: number;
-  fontStyles: React.CSSProperties;
-  fillStyles: React.CSSProperties;
-  baseColor: string;
-  scale: number;
-  opacity: number;
-}) {
-  const I = Math.max(0, Math.min(1, intensity));
-  const BANDS = 10;
-  const tickMs = Math.max(20, 200 - I * 170);
-  const tick = Math.floor((frameSec * 1000) / tickMs);
-  const maxOffset = I * 22;
-
-  const bandRand = (i: number, k: number): number => {
-    const s = ((i * 9173) ^ (k * 31337)) >>> 0;
-    return ((s * 1664525 + 1013904223) >>> 0) / 4294967295;
-  };
-
-  const bands: React.ReactNode[] = [];
-  for (let i = 0; i < BANDS; i++) {
-    const r = bandRand(i, tick);
-    let off = (r - 0.5) * 2 * maxOffset;
-    const r2 = bandRand(i, tick + 1000);
-    if (r2 > 0.4 + I * 0.55) off = 0;
-
-    let bandColor = baseColor;
-    if (I > 0.6 && Math.abs(off) > 4) {
-      if (i % 3 === 0) bandColor = '#4dd4ff';
-      else if (i % 3 === 1) bandColor = '#ff5b3c';
-    }
-
-    const topPct = (i / BANDS) * 100;
-    const botPct = ((BANDS - i - 1) / BANDS) * 100;
-
-    bands.push(
-      <span
-        key={i}
-        style={{
-          ...fontStyles,
-          ...fillStyles,
-          color: bandColor,
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          clipPath: `inset(${topPct.toFixed(3)}% 0 ${botPct.toFixed(3)}% 0)`,
-          WebkitClipPath: `inset(${topPct.toFixed(3)}% 0 ${botPct.toFixed(3)}% 0)`,
-          transform: `translateX(${off.toFixed(2)}px)`,
-        }}
-      >
-        {text}
-      </span>,
-    );
-  }
-
-  return (
-    <span
-      style={{
-        position: 'relative',
-        display: 'inline-block',
-        transform: scale !== 1 ? `scale(${scale})` : undefined,
-        transformOrigin: 'left baseline',
-        opacity,
-      }}
-    >
-      {/* Layout placeholder so the word reserves correct width — invisible but laid out */}
-      <span style={{ ...fontStyles, ...fillStyles, color: 'transparent', visibility: 'hidden' }}>
-        {text}
-      </span>
-      {bands}
-    </span>
-  );
-}
-
 type Props = {
   videoFile: string;
   videoMeta: { width: number; height: number; durationInFrames: number; fps: number };
@@ -527,11 +102,15 @@ type Props = {
   captionPlan: CaptionPlan | null;
   faces: FaceData | null;
   styleSpec: Record<string, any>;
+  /** Optional Director plan. When present, audio cues + typewriter patterns
+   *  fire via <CueLayer>. Absent for legacy renders. */
+  directorScript?: DirectorScript;
 };
 
 export const ReelClone: React.FC<Props> = ({
   videoFile,
   transcript,
+  directorScript,
   captionPlan,
   styleSpec,
 }) => {
@@ -540,11 +119,36 @@ export const ReelClone: React.FC<Props> = ({
   const t = frame / fps;
 
   // --- Read ALL config from styleSpec ---
-  const font = styleSpec.font ?? {};
-  const color = styleSpec.color ?? {};
-  const layout = styleSpec.layout ?? {};
-  const anim = styleSpec.animation ?? {};
-  const reel = styleSpec.reel ?? {};
+  // Per-chunk style resolution: when styleSpec.chunkOverrides[] is set
+  // (e.g. the Director planner emits one entry per scene group), the
+  // active chunk's effective spec is the base spec merged with the
+  // overrides whose range covers activeChunkIdx. We pre-compute just
+  // enough base config to pick the active chunk, then read everything
+  // else from the per-chunk resolved spec so size / color / layout /
+  // tiers / placement can vary per group.
+  const baseLayoutForChunking = (styleSpec.layout ?? {}) as Record<string, any>;
+  const baseAnimForChunking = (styleSpec.animation ?? {}) as Record<string, any>;
+  const _maxPerLineForChunking = baseLayoutForChunking.maxWordsPerLine ?? 4;
+  const _tailMsForChunking = baseAnimForChunking.tailMs ?? 200;
+  const _preChunks: CaptionChunk[] = selectChunks(captionPlan, transcript.words, {
+    maxPerLine: _maxPerLineForChunking,
+  });
+  const _preActiveChunkIdx = pickActiveChunk(_preChunks, t, _tailMsForChunking / 1000);
+  const _chunkOverrides = styleSpec.chunkOverrides as ChunkOverride[] | undefined;
+  const effectiveSpec =
+    _preActiveChunkIdx >= 0
+      ? resolveChunkStyle(_preActiveChunkIdx, styleSpec, _chunkOverrides)
+      : styleSpec;
+  const font = effectiveSpec.font ?? {};
+  const color = effectiveSpec.color ?? {};
+  const layout = effectiveSpec.layout ?? {};
+  const anim = effectiveSpec.animation ?? {};
+  const reel = effectiveSpec.reel ?? {};
+  // Optional editor-controlled bounding box for the caption container.
+  // When set, overrides the default top/bottom-anchored layout so the
+  // user can place captions visually via the on-preview gizmo.
+  const captionTransform: { x: number; y: number; w: number; h: number; rot: number } | null =
+    styleSpec.captionTransform ?? null;
 
   // Font
   const fontFamily = font.family ?? 'Inter';
@@ -562,11 +166,24 @@ export const ReelClone: React.FC<Props> = ({
 
   // Layout
   const maxPerLine = layout.maxWordsPerLine ?? 4;
-  const position = layout.position ?? 'bottom';
   const safeMargin = layout.safeMargin ?? 0.15;
-  const align = layout.align ?? 'left';
+  // Generalized placement model — reads `layout.placement` if present,
+  // otherwise maps from legacy `layout.position` + `layout.align`. Old
+  // presets continue to render with byte-faithful CSS via this helper.
+  const placement = resolvePlacement(styleSpec);
+  const align = placement.alignment;
 
-  // Animation
+  // Animation. `preset` switches the *kind* of entry behavior layered on top
+  // of the spring; `scaleFrom`, `durationMs`, `spring.*` parameterize it.
+  //   pop / karaoke / typewriter / undefined → existing scale+opacity behavior
+  //                                            driven by scaleFrom (opacity ramps
+  //                                            only when scaleFrom < 1).
+  //   fade  → opacity ramp 0→1 over durationMs even when scaleFrom stays 1,
+  //           so the agent can say "make it fade" without also tuning scaleFrom.
+  //   slide → opacity 0→1 + translateY from size*0.4 down to 0 over durationMs.
+  // Explicit scaleFrom < 1 wins over preset for the opacity computation, so
+  // golden-frame fixtures (preset=karaoke + scaleFrom=0.7) keep their look.
+  const animPreset = (anim.preset ?? 'pop') as 'pop' | 'fade' | 'karaoke' | 'typewriter' | 'slide';
   const tailMs = anim.tailMs ?? 200;
   const scaleFrom = anim.scaleFrom ?? 1.0;
   const springDamping = anim.spring?.damping ?? 14;
@@ -631,69 +248,10 @@ export const ReelClone: React.FC<Props> = ({
   // word and italicize the bottom italicAccentRate fraction. Same word
   // always gets the same treatment, so the result is stable across re-renders
   // but distributed naturally across the video.
-  const italicAccentRate: number = typeof reel.italicAccentRate === 'number'
-    ? Math.max(0, Math.min(1, reel.italicAccentRate))
-    : 0;
-  // Backward-compat: respect old italicVocabulary lists if a hand-tuned
-  // preset still uses them (e.g. v7).
-  const italicVocabulary: string[] = Array.isArray(reel.italicVocabulary)
-    ? reel.italicVocabulary.map((s: any) => String(s).toLowerCase())
-    : [];
-  const editDistance = (a: string, b: string): number => {
-    if (a === b) return 0;
-    const m = a.length, n = b.length;
-    if (m === 0) return n;
-    if (n === 0) return m;
-    const dp: number[] = new Array(n + 1);
-    for (let j = 0; j <= n; j++) dp[j] = j;
-    for (let i = 1; i <= m; i++) {
-      let prev = dp[0]!;
-      dp[0] = i;
-      for (let j = 1; j <= n; j++) {
-        const tmp = dp[j]!;
-        dp[j] = a[i - 1] === b[j - 1]
-          ? prev
-          : 1 + Math.min(prev, dp[j]!, dp[j - 1]!);
-        prev = tmp;
-      }
-    }
-    return dp[n]!;
-  };
-  // Stable string hash — FNV-1a 32-bit. Better distribution on short words
-  // than polynomial 31-shift, so the italic-rate selection actually reaches
-  // its target fraction even on small word sets (~30-50 unique words).
-  const hashUnit = (s: string): number => {
-    let h = 0x811c9dc5;
-    for (let i = 0; i < s.length; i++) {
-      h ^= s.charCodeAt(i);
-      h = Math.imul(h, 0x01000193);
-    }
-    return (h >>> 0) / 0x100000000;
-  };
-  const isItalicWord = (key: string): boolean => {
-    // Eligibility for italic accent treatment: long content word (>= 5 alpha
-    // chars) — short words like "is" / "a" wouldn't read as italic anyway.
-    if (key.length < 5) return false;
-    // Vocabulary path (back-compat with hand-tuned presets)
-    if (italicVocabulary.length > 0) {
-      for (const v of italicVocabulary) {
-        if (v === key) return true;
-        const longer = Math.max(v.length, key.length);
-        if (editDistance(v, key) / longer <= 0.34) return true;
-      }
-    }
-    // Rate path (auto-extracted presets) — deterministically italicize the
-    // hash-bucket fraction that matches the source's measured italic rate.
-    // Floor at 0.08 when nonzero to ensure visible italic accents even on
-    // short transcripts (~30-50 unique qualifying words) where small target
-    // rates would statistically miss everything. Cap at 0.30 so italic
-    // doesn't overwhelm.
-    if (italicAccentRate > 0) {
-      const effective = Math.max(0.08, Math.min(0.3, italicAccentRate));
-      if (hashUnit(key) < effective) return true;
-    }
-    return false;
-  };
+  const isItalicWord = makeItalicMatcher({
+    italicAccentRate: typeof reel.italicAccentRate === 'number' ? reel.italicAccentRate : 0,
+    italicVocabulary: Array.isArray(reel.italicVocabulary) ? reel.italicVocabulary : [],
+  });
   const emphasisSizeMultiplier = reel.emphasisSizeMultiplier ?? 1.0;
   const fillerSizeMultiplier = reel.fillerSizeMultiplier ?? 1.0;
   // Resolve emphasis behavior from emphasisStyle. Individual reel.* fields can
@@ -727,38 +285,18 @@ export const ReelClone: React.FC<Props> = ({
   const sizeMedium = baseSize;
   const sizeFiller = baseSize * fillerSizeMultiplier;
 
-  const USABLE_WIDTH = frameWidth * (maxWidthPercent / 100);
-  // CHAR_ADVANCE controls how the renderer estimates a word's pixel-width
-  // from its font-size. The default 0.58 was a conservative generic value
-  // that under-sized text for Inter Black with tight letterSpacing (real
-  // measured value ~0.50). Allow the styleSpec to override for fonts/
-  // tracking combos where 0.58 doesn't fit.
-  const CHAR_ADVANCE = typeof styleSpec.charAdvance === 'number'
-    ? styleSpec.charAdvance
-    : 0.58;
-  const maxSizeForWord = (len: number) =>
-    len > 0 ? USABLE_WIDTH / (len * CHAR_ADVANCE) : Infinity;
+  const { usableWidth: USABLE_WIDTH, charAdvance: CHAR_ADVANCE, maxSizeForWord } = makeSizing({
+    frameWidth,
+    maxWidthPercent,
+    charAdvance: styleSpec.charAdvance,
+  });
 
-  // Chunks
-  const chunks: CaptionChunk[] = captionPlan
-    ? captionPlan.chunks
-    : fallbackChunks(transcript.words, maxPerLine);
-
-  // Active chunk selection
-  const tailSec = tailMs / 1000;
-  let activeChunkIdx = -1;
-  for (let i = chunks.length - 1; i >= 0; i--) {
-    const c = chunks[i];
-    if (c && c.words.length > 0 && t >= c.words[0]!.start) {
-      const next = chunks[i + 1];
-      if (next && next.words.length > 0 && t >= next.words[0]!.start) continue;
-      const lastWord = c.words[c.words.length - 1]!;
-      if (t <= lastWord.end + tailSec || !next) {
-        activeChunkIdx = i;
-        break;
-      }
-    }
-  }
+  // Chunks + active-chunk pick reuse the values computed earlier (the
+  // per-chunk effectiveSpec needed activeChunkIdx, so the work happens
+  // before the styling reads). Re-binding here keeps the downstream
+  // names readable.
+  const chunks = _preChunks;
+  const activeChunkIdx = _preActiveChunkIdx;
 
   if (activeChunkIdx < 0) {
     return (
@@ -780,16 +318,13 @@ export const ReelClone: React.FC<Props> = ({
     : doInferEmphasis ? inferEmphasis(activeChunk.words)
     : activeChunk.emphasis;
 
-  // Position styles
-  const positionStyle: React.CSSProperties =
-    position === 'top'
-      ? { top: `${safeMargin * 100}%` }
-      : position === 'middle'
-        ? { top: '50%', transform: 'translateY(-50%)' }
-        : { bottom: `${safeMargin * 100}%` };
-
-  const justifyContent =
-    align === 'left' ? 'flex-start' : align === 'right' ? 'flex-end' : 'center';
+  // Position + alignment styles, derived from the resolved Placement.
+  // For legacy presets (no layout.placement, no offsets) this emits the
+  // exact same CSS as the pre-refactor inline conditional did.
+  const { positionStyle, justifyContent } = placementToContainerStyle(
+    placement,
+    safeMargin,
+  );
 
   // Vol.03 filter requests — one filter per (tierKey, effect) pair that's
   // configured. Slice glitch is structural, not filter-based, so it's
@@ -821,17 +356,41 @@ export const ReelClone: React.FC<Props> = ({
       {videoFile && (
         <OffthreadVideo src={videoFile.startsWith('http') ? videoFile : staticFile(videoFile)} />
       )}
+      {directorScript && (
+        <CueLayer
+          script={directorScript}
+          wordStartTimesSec={transcript.words.map((w) => w.start)}
+          wordsText={transcript.words.map((w) => w.word)}
+        />
+      )}
       <FxFilterDefs requests={fxRequests} frameSec={t} />
       <div
-        style={{
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          display: 'flex',
-          justifyContent,
-          padding: `0 ${paddingPercent}%`,
-          ...positionStyle,
-        }}
+        data-caption-container
+        style={
+          captionTransform
+            ? {
+                position: 'absolute',
+                left: `${(captionTransform.x / 1080) * 100}%`,
+                top: `${(captionTransform.y / 1920) * 100}%`,
+                width: `${(captionTransform.w / 1080) * 100}%`,
+                height: `${(captionTransform.h / 1920) * 100}%`,
+                transform: `rotate(${captionTransform.rot}deg)`,
+                transformOrigin: 'center',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent,
+                padding: `0 ${paddingPercent}%`,
+              }
+            : {
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                display: 'flex',
+                justifyContent,
+                padding: `0 ${paddingPercent}%`,
+                ...positionStyle,
+              }
+        }
       >
         <div
           style={{
@@ -843,153 +402,53 @@ export const ReelClone: React.FC<Props> = ({
           }}
         >
           {(() => {
-            // 1. Group words into explicit logical lines.
-            //    Only LAST-WORD emphasis breaks to its own line — that's the
-            //    anchor block treatment. Mid-stack emphasis stays inline so
-            //    it can carry inline-color treatment instead.
-            type LineEntry = { wordIdx: number };
-            const lines: LineEntry[][] = [];
-            let cur: LineEntry[] = [];
-            const flush = () => {
-              if (cur.length > 0) {
-                lines.push(cur);
-                cur = [];
-              }
+            // Per-chunk override resolution. Director plans land as
+            // styleSpec.chunkOverrides entries — one per scene group, with
+            // reel.layout.strategy set from the group's role default. The
+            // renderer's other cascade-stack parameters stay at the base
+            // level so cascade math doesn't reflow mid-stream when a
+            // non-cascade group runs.
+            const chunkOverrides = (styleSpec.chunkOverrides as ChunkOverride[] | undefined);
+            const effectiveSpec = resolveChunkStyle(activeChunkIdx, styleSpec, chunkOverrides);
+            const effectiveReel = (effectiveSpec.reel ?? reel) as Record<string, unknown>;
+            const effectiveLayout = (effectiveReel.layout as { strategy?: string } | undefined);
+            const strategyId: LayoutStrategyId =
+              (effectiveLayout?.strategy as LayoutStrategyId | undefined) ?? 'cascade-stack';
+            const strategyInput: StrategyInput = {
+              chunk: activeChunk,
+              effectiveEmphasis,
+              baseSize,
+              frameWidth,
+              frameHeight,
+              usableWidth: USABLE_WIDTH,
+              charAdvance: CHAR_ADVANCE,
+              maxSizeForWord,
             };
-            const lastWordIdx = activeChunk.words.length - 1;
-            const isDigitWord = (s: string) => /\d/.test(s);
-            const stripped = (s: string) => s.replace(/[^A-Za-z0-9]/g, '');
-            const valueKey = (s: string) =>
-              s.toLowerCase().replace(/[.,!?;:"'()—\-_]/g, '');
-            const isValueLike = (s: string) => VALUE_WORDS.has(valueKey(s));
-            for (let i = 0; i < activeChunk.words.length; i++) {
-              const isEmph = effectiveEmphasis[i] ?? false;
-              const word = activeChunk.words[i]!.word;
-              // Anchor break: only meaty alpha emphasis on the FINAL word
-              // goes on its own line for block treatment. Numbers, value-
-              // words, and short emphasis words stay inline so they can
-              // carry inline-color treatment (matches references like
-              // "I was *26*" or "are *never*" — same line, just colored).
-              const isAnchorEmph =
-                emphasisLineBreak &&
-                isEmph &&
-                i === lastWordIdx &&
-                !isDigitWord(word) &&
-                !isValueLike(word) &&
-                stripped(word).length >= 5;
-              if (isAnchorEmph) {
-                flush();
-                lines.push([{ wordIdx: i }]);
-              } else {
-                cur.push({ wordIdx: i });
-                if (cur.length >= maxPerLine) flush();
-              }
-            }
-            flush();
+            const plan = getLayoutStrategy(strategyId).computeLayout(
+              strategyInput,
+              {
+                maxPerLine,
+                columnGapRatio,
+                cascadeTopRatio,
+                cascadeBottomRatio,
+                emphasisFillRatio,
+                emphasisMaxHeightRatio,
+                emphasisSizeMultiplier,
+                fillerSizeMultiplier,
+                sizeRuleIsFit: styleDefaults.sizeRule === 'fit',
+                emphasisLineBreak,
+              },
+            );
+            // Alias kept so downstream `lines.length` references inside the
+            // per-word render still resolve. The renderer only reads layout
+            // output; all layout math lives in lib/layout/cascadeStack.
+            const lines = plan.lines;
 
-            // 1b. Width-budget split — re-walk each line and break it whenever
-            // the cumulative word-width exceeds USABLE_WIDTH. Same source-of-
-            // truth as `maxSizeForWord` so the split decision and the actual
-            // rendered size agree. Without this, long inline words like
-            // "i don't WANT" can spill past the frame edge in narrow videos.
-            const splitLines: LineEntry[][] = [];
-            const widthBudget = USABLE_WIDTH;
-            for (let li = 0; li < lines.length; li++) {
-              const line = lines[li]!;
-              if (line.length <= 1) {
-                splitLines.push(line);
-                continue;
-              }
-              // Estimate the per-line cascade factor at this index assuming
-              // current chunk shape; if splitting adds rows the factor is
-              // recalculated later (this estimate is conservative).
-              const factor = lines.length <= 1
-                ? cascadeBottomRatio
-                : cascadeTopRatio +
-                  (cascadeBottomRatio - cascadeTopRatio) *
-                    (li / (lines.length - 1));
-              const wordSize = baseSize * factor;
-              const gap = baseSize * factor * columnGapRatio;
-              let bucket: LineEntry[] = [];
-              let bucketWidth = 0;
-              for (const entry of line) {
-                const w = activeChunk.words[entry.wordIdx]!;
-                const wordWidth = wordSize * Math.max(1, w.word.length) * CHAR_ADVANCE;
-                const needsBreak = bucket.length > 0 &&
-                  bucketWidth + gap + wordWidth > widthBudget;
-                if (needsBreak) {
-                  splitLines.push(bucket);
-                  bucket = [];
-                  bucketWidth = 0;
-                }
-                bucket.push(entry);
-                bucketWidth += wordWidth + (bucket.length > 1 ? gap : 0);
-              }
-              if (bucket.length > 0) splitLines.push(bucket);
-            }
-            // Replace `lines` with the width-aware split.
-            lines.length = 0;
-            for (const l of splitLines) lines.push(l);
-
-            // 2. Track emphasis count for multi-color cycling.
+            // Track emphasis count for multi-color cycling.
             let emphasisSeen = 0;
 
-            return lines.map((line, lineIdx) => {
-              // Per-line size factor: cascade from top (small) to bottom (anchor).
-              const lineFactor =
-                lines.length <= 1
-                  ? cascadeBottomRatio
-                  : cascadeTopRatio +
-                    (cascadeBottomRatio - cascadeTopRatio) *
-                      (lineIdx / (lines.length - 1));
-
-              // Pre-pass: compute each word's intended size and the line's
-              // estimated rendered width. The earlier width-budget splitter
-              // assumes uniform `baseSize * factor` per word, but the actual
-              // render scales emphasis tiers (anchor-block fitSize,
-              // emphasisSizeMultiplier, etc.). When that diverges, two words
-              // that "fit" by the splitter's count can still overflow the
-              // frame. This shrinks the whole line uniformly if it does.
-              const isLastLine = lineIdx === lines.length - 1;
-              const cascadeBaseLine = baseSize * lineFactor;
-              const sizeHints: number[] = [];
-              let estLineWidth = 0;
-              for (let lci = 0; lci < line.length; lci++) {
-                const wi = line[lci]!.wordIdx;
-                const ww = activeChunk.words[wi]!;
-                const isEmph = effectiveEmphasis[wi] ?? false;
-                const onOwn = line.length === 1;
-                const hasDigit = /\d/.test(ww.word);
-                const alphaLen = ww.word.replace(/[^A-Za-z]/g, '').length;
-                const keyLower = ww.word.toLowerCase().replace(/[.,!?;:"'()—\-_]/g, '');
-                const isAnchorBlk =
-                  isEmph && isLastLine && onOwn &&
-                  styleDefaults.sizeRule === 'fit' &&
-                  emphasisFillRatio != null &&
-                  !hasDigit && !VALUE_WORDS.has(keyLower) && alphaLen >= 5;
-                const fitSz = isAnchorBlk
-                  ? (USABLE_WIDTH * emphasisFillRatio!) /
-                    Math.max(1, ww.word.length * CHAR_ADVANCE)
-                  : null;
-                const fillerLocal = !isEmph && isFiller(ww.word);
-                const tMul = isEmph && !isAnchorBlk
-                  ? 1.0
-                  : isEmph
-                    ? emphasisSizeMultiplier
-                    : fillerLocal ? fillerSizeMultiplier : 1.0;
-                const rawSz = fitSz != null ? fitSz : cascadeBaseLine * tMul;
-                const hCap = isAnchorBlk
-                  ? frameHeight * emphasisMaxHeightRatio
-                  : frameHeight * 0.4;
-                const sz = Math.min(rawSz, maxSizeForWord(ww.word.length), hCap);
-                sizeHints.push(sz);
-                estLineWidth += sz * Math.max(1, ww.word.length) * CHAR_ADVANCE;
-              }
-              const lineGap = cascadeBaseLine * columnGapRatio;
-              estLineWidth += lineGap * Math.max(0, line.length - 1);
-              const lineScale = estLineWidth > USABLE_WIDTH
-                ? USABLE_WIDTH / estLineWidth
-                : 1;
+            return lines.map((lineData, lineIdx) => {
+              const { entries, lineFactor, lineScale, cascadeBaseLine } = lineData;
               return (
                 <div
                   key={lineIdx}
@@ -1000,7 +459,7 @@ export const ReelClone: React.FC<Props> = ({
                     columnGap: `${cascadeBaseLine * lineScale * columnGapRatio}px`,
                   }}
                 >
-                  {line.map(({ wordIdx: i }) => {
+                  {entries.map(({ wordIdx: i, sizeHint, isAnchorBlock: anchorBlock }) => {
                     const w = activeChunk.words[i]!;
                     const isEmphasis = effectiveEmphasis[i] ?? false;
                     const filler = !isEmphasis && isFiller(w.word);
@@ -1013,76 +472,54 @@ export const ReelClone: React.FC<Props> = ({
                     // final slot from the chunk's first frame; opacity/scale
                     // (transform doesn't affect CSS layout) handle the
                     // visual reveal once the word's start time hits.
-
-                    const entryFrame =
-                      wordReveal === 'progressive'
-                        ? wordStartFrame
-                        : Math.floor(activeChunk.words[0]!.start * fps);
-                    // Clamp the spring input to >= 0 so unrevealed words
-                    // (frame < entryFrame) sit at progress=0 instead of
-                    // hitting the spring with negative input. Combined
-                    // with the no-null change above, this is what keeps
-                    // pre-reveal slots invisible-but-laid-out.
-                    const progress = spring({
-                      frame: Math.max(0, frame - entryFrame),
+                    const entryFrame = pickEntryFrame(wordReveal as 'progressive' | 'all' | undefined, wordStartFrame, activeChunk, fps);
+                    const { progress, scale, opacity: springOpacity } = computeEntrySpring({
+                      frame,
+                      entryFrame,
                       fps,
-                      durationInFrames: Math.max(1, Math.round((animDuration / 1000) * fps)),
-                      config: { damping: springDamping, stiffness: springStiffness, mass: springMass },
+                      animDurationMs: animDuration,
+                      scaleFrom,
+                      spring: { damping: springDamping, stiffness: springStiffness, mass: springMass },
                     });
-                    const scale = scaleFrom + progress * (1 - scaleFrom);
-                    const opacity = Math.min(1, scaleFrom < 1 ? progress * 1.5 : 1);
+
+                    // Preset-specific entry layer on top of the spring. fade
+                    // forces an opacity ramp even when scaleFrom defaults to 1
+                    // (which otherwise leaves opacity at 1 throughout the
+                    // entry, making "fade" invisible). slide adds a translateY
+                    // entry alongside the opacity ramp.
+                    let opacity = springOpacity;
+                    let entryTranslateY = 0;
+                    if (animPreset === 'fade' || animPreset === 'slide') {
+                      const durFrames = Math.max(1, Math.round((animDuration / 1000) * fps));
+                      const elapsed = Math.max(0, frame - entryFrame);
+                      const linProgress = Math.min(1, elapsed / durFrames);
+                      // Only override opacity when the spring path wouldn't have
+                      // produced a ramp (scaleFrom >= 1). Preserves existing
+                      // scaleFrom-driven opacity behavior when both are set.
+                      if (scaleFrom >= 1) opacity = linProgress;
+                      if (animPreset === 'slide') {
+                        // 40% of the per-line size, in CSS px units — translates
+                        // each word in from below. Cleared once the entry ends.
+                        entryTranslateY = (1 - linProgress) * (sizeHint * lineScale) * 0.4;
+                      }
+                    }
 
                     // Position-aware emphasis treatment:
                     //   anchor block = emphasis on its own line at the bottom
                     //                  → white, uppercase (per spec), width-fit size
                     //   inline color = emphasis anywhere else → palette color,
                     //                  no case change, no size change
-                    const isAnchor = lineIdx === lines.length - 1;
-                    const onOwnLine = line.length === 1;
-                    const wordHasDigit = /\d/.test(w.word);
-                    const wordAlphaLen = w.word.replace(/[^A-Za-z]/g, '').length;
-                    const wordKeyEarly = w.word.toLowerCase().replace(/[.,!?;:"'()—\-_]/g, '');
-                    const wordIsValue = VALUE_WORDS.has(wordKeyEarly);
-                    // Determine anchor-block status FIRST, before italic. An
-                    // anchor word should be rendered as a block (white
-                    // uppercase huge), never as italic. Italic accents are
-                    // reserved for mid-stack secondary emphasis.
-                    const isAnchorBlock =
-                      isEmphasis && isAnchor && onOwnLine &&
-                      styleDefaults.sizeRule === 'fit' &&
-                      emphasisFillRatio != null &&
-                      !wordHasDigit &&
-                      !wordIsValue &&
-                      wordAlphaLen >= 5;
+                    const wordKeyEarly = anchorValueKey(w.word);
+                    // Anchor-block flag and pre-shrink size hint come from
+                    // the LayoutPlan (lib/layout/cascadeStack). The renderer
+                    // only multiplies the line-level shrink in.
+                    const isAnchorBlock = anchorBlock;
                     // Only italicize if NOT an anchor-block candidate. This
                     // prevents big anchor words like REALITY/CHANGES/TIME
                     // from being italicized away from their intended block
                     // treatment via the rate-based italic selection.
                     const wordIsItalic = !isAnchorBlock && isItalicWord(wordKeyEarly);
-
-                    const fitSize = isAnchorBlock
-                      ? (USABLE_WIDTH * emphasisFillRatio!) /
-                        Math.max(1, w.word.length * CHAR_ADVANCE)
-                      : null;
-
-                    const cascadeBase = baseSize * lineFactor;
-                    const tierMul = isEmphasis && !isAnchorBlock
-                      ? 1.0  // inline emphasis keeps base/cascade size
-                      : isEmphasis
-                        ? emphasisSizeMultiplier
-                        : filler ? fillerSizeMultiplier : 1.0;
-                    const rawSize = fitSize != null ? fitSize : cascadeBase * tierMul;
-
-                    const heightCap = isAnchorBlock
-                      ? frameHeight * emphasisMaxHeightRatio
-                      : frameHeight * 0.4;
-                    const sizeUnscaled =
-                      Math.min(rawSize, maxSizeForWord(w.word.length), heightCap);
-                    // Apply the line-level shrink (computed in the pre-pass
-                    // above) so the actual rendered line never overflows
-                    // USABLE_WIDTH even when per-word sizing diverges from
-                    // the splitter's coarse estimate.
-                    const size = sizeUnscaled * lineScale;
+                    const size = sizeHint * lineScale;
 
                     // Color: anchor block keeps base fill (white), inline
                     // emphasis uses palette (cycles when multiColorEmphasis).
@@ -1147,10 +584,14 @@ export const ReelClone: React.FC<Props> = ({
                     // an SVG filter via url(...) and keep the single span;
                     // slice glitch is structural (10 banded copies) and
                     // routes to <SliceWord/>.
-                    const tierEffect: EffectId = (tier?.effect as any) ?? 'none';
-                    const isPerLetterEffect =
-                      tierEffect === 'samba' || tierEffect === 'crystal' || tierEffect === 'magnetic';
-                    const isFilterEffect = isVol03Effect(tierEffect);
+                    const tierEffect: EffectId = (tier?.effect as EffectId) ?? 'none';
+                    // Effect routing now flows through the registry —
+                    // adding a new effect = registering it once in
+                    // lib/fx/registry.ts, no changes here.
+                    const effectKind = getEffectKind(tierEffect);
+                    const isPerLetterEffect = effectKind === 'per-letter';
+                    const isFilterEffect = effectKind === 'svg-filter';
+                    const isStructuralEffect = effectKind === 'structural';
                     const tierIntensity =
                       typeof tier?.intensity === 'number' ? tier.intensity : 0.5;
                     const tierKey: string | null = wordIsItalic
@@ -1207,7 +648,7 @@ export const ReelClone: React.FC<Props> = ({
                     // 10 stacked clip-banded copies via <SliceWord/>. Bypasses
                     // both the !isPerLetterEffect span path and the per-letter
                     // path (slice is its own rendering universe).
-                    if (tierEffect === 'slice' && tierKey != null) {
+                    if (isStructuralEffect && tierKey != null) {
                       const sliceColor =
                         typeof tierFill === 'string' ? tierFill : baseFinalColor;
                       return (
@@ -1255,6 +696,14 @@ export const ReelClone: React.FC<Props> = ({
                           combinedScale = scale * (1 + breathPhase * I * 0.04);
                         }
                       }
+                      // Compose entryTranslateY with the existing scale. Either
+                      // appears alone or together; "translateY(0)" + "scale(1)"
+                      // is a no-op so we skip when both default.
+                      const hasTranslate = entryTranslateY !== 0;
+                      const hasScale = combinedScale !== 1;
+                      const transform = hasTranslate || hasScale
+                        ? `${hasTranslate ? `translateY(${entryTranslateY}px) ` : ''}${hasScale ? `scale(${combinedScale})` : ''}`.trim()
+                        : undefined;
                       return (
                         <span
                           key={i}
@@ -1262,7 +711,7 @@ export const ReelClone: React.FC<Props> = ({
                             ...fontStyles,
                             ...fillStyles,
                             ...wordExtras,
-                            transform: combinedScale !== 1 ? `scale(${combinedScale})` : undefined,
+                            transform,
                             transformOrigin: 'left baseline',
                             opacity,
                           }}

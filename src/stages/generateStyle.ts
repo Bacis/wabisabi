@@ -128,14 +128,24 @@ function stripFences(text: string): string {
 }
 
 export async function generateStyle(args: GenerateStyleArgs): Promise<GenerateStyleResult> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY is not set — add it to .env to enable style generation');
+  if (!process.env.OPENROUTER_API_KEY) {
+    throw new Error('OPENROUTER_API_KEY is not set — add it to .env to enable style generation');
   }
 
-  // Lazy import so the API boots even when the SDK isn't installed.
+  // Route Anthropic calls through OpenRouter. We point the @anthropic-ai/sdk
+  // at OpenRouter's Anthropic-compatible endpoint (POST /api/v1/messages);
+  // the SDK appends /v1/messages to baseURL. cache_control passes through
+  // OpenRouter to Anthropic so prompt caching still works for Claude.
   const { default: Anthropic } = await import('@anthropic-ai/sdk');
-  // 5 retries (SDK default is 2) to ride out 529 Overloaded spikes.
-  const client = new Anthropic({ maxRetries: 5 });
+  const client = new Anthropic({
+    apiKey: process.env.OPENROUTER_API_KEY,
+    baseURL: 'https://openrouter.ai/api',
+    maxRetries: 5,
+    defaultHeaders: {
+      'HTTP-Referer': 'http://localhost:3000',
+      'X-Title': 'Caption Studio',
+    },
+  });
 
   const currentSpecJson = JSON.stringify(args.currentSpec ?? {}, null, 2);
   const userMessage = `Current templateId: ${args.currentTemplateId ?? 'pop-words'}
@@ -149,7 +159,7 @@ Output JSON only. No prose, no markdown fences.`;
 
   const start = Date.now();
   const response = await client.messages.create({
-    model: 'claude-haiku-4-5',
+    model: 'anthropic/claude-haiku-4.5',
     max_tokens: 2048,
     system: [
       {
