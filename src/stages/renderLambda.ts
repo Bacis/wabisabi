@@ -77,6 +77,7 @@ export async function renderCaptionsLambda(args: RenderArgs): Promise<RenderResu
     captionPlan: args.captionPlan,
     faces: args.faces,
     styleSpec: args.styleSpec,
+    directorScript: args.directorScript ?? null,
   };
 
   // Durable output key. The pipeline passes outputPath as ".../storage/outputs/<jobId>.mp4";

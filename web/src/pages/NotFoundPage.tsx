@@ -24,14 +24,14 @@ export function NotFoundPage() {
         <div className={styles.actions}>
           <Button
             as="a"
-            href="/agent/new"
+            href="/"
             variant="cyan"
             leadingIcon={<ArrowLeft size={13} />}
           >
-            Back to Atelier
+            Back to Caption Studio
           </Button>
-          <Button as="a" href="/jobs" variant="ghost">
-            Open ledger
+          <Button as="a" href="/library" variant="ghost">
+            Open library
           </Button>
         </div>
       </div>

@@ -91,8 +91,9 @@ describe('layoutBottomAnchor', () => {
       ],
       emphasis: [true, false, false],
     };
-    // ~317px per word at base size; usableWidth=700 fits ~2 per line
-    const plan = layoutBottomAnchor(baseInput(chunk, 700), params);
+    // Per word: 64 × 9 × 0.55 × WIDTH_SAFETY(1.4) ≈ 444px, gap ≈ 13px.
+    // usableWidth=1000 fits 2 padded words (~901px) but not 3 (~1358px).
+    const plan = layoutBottomAnchor(baseInput(chunk, 1000), params);
     expect(plan.lines.length).toBe(2);
     const flat = plan.lines.flatMap((l) => l.entries.map((e) => e.wordIdx));
     expect(flat).toEqual([0, 1, 2]);

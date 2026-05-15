@@ -32,7 +32,7 @@ export function TimelineGroupsLane({
 
   return (
     <div className={`${styles.ctlLane} ${styles.groupsLane}`}>
-      {data.map(({ group, leftPct, widthPct }) => {
+      {data.map(({ group, leftPct, widthPct, transcriptPreview }) => {
         const tStart = (leftPct / 100) * durationSec;
         return (
           <GroupPill
@@ -40,6 +40,7 @@ export function TimelineGroupsLane({
             group={group}
             leftPct={leftPct}
             widthPct={widthPct}
+            transcriptPreview={transcriptPreview}
             onClickSeek={() => handleSeek(tStart)}
           />
         );

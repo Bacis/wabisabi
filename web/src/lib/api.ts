@@ -479,7 +479,95 @@ export async function deleteDesign(id: string): Promise<void> {
   if (!r.ok) throw new Error(`DELETE /designs/${id} ${r.status}`);
 }
 
-// --- Agent chat (/agent/new) --------------------------------------------
+// --- Designer sessions (/designer/:id) ----------------------------------
+// Each row is the persisted state of one agent conversation: the chat
+// transcript + the editor source ref + the latest styleSpec snapshot.
+// Created on the user's first message; PATCHed after every agent reply.
+
+export type DesignerSessionSummary = {
+  id: string;
+  title: string;
+  templateId: string;
+  sourceKind: 'stock' | 'job';
+  sourceId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type DesignerSession = DesignerSessionSummary & {
+  userId: string;
+  styleSpec: Record<string, unknown>;
+  // Whole-video scene plan (DirectorScript) or null if the agent never
+  // fired apply_director_script for this session.
+  directorScript: unknown | null;
+  // Server stores opaque UIMessage[]; the client casts at the use site.
+  messages: unknown[];
+};
+
+export async function listDesignerSessions(): Promise<DesignerSessionSummary[]> {
+  const r = await api('/designer/sessions');
+  if (!r.ok) throw new Error(`GET /designer/sessions ${r.status}`);
+  return r.json();
+}
+
+export async function getDesignerSession(id: string): Promise<DesignerSession> {
+  const r = await api(`/designer/sessions/${encodeURIComponent(id)}`);
+  if (!r.ok) throw new Error(`GET /designer/sessions/${id} ${r.status}`);
+  return r.json();
+}
+
+export async function createDesignerSession(input: {
+  templateId: string;
+  sourceKind: 'stock' | 'job';
+  sourceId: string;
+  styleSpec: Record<string, unknown>;
+  // Whole-video scene plan if the very first user turn already produced one.
+  // Almost always null at create time (page state hasn't seen an agent
+  // reply yet); the first PATCH on response brings it in.
+  directorScript?: unknown | null;
+  firstMessage: string;
+  messages?: unknown[];
+}): Promise<DesignerSession> {
+  const r = await api('/designer/sessions', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(`POST /designer/sessions ${r.status}: ${body.error ?? 'unknown'}`);
+  }
+  return r.json();
+}
+
+export async function patchDesignerSession(
+  id: string,
+  input: Partial<{
+    title: string;
+    messages: unknown[];
+    styleSpec: Record<string, unknown>;
+    // null = explicit clear (revert dropped the plan); undefined = don't touch.
+    directorScript: unknown | null;
+  }>,
+): Promise<DesignerSession> {
+  const r = await api(`/designer/sessions/${encodeURIComponent(id)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(`PATCH /designer/sessions/${id} ${r.status}: ${body.error ?? 'unknown'}`);
+  }
+  return r.json();
+}
+
+export async function deleteDesignerSession(id: string): Promise<void> {
+  const r = await api(`/designer/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!r.ok) throw new Error(`DELETE /designer/sessions/${id} ${r.status}`);
+}
+
+// --- Agent chat (/designer/*) -------------------------------------------
 
 import type { DirectorScript } from './director';
 export type { DirectorScript } from './director';

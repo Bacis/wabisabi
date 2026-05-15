@@ -37,6 +37,7 @@ export async function renderCaptionsLocal(args: RenderArgs): Promise<RenderResul
     captionPlan: args.captionPlan,
     faces: args.faces,
     styleSpec: args.styleSpec,
+    directorScript: args.directorScript ?? null,
   };
 
   const startedAt = new Date().toISOString();

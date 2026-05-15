@@ -5,6 +5,7 @@
 
 import { useEditor } from '@/lib/editor/store';
 import { AgentChatPane } from '@/components/AgentChatPane';
+import type { UseAgentChatOpts } from '@/components/AgentChatPane/useAgentChat';
 import { PreviewPanel } from '@/components/preview/PreviewPanel';
 import { PhoneFrame } from './PhoneFrame';
 import { PreviewBar } from './PreviewBar';
@@ -13,14 +14,20 @@ import { CinematicTimeline } from './CinematicTimeline';
 import { WordStyler } from './WordStyler';
 import styles from '@/components/AgentChatPane/AgentChatPane.module.css';
 
-export function AgentWorkspace() {
+export function AgentWorkspace({
+  chatOpts,
+  initialPrompt,
+}: {
+  chatOpts?: UseAgentChatOpts;
+  initialPrompt?: string;
+} = {}) {
   const selectedWord = useEditor((s) => s.selectedWord);
   const setChatPrefill = useEditor((s) => s.setChatPrefill);
 
   return (
     <div className={styles.workspace}>
       <div className={styles.zoneChat}>
-        <AgentChatPane />
+        <AgentChatPane chatOpts={chatOpts} initialPrompt={initialPrompt} />
       </div>
       <div className={styles.zonePreviewCol}>
         <div className={styles.zonePreview}>

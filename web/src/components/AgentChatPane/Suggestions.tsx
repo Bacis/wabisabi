@@ -1,45 +1,11 @@
-// Starter prompts shown when the thread is empty. The data is light static
-// content for V1 — clip-derived suggestions ("4 ideas from your clip") are
-// a V2 concern that needs an extra Claude call.
+// Starter prompts shown when the thread is empty. The PROMPT_STARTERS data
+// lives in web/src/data/promptStarters.ts so the Start page composer and
+// the in-conversation StartersButton (chat header) can share the same set.
 
 import { useEditor } from '@/lib/editor/store';
 import { Icon } from './Icon';
+import { PROMPT_STARTERS } from '@/data/promptStarters';
 import styles from './AgentChatPane.module.css';
-
-type Suggestion = {
-  t: string;
-  d: string;
-  ic: 'spark' | 'wand' | 'image' | 'hash';
-  prompt: string;
-};
-
-const STARTERS: Suggestion[] = [
-  {
-    t: 'Make the headline pop',
-    d: 'boost first 2 words · spring + scale',
-    ic: 'wand',
-    prompt:
-      'Make the opening 1–2 words pop — heavier weight, larger size, faster entry, slight scale-up.',
-  },
-  {
-    t: 'Match a cinematic noir style',
-    d: 'cool palette · serif italic accents',
-    ic: 'image',
-    prompt: 'Match a cinematic noir style — cool palette, serif italic accents, soft vignette.',
-  },
-  {
-    t: 'Highlight every # and @',
-    d: 'auto-detect · italic accent variant',
-    ic: 'hash',
-    prompt: 'Highlight every hashtag and at-mention with a glowing italic accent in violet.',
-  },
-  {
-    t: 'Punchier emphasis on key words',
-    d: 'amber + bigger · faster duration',
-    ic: 'spark',
-    prompt: 'Make emphasized words punchier — amber fill, larger size, faster entry duration.',
-  },
-];
 
 // Highlight hashtags and at-mentions in the transcribed preview line so
 // the eye lands on the punchier words the agent can target.
@@ -74,7 +40,9 @@ export function Suggestions({ onPick }: { onPick: (text: string) => void }) {
     <div className={styles.suggestions}>
       <div className={styles.sugHead}>
         <span className={styles.eyebrow}>Where shall we start?</span>
-        <span className={styles.small}>· 4 IDEAS FROM YOUR CLIP</span>
+        <span className={styles.small}>
+          · {PROMPT_STARTERS.length} IDEAS FROM YOUR CLIP
+        </span>
       </div>
       {transcriptText && (
         <div className={styles.transcribed}>
@@ -89,14 +57,19 @@ export function Suggestions({ onPick }: { onPick: (text: string) => void }) {
         </div>
       )}
       <div className={styles.sugList}>
-        {STARTERS.map((s, i) => (
-          <button key={i} type="button" className={styles.sug} onClick={() => onPick(s.prompt)}>
+        {PROMPT_STARTERS.map((s) => (
+          <button
+            key={s.id}
+            type="button"
+            className={styles.sug}
+            onClick={() => onPick(s.prompt)}
+          >
             <span className={styles.ico}>
-              <Icon name={s.ic} size={15} />
+              <Icon name={s.icon} size={15} />
             </span>
             <span className={styles.copy}>
-              <div className="t">{s.t}</div>
-              <div className="d">{s.d}</div>
+              <div className="t">{s.title}</div>
+              <div className="d">{s.description}</div>
             </span>
             <span className={styles.arr}>
               <Icon name="arrow" size={13} />

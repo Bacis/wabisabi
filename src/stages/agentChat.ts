@@ -129,7 +129,7 @@ shockwave / ferro / samba / crystal / flare / etc.) they mean EFFECT.
 4. set_layout_strategy — user describes layout SHAPE (stack, single line, centered pop).
 5. apply_style_patch — anything else (custom color, font name, size, animation tweaks not covered by a preset).
 6. tune_field — escape-hatch single dial under font / color / layout / animation / reel / charAdvance. Use for one specific knob a preset doesn't cover.
-7. add_chunk_override — ONLY when the user has scoped to a single word AND used local language ("THIS one", "just this word").
+7. add_chunk_override — when the user has scoped to a specific chunk range and used local language. Either a single word ("THIS one", "just this word") OR a named caption group ("in INTRO", "for the HERO TITLE card", "only the OUTRO", "in chunk 3"). Use the chunk index range that matches the named group.
 8. switch_template — only when the user clearly asks for a different template family.
 9. acknowledge_no_change — questions, "looks good", explanations, anything where no style should change.
 
@@ -243,9 +243,9 @@ Vibes (multi-call recipes — see # Archetypes for the full list) —
   "karaoke"                                                → apply_preset_pack(motion, progressiveReveal)
 
 Custom dials (fall back to apply_style_patch / tune_field) —
-  "single-word display" / "one word at a time" / "word-by-word" / "reduce to single word"
+  "single-word display" / "show only one word at a time" / "reduce to single word"
                            → apply_style_patch { layout: { maxWordsPerLine: 1 }, reel: { wordReveal: "progressive" } }
-                             (BOTH fields together — wordReveal alone only progressively reveals within a chunk; you ALSO need maxWordsPerLine: 1 so each chunk holds exactly one word.)
+                             (BOTH fields together — wordReveal alone only progressively reveals within a chunk; you ALSO need maxWordsPerLine: 1 so each chunk holds exactly one word. DISTINCT from "appear one by one" below: that one staggers timing without reducing chunk size.)
   "two words per line" / "three words per line" / etc. → tune_field("layout.maxWordsPerLine", N)
 
   Caption size — final on-screen size is baseSize × cascade × multipliers. The cinematicCascade preset deliberately tapers (cascadeBottomRatio 0.47) so lower lines shrink, AND emphasisSizeMultiplier/fillerSizeMultiplier scale individual words. Bumping font.size alone keeps the variance — half the words still look small. When the user asks for UNIFORM or CONSISTENTLY large captions, ALWAYS flatten cascade + multipliers together with the size bump.
@@ -259,22 +259,40 @@ Custom dials (fall back to apply_style_patch / tune_field) —
   "smaller" / "shrink" (reverse direction)
                            → tune_field("font.size", current_size * 0.8)
 
-  ENTRY animation (per-word reveal) — all set animation.preset + the matching scaleFrom/durationMs.
+  WORD REVEAL TIMING — controls whether words enter together or one at a time.
+  reel.wordReveal: "progressive" = each word fades in at its own timestamp.
+  reel.wordReveal: "all"         = every word in the chunk enters together (default).
+  This is SEPARATE from animation.preset (which controls HOW each word enters,
+  not WHEN). The entry-animation recipes below set HOW; if the user is asking
+  for staggered/one-at-a-time timing, you ALSO need wordReveal: "progressive".
+  "appear one by one" / "one at a time" / "stagger" / "progressively reveal"
+  "not all at once" / "not a whole block" / "word by word" / "let words land"
+                           → apply_style_patch { reel: { wordReveal: "progressive" } }
+                             (Scope per the Selection rules below — if the user
+                              names a group like "in INTRO" / "for the hero
+                              card", use add_chunk_override on that chunk
+                              range instead of a global apply_style_patch.)
+
+  ENTRY animation (HOW each word enters — combine with wordReveal: progressive
+  when the user wants staggered timing too). All set animation.preset + the
+  matching scaleFrom/durationMs.
   "pop in" / "punchy entry" / "snap on"
-                           → apply_style_patch { animation: { preset: "pop", scaleFrom: 0.6, durationMs: 180, spring: { damping: 14, stiffness: 240 } } }
+                           → apply_style_patch { animation: { preset: "pop", scaleFrom: 0.6, durationMs: 180, spring: { damping: 14, stiffness: 240 } }, reel: { wordReveal: "progressive" } }
   "fade in" / "fade entry" / "smooth entry"
-                           → apply_style_patch { animation: { preset: "fade", durationMs: 350 } }
-  "slow fade"              → apply_style_patch { animation: { preset: "fade", durationMs: 800 } }
+                           → apply_style_patch { animation: { preset: "fade", durationMs: 350 }, reel: { wordReveal: "progressive" } }
+  "slow fade"              → apply_style_patch { animation: { preset: "fade", durationMs: 800 }, reel: { wordReveal: "progressive" } }
   "slide in" / "drop in" / "words drop"
-                           → apply_style_patch { animation: { preset: "slide", durationMs: 400 } }
+                           → apply_style_patch { animation: { preset: "slide", durationMs: 400 }, reel: { wordReveal: "progressive" } }
   "karaoke entry" / "instant on"
-                           → apply_style_patch { animation: { preset: "karaoke", durationMs: 0 } }
-  "punchy" / "snap" (active emphasis, not entry)
+                           → apply_style_patch { animation: { preset: "karaoke", durationMs: 0 }, reel: { wordReveal: "progressive" } }
+  "punchy" / "snap" (active emphasis, not entry — words still enter together)
                            → apply_style_patch { animation: { preset: "pop", scaleFrom: 0.6, durationMs: 80, emphasisScale: 1.35, spring: { damping: 14, stiffness: 240 } } }
-  "drift" / "float"        → apply_style_patch { animation: { preset: "fade", durationMs: 350, emphasisScale: 1.05 } }
+  "drift" / "float"        → apply_style_patch { animation: { preset: "fade", durationMs: 350, emphasisScale: 1.05 }, reel: { wordReveal: "progressive" } }
   "softer" / "calmer"      → apply_style_patch { animation: { durationMs: 250, emphasisScale: 1.05 } }
   "longer entry" / "slower transition" → tune_field("animation.durationMs", 600)
   "snappier entry"         → tune_field("animation.durationMs", 100)
+  "all at once" / "show everything together" / "no stagger" (revert progressive)
+                           → tune_field("reel.wordReveal", "all")
 
   Typography / color —
   "bold" / "aggressive"    → tune_field("font.weight", 900) and tune_field("font.textTransform", "uppercase") in one turn
@@ -295,6 +313,8 @@ UNIT RULES — reel.maxWidthPercent and reel.paddingPercent are PERCENTS (use 80
 
 Selection is a HINT, not a constraint. Read the user's language:
   - "make THIS red" (word selected)       → add_chunk_override on that chunk
+  - "in INTRO" / "for the HERO card" /
+    "only the OUTRO" / "in chunk 3"        → add_chunk_override on the chunk range that names that group/role
   - "make it red" (word selected)         → apply_style_patch globally; selection is incidental
   - "make all captions red"               → apply_style_patch globally even if a word is selected
   - "everything", "the whole video", "all" → always global

@@ -66,6 +66,31 @@ export function parseS3Uri(value: string): ParsedS3Uri | null {
 }
 
 /**
+ * Stream an S3 object body. The API's /jobs/:id/output endpoint uses this
+ * to relay the rendered mp4 through the server (rather than 302-redirecting
+ * the browser to a presigned URL) when the caller wants a silent download
+ * — that keeps the response same-origin and avoids the brief navigation
+ * flash the redirect path introduces.
+ */
+export async function fetchOutputStream(
+  uri: string,
+): Promise<{ body: NodeJS.ReadableStream; contentLength?: number }> {
+  const parsed = parseS3Uri(uri);
+  if (!parsed) throw new Error(`fetchOutputStream: not an s3:// uri: ${uri}`);
+  const obj = await getClient().send(
+    new GetObjectCommand({ Bucket: parsed.bucket, Key: parsed.key }),
+  );
+  const body = obj.Body;
+  if (!body || typeof (body as NodeJS.ReadableStream).pipe !== 'function') {
+    throw new Error('S3 GetObject returned no streamable body');
+  }
+  return {
+    body: body as NodeJS.ReadableStream,
+    contentLength: typeof obj.ContentLength === 'number' ? obj.ContentLength : undefined,
+  };
+}
+
+/**
  * Sign a time-limited GET URL for a rendered output. One hour is plenty —
  * the API hands this URL to a browser redirect or the Telegram bot which
  * fetches it immediately.

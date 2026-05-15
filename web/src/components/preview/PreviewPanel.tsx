@@ -161,6 +161,12 @@ export function PreviewPanel({ hideSelection = false }: { hideSelection?: boolea
             compositionHeight={CANVAS_H}
             fps={FPS}
             clickToPlay={false}
+            // Director plans can wire 10+ audio cues (one per scene
+            // group + per-beat). Remotion pre-mounts a fixed pool of
+            // <Audio> tags to dodge browser autoplay restrictions; the
+            // default of 5 throws once the plan grows. 32 covers the
+            // realistic ceiling (10 groups + per-beat emphasis).
+            numberOfSharedAudioTags={32}
             style={{ width: '100%', height: '100%' }}
           />
         ) : (

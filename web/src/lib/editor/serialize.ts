@@ -14,5 +14,9 @@ export function serializeState(state: EditorStore): PersistedDesignState {
     templateId: state.templateId,
     styleSpec: state.styleSpec,
     transcriptText: state.transcriptText,
+    // The whole-video scene plan. Saved so the renderer's <CueLayer> can
+    // fire the same audio cues the live preview plays back. Null when the
+    // agent never called apply_director_script for this design.
+    directorScript: state.directorScript,
   };
 }

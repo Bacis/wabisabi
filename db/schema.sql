@@ -31,24 +31,29 @@ create index if not exists sessions_userId_idx on sessions(userId);
 create index if not exists sessions_expiresAt_idx on sessions(expiresAt);
 
 create table if not exists jobs (
-  id           text primary key,
-  status       text not null default 'queued',
-  stage        text,
-  inputPath    text not null,
-  outputPath   text,
-  templateId   text not null,
-  styleSpec    text not null,           -- JSON
-  transcript   text,                    -- JSON
-  captionPlan  text,                    -- JSON: LLM-derived chunks + emphasis
-  faces        text,                    -- JSON: per-sample face boxes
-  progress     text,                    -- JSON: render progress snapshot
-  error        text,
-  attempts     integer not null default 0,
-  createdAt    text not null default (datetime('now')),
-  updatedAt    text not null default (datetime('now')),
-  startedAt    text,
-  finishedAt   text,
-  lockedAt     text
+  id            text primary key,
+  status        text not null default 'queued',
+  stage         text,
+  inputPath     text not null,
+  outputPath    text,
+  templateId    text not null,
+  styleSpec     text not null,           -- JSON
+  transcript    text,                    -- JSON
+  captionPlan   text,                    -- JSON: LLM-derived chunks + emphasis
+  faces         text,                    -- JSON: per-sample face boxes
+  progress      text,                    -- JSON: render progress snapshot
+  -- Whole-video scene plan from the agent's apply_director_script tool.
+  -- The renderer threads this into <CueLayer> for audio cue playback; the
+  -- live preview already passes it, so storing + plumbing it here keeps
+  -- preview ↔ render prop bags identical.
+  directorScript text,                   -- JSON: DirectorScript | null
+  error         text,
+  attempts      integer not null default 0,
+  createdAt     text not null default (datetime('now')),
+  updatedAt     text not null default (datetime('now')),
+  startedAt     text,
+  finishedAt    text,
+  lockedAt      text
 );
 
 create index if not exists jobs_queued_idx
@@ -174,3 +179,25 @@ create table if not exists designs (
 );
 
 create index if not exists designs_user_idx on designs (userId, updatedAt);
+
+-- Designer sessions: one row per agent conversation at /designer/:id. Owns the
+-- chat transcript (UIMessage[]) + the editor source ref + the latest styleSpec
+-- snapshot so reopening the URL restores the user exactly where they left off.
+-- A row is minted on the user's first chat turn; abandoned drafts never land
+-- here. Drops when the user is deleted (no orphan sessions).
+create table if not exists designer_sessions (
+  id             text primary key,
+  userId         text not null references users(id) on delete cascade,
+  title          text not null,                     -- auto-derived from first user message
+  templateId     text not null default 'reel-clone',
+  sourceKind     text not null,                     -- 'stock' | 'job'
+  sourceId       text not null,
+  styleSpec      text not null,                     -- JSON: latest editor styleSpec
+  directorScript text,                              -- JSON: DirectorScript | null (whole-video scene plan)
+  messages       text not null,                     -- JSON: UIMessage[] transcript
+  createdAt      text not null default (datetime('now')),
+  updatedAt      text not null default (datetime('now'))
+);
+
+create index if not exists designer_sessions_user_idx
+  on designer_sessions (userId, updatedAt);

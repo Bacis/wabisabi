@@ -33,6 +33,11 @@ function ensureColumn(table: string, column: string, ddl: string): void {
 ensureColumn('jobs', 'captionPlan', 'TEXT');
 ensureColumn('jobs', 'faces', 'TEXT');
 ensureColumn('jobs', 'progress', 'TEXT');
+// Agent designer renders ship the whole-video DirectorScript so the
+// renderer's <CueLayer> can fire audio cues that match what the preview
+// played back. Older jobs predate the column — left NULL, the renderer
+// just skips the cue layer (legacy behavior).
+ensureColumn('jobs', 'directorScript', 'TEXT');
 // Editor opt-in retention: when set (datetime string), the per-job cleanup
 // in pipeline.ts and the sweeper in worker/index.ts both skip deleting the
 // input file until this deadline passes. Lets the new web editor reuse
@@ -59,6 +64,11 @@ ensureColumn('custom_presets', 'userId', 'TEXT REFERENCES users(id)');
 ensureColumn('custom_presets', 'isPublished', 'INTEGER NOT NULL DEFAULT 0');
 ensureColumn('custom_presets', 'publishedAt', 'TEXT');
 ensureColumn('custom_presets', 'showcaseClipId', 'TEXT');
+
+// Designer sessions started without a directorScript column; the table
+// was created first. Add it idempotently so existing rows keep working
+// and new rows can round-trip the whole-video scene plan on resume.
+ensureColumn('designer_sessions', 'directorScript', 'TEXT');
 
 db.exec(`create index if not exists jobs_userId_idx on jobs(userId)`);
 db.exec(`create index if not exists custom_presets_userId_idx on custom_presets(userId)`);

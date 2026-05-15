@@ -41,6 +41,7 @@ type JobRow = {
   transcript: string | null; // JSON text
   captionPlan: string | null; // JSON text
   faces: string | null; // JSON text
+  directorScript: string | null; // JSON text — agent's whole-video scene plan
   error: string | null;
   attempts: number;
   keepInputUntil: string | null; // datetime; if set + future, skip end-of-render cleanup
@@ -132,12 +133,20 @@ export async function runPipeline(jobId: string): Promise<void> {
   // uses its basename as the S3 key under jobs/ and returns an s3:// URI.
   // The authoritative location comes back in result.outputPath.
   const outputHint = join(outputDir, `${jobId}.mp4`);
+  // The agent designer renders ship a directorScript so the live preview
+  // and the rendered MP4 share identical composition props. Older job
+  // rows (and any non-agent render) have no directorScript and the
+  // renderer simply skips <CueLayer>.
+  const directorScript =
+    row.directorScript == null ? null : JSON.parse(row.directorScript);
+
   const result = await renderCaptions({
     inputVideo: inputAbs,
     transcript,
     captionPlan,
     faces,
     styleSpec,
+    directorScript,
     templateId: row.templateId,
     outputPath: outputHint,
     onProgress: (p) => {

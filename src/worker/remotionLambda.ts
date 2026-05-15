@@ -164,6 +164,24 @@ async function ensureState(currentHash: string): Promise<LambdaState> {
     bucketName,
     siteName: SITE_NAME,
     region: REGION,
+    // Mirrors src/worker/remotionBundle.ts: cross-project imports from
+    // remotion/ → src/shared/ use NodeNext `.js` extensions on relative
+    // imports (TypeScript ESM convention), so webpack needs an extension
+    // alias to resolve `.js → .ts`. Without this, the Director engine's
+    // `schema.ts → './vocabularies.js'` chain fails to bundle.
+    options: {
+      webpackOverride: (current) => ({
+        ...current,
+        resolve: {
+          ...current.resolve,
+          extensionAlias: {
+            ...(current.resolve?.extensionAlias ?? {}),
+            '.js': ['.ts', '.tsx', '.js'],
+            '.mjs': ['.mts', '.mjs'],
+          },
+        },
+      }),
+    },
   });
   console.log(`lambda: site ${site.serveUrl}`);
 

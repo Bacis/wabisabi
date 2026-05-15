@@ -1,5 +1,5 @@
 // Read-only theme gallery. Theme creation/editing now happens via the agent
-// at /agent/new; this page lists drafts and published themes.
+// at /designer/new; this page lists drafts and published themes.
 
 import { useEffect, useMemo, useState } from 'react';
 import { Sparkles, Bot } from 'lucide-react';
@@ -60,7 +60,7 @@ export function ThemesPage() {
         rightSlot={
           <Button
             as="a"
-            href="/agent/new"
+            href="/"
             variant="cyan"
             leadingIcon={<Bot size={13} />}
           >

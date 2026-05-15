@@ -27,13 +27,17 @@ export type GroupPillProps = {
   widthPct: number;
   onClickSeek?: () => void;
   selected?: boolean;
+  /** Truncated transcript words for this group's wordRange — shown inside
+   *  the pill as a tertiary preview line so the user can recognize the
+   *  scene without having to read the chat history. Empty string is fine. */
+  transcriptPreview?: string;
 };
 
 type DragState =
   | { kind: 'idle' }
   | { kind: 'left' | 'right'; laneRect: DOMRect; tokenCount: number };
 
-export function GroupPill({ group, leftPct, widthPct, onClickSeek, selected }: GroupPillProps) {
+export function GroupPill({ group, leftPct, widthPct, onClickSeek, selected, transcriptPreview }: GroupPillProps) {
   const family = roleFamily(group.role);
   const color = FAMILY_COLORS[family];
   const label = group.label ?? '';
@@ -146,8 +150,15 @@ export function GroupPill({ group, leftPct, widthPct, onClickSeek, selected }: G
         onMouseDown={(e) => beginDrag(e, 'left')}
         title="Drag to resize start"
       />
-      <span className={styles.gpBadge}>{ROLE_BADGE[group.role]}</span>
-      {label && <span className={styles.gpLabel}>{label}</span>}
+      <div className={styles.gpCols}>
+        <div className={styles.gpHeadRow}>
+          <span className={styles.gpBadge}>{ROLE_BADGE[group.role]}</span>
+          {label && <span className={styles.gpLabel}>{label}</span>}
+        </div>
+        {transcriptPreview && (
+          <span className={styles.gpTranscript}>{transcriptPreview}</span>
+        )}
+      </div>
       <span
         className={styles.gpEdge}
         style={{ right: 0 }}
@@ -175,9 +186,16 @@ export function GroupPill({ group, leftPct, widthPct, onClickSeek, selected }: G
 
 // Helper used by TimelineGroupsLane to render every group from the editor
 // store. Computes wordTimings from the same transcriptText+durationSec
-// model the CinematicTimeline's word-pill lane uses, so both lanes stay
-// in horizontal lockstep.
-export function useGroupPillData(): Array<{ group: SceneGroup; leftPct: number; widthPct: number }> {
+// model the renderer uses, so each pill spans exactly its group's range.
+// Also slices the group's transcript words so the pill can show a
+// scene-recognizable preview ("opening frustration statement…") instead
+// of an empty colored block.
+export function useGroupPillData(): Array<{
+  group: SceneGroup;
+  leftPct: number;
+  widthPct: number;
+  transcriptPreview: string;
+}> {
   const transcriptText = useEditor((s) => s.transcriptText);
   const durationSec = useEditor((s) => s.durationSec);
   const directorScript = useEditor((s) => s.directorScript);
@@ -194,6 +212,10 @@ export function useGroupPillData(): Array<{ group: SceneGroup; leftPct: number; 
     const tEnd = (endIdx + 1) * per;
     const leftPct = (tStart / durationSec) * 100;
     const widthPct = ((tEnd - tStart) / durationSec) * 100;
-    return { group: g, leftPct, widthPct };
+    // Slice the words in this group's range and join them as a single
+    // preview line. The pill itself applies CSS ellipsis at render time,
+    // so we can pass the full string — wider pills show more of it.
+    const groupWords = tokens.slice(startIdx, endIdx + 1).join(' ');
+    return { group: g, leftPct, widthPct, transcriptPreview: groupWords };
   });
 }

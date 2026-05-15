@@ -1,5 +1,6 @@
 export { AtelierShell } from './AtelierShell';
 export { Wordmark } from './Wordmark';
+export { BrandMark } from './BrandMark';
 export { MonoLabel } from './MonoLabel';
 export { SerifDisplay } from './SerifDisplay';
 export { Chip } from './Chip';

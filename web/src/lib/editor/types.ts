@@ -92,4 +92,9 @@ export type PersistedDesignState = {
   templateId: string;
   styleSpec: Record<string, any>;
   transcriptText: string;
+  // Whole-video DirectorScript from the agent's apply_director_script tool.
+  // The renderer threads it into <CueLayer> for audio cue playback. Mirrors
+  // what the live preview already passes (PreviewPanel.tsx); persisting it
+  // here keeps preview ↔ render composition props identical.
+  directorScript?: unknown | null;
 };

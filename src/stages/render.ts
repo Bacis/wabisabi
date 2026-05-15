@@ -7,6 +7,10 @@ export type RenderArgs = {
   captionPlan: CaptionPlan | null;
   faces: FaceData | null;
   styleSpec: StyleSpec;
+  // The agent's whole-video scene plan. Threaded into the composition so the
+  // renderer's <CueLayer> can fire audio cues — the live preview already
+  // passes this, so render parity required adding it here.
+  directorScript?: unknown | null;
   templateId: string;
   // Hint for where to place the rendered output. Local mode writes the mp4
   // at this path; Lambda mode uses basename(outputPath) as the S3 key under

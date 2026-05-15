@@ -14,6 +14,7 @@
 import type { CaptionChunk } from '../CaptionLayer';
 import { isFiller } from '../linguistics';
 import { isAnchorBlock, isAnchorEmphasis } from './anchorRules';
+import { WIDTH_SAFETY } from './widthSafety';
 
 export type LayoutEntry = {
   wordIdx: number;
@@ -145,13 +146,10 @@ export function layoutCascadeStack(
   }
 
   // ---- Phases 3 + 4: per-line cascade + pre-pass size estimation ---------
-  // Heavy-weight glyphs (Inter Black 900 at large sizes) measure ~20-25%
-  // wider than the `charAdvance` estimate ships with. A 25% safety margin
-  // on the width estimate keeps `lineScale` conservative enough that long
-  // uppercase words like RUNNING / PATTERNS don't clip at the frame edge
-  // even at 240-280px font sizes. Below ~120px this margin is harmless;
-  // above it, it's the difference between a tight stack and a clip.
-  const WIDTH_SAFETY = 1.25;
+  // Per-line uniform shrink (lineScale) catches lines whose estimated
+  // rendered width exceeds usableWidth. The estimate uses
+  // `len × charAdvance × WIDTH_SAFETY` to over-count by a fixed margin —
+  // see widthSafety.ts for why 1.4 is the right baseline.
 
   const planLines: LayoutLine[] = splitLines.map((line, lineIdx) => {
     const lineFactor =

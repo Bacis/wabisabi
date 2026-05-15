@@ -1,4 +1,4 @@
-// The agentic chat panel that replaces FormPane on /agent/new. Owns its
+// The agentic chat panel that replaces FormPane on /designer/*. Owns its
 // own React state (UI thread, input, slash menu) and dispatches store
 // mutations via useAgentChat.
 
@@ -6,27 +6,55 @@ import { useEffect, useRef, useState } from 'react';
 import { useEditor } from '@/lib/editor/store';
 import { Icon } from './Icon';
 import { Suggestions } from './Suggestions';
+import { StartersButton } from './StartersButton';
 import { ActionCard } from './ActionCard';
 import { SlashMenu } from './SlashMenu';
 import { Checkpoint } from './Checkpoint';
 import { expandSlash, type SlashCommand } from './expandSlash';
-import { useAgentChat, type UIMessage, type UIAgentMessage } from './useAgentChat';
+import {
+  useAgentChat,
+  type UIMessage,
+  type UIAgentMessage,
+  type UseAgentChatOpts,
+} from './useAgentChat';
 import styles from './AgentChatPane.module.css';
 
-export function AgentChatPane() {
+export function AgentChatPane({
+  chatOpts,
+  initialPrompt,
+}: {
+  chatOpts?: UseAgentChatOpts;
+  // When provided, the chat fires this string as the first user turn
+  // immediately after mount — used by the Start page to flow the user's
+  // homepage prompt straight into the agent without a manual submit.
+  initialPrompt?: string;
+} = {}) {
   const selectedWord = useEditor((s) => s.selectedWord);
   const clearSelectedWord = useEditor((s) => s.clearSelectedWord);
   const chatPrefill = useEditor((s) => s.chatPrefill);
   const setChatPrefill = useEditor((s) => s.setChatPrefill);
-  const chat = useAgentChat();
+  const chat = useAgentChat(chatOpts);
   const [value, setValue] = useState('');
   const taRef = useRef<HTMLTextAreaElement>(null);
   const bodyRef = useRef<HTMLDivElement>(null);
+  const autoSentRef = useRef<boolean>(false);
 
   // Auto-scroll to the latest message.
   useEffect(() => {
     bodyRef.current?.scrollTo({ top: bodyRef.current.scrollHeight, behavior: 'smooth' });
   }, [chat.messages, chat.sending]);
+
+  // Fire the homepage prompt as the first chat turn once on mount.
+  useEffect(() => {
+    if (autoSentRef.current) return;
+    const text = initialPrompt?.trim();
+    if (!text || chat.sending || chat.messages.length > 0) return;
+    autoSentRef.current = true;
+    chat.send({ text, expanded: text });
+    // chat.send / chat.messages are stable refs from useAgentChat; we only
+    // want to evaluate this once per mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialPrompt]);
 
   // When something outside the chat (e.g. WordStyler "ask agent" CTA)
   // requests a prefilled prompt, drop it into the textarea and focus.
@@ -97,6 +125,7 @@ export function AgentChatPane() {
           </div>
         </div>
         <div className="actions">
+          <StartersButton />
           <button type="button" className={styles.iconBtn} title="History">
             <Icon name="history" size={14} />
           </button>

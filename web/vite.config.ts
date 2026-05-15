@@ -6,14 +6,29 @@ import { resolve } from 'node:path';
 // to it so the editor can hit /jobs, /presets, /style/generate, etc. without
 // CORS or origin gymnastics.
 const API_TARGET = process.env.API_URL ?? 'http://localhost:3000';
-const API_PATHS = [
+
+// Two flavors of proxied path:
+//
+//  * API_ONLY_PATHS — the prefix is exclusively an HTTP endpoint. Browser
+//    navigations (e.g. clicking the Download button's anchor to
+//    /jobs/:id/output?download=...) must reach the API; the SPA does not
+//    own these URLs. No bypass.
+//
+//  * SHARED_PATHS — the prefix is BOTH an API endpoint and a SPA route
+//    (e.g. /designer/:id is a React page AND /designer/sessions/:id is a
+//    JSON endpoint). XHR/fetch from app code wants the API; a browser
+//    navigation wants the SPA. We bypass to /index.html when the request
+//    is an HTML navigation (Accept: text/html).
+const API_ONLY_PATHS = [
+  // /jobs/:id/output, /jobs/:id/input, /jobs (list), POST /jobs (upload)
+  // — the SPA's /jobs route was retired when JobsPage was replaced by the
+  // curated /library page, so these are API-only now.
   '/jobs',
   '/presets',
   '/productions',
   '/style',
   '/health',
   '/auth',
-  '/themes',
   '/designs',
   '/clips',
   '/stock',
@@ -22,10 +37,16 @@ const API_PATHS = [
   // so the live Player's <Audio> elements can fetch them at the same
   // path Remotion's render-time staticFile() resolves to.
   '/audio',
-  // POST /agent/chat — the agentic editor experiment. `/agent` also matches
-  // the SPA route `/agent/new`, but the bypass below routes HTML
-  // navigations back to index.html so the SPA still owns that URL.
+];
+const SHARED_PATHS = [
+  // /themes (SPA gallery page) + GET/POST /themes (REST). Browser nav lands
+  // on the React page; XHR hits the API.
+  '/themes',
+  // POST /agent/chat — the agentic editor experiment.
   '/agent',
+  // /designer/sessions* — REST for saved agent conversations. Shares prefix
+  // with the SPA's /designer/:id and /designer/history routes.
+  '/designer',
 ];
 
 export default defineConfig({
@@ -63,24 +84,35 @@ export default defineConfig({
   },
   server: {
     port: 5173,
-    proxy: Object.fromEntries(
-      API_PATHS.map((p) => [
-        p,
-        {
-          target: API_TARGET,
-          changeOrigin: true,
-          // The SPA shares URL space with the API (e.g. /jobs/:id is both a
-          // React route and a JSON endpoint). Browser navigations send
-          // `Accept: text/html`; XHR/fetch from app code does not. Bypass to
-          // index.html on HTML requests so reloads/deep-links land on the SPA.
-          bypass: (req) => {
-            if (req.method === 'GET' && req.headers.accept?.includes('text/html')) {
-              return '/index.html';
-            }
+    proxy: {
+      // API-only prefixes: always proxy, no SPA bypass.
+      ...Object.fromEntries(
+        API_ONLY_PATHS.map((p) => [
+          p,
+          { target: API_TARGET, changeOrigin: true },
+        ]),
+      ),
+      // Shared prefixes: proxy XHR, but on browser navigations
+      // (Accept: text/html) bypass to /index.html so reloads/deep-links
+      // land on the SPA route.
+      ...Object.fromEntries(
+        SHARED_PATHS.map((p) => [
+          p,
+          {
+            target: API_TARGET,
+            changeOrigin: true,
+            bypass: (req: { method?: string; headers: { accept?: string } }) => {
+              if (
+                req.method === 'GET' &&
+                req.headers.accept?.includes('text/html')
+              ) {
+                return '/index.html';
+              }
+            },
           },
-        },
-      ]),
-    ),
+        ]),
+      ),
+    },
   },
   build: {
     outDir: 'dist',

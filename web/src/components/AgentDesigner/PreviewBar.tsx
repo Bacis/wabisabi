@@ -32,12 +32,7 @@ export function PreviewBar() {
         <span className={styles.clipName}>
           {source?.kind === 'stock' ? `stock_${source.clipId}.mp4` : clipName}
         </span>
-        <span className={styles.tag}>
-          <span className={styles.fmtIco} aria-hidden="true">
-            <span className={styles.box} style={{ aspectRatio: '9 / 16' }} />
-          </span>
-          9 : 16
-        </span>
+        <span className={styles.tag}>9 : 16</span>
         <span className={styles.tag}>{fmt(durationSec)}</span>
       </div>
       <div className="right">

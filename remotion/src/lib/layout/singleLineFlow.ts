@@ -18,6 +18,7 @@ import type { CaptionChunk } from '../CaptionLayer';
 import { isFiller } from '../linguistics';
 import type { CascadeStackParams } from './cascadeStack';
 import type { LayoutEntry, LayoutLine, LayoutPlan, LayoutStrategy, StrategyInput } from './types';
+import { WIDTH_SAFETY } from './widthSafety';
 
 export function layoutSingleLineFlow(
   input: StrategyInput,
@@ -54,7 +55,11 @@ export function layoutSingleLineFlow(
         : 1.0;
     const rawSz = baseSize * mul;
     const sz = Math.min(rawSz, maxSizeForWord(w.word.length), heightCap);
-    const widthAtSize = sz * Math.max(1, w.word.length) * charAdvance;
+    // WIDTH_SAFETY pads the estimate to cover the gap between cheap
+    // `len × charAdvance` and actual Inter Black 900 glyph advance — see
+    // widthSafety.ts. Drives both the inline split-decision below AND the
+    // post-hoc lineScale fallback so wraps + shrinks agree.
+    const widthAtSize = sz * Math.max(1, w.word.length) * charAdvance * WIDTH_SAFETY;
     return { wordIdx: i, sz, widthAtSize };
   });
 

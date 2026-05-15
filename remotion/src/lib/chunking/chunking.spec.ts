@@ -44,4 +44,14 @@ describe('selectChunks', () => {
     expect(out).toHaveLength(2);
     expect(out[0]!.words.map((x) => x.word)).toEqual(['a', 'b']);
   });
+
+  it('falls back to fixed-N chunks when captionPlan has an empty chunks array', () => {
+    // The /designs/:id/render endpoint stores `{chunks: [], groups: [...]}`
+    // for non-caption-designer templates. Without this fallback the
+    // renderer would render zero captions.
+    const plan: CaptionPlan = { chunks: [] };
+    const out = selectChunks(plan, [w('a'), w('b'), w('c')], { maxPerLine: 2 });
+    expect(out).toHaveLength(2);
+    expect(out[0]!.words.map((x) => x.word)).toEqual(['a', 'b']);
+  });
 });

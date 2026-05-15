@@ -18,7 +18,11 @@ import { tmpdir } from 'node:os';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db } from '../db.js';
-import { parseS3Uri, presignOutputUrl } from '../lib/s3Outputs.js';
+import {
+  fetchOutputStream,
+  parseS3Uri,
+  presignOutputUrl,
+} from '../lib/s3Outputs.js';
 import { StyleSpecSchema, type StyleSpec } from '../shared/styleSpec.js';
 import { PRESETS, mergeStyleSpec, type Preset, type TemplateId } from '../shared/presets.js';
 
@@ -38,7 +42,7 @@ import {
   type PlannerWord,
 } from '../stages/proposeDirectorScript.js';
 import type { CaptionPlan, FaceData, Transcript } from '../shared/types.js';
-import { requireAuth } from '../auth/middleware.js';
+import { requireAuth, requireOwnership } from '../auth/middleware.js';
 import { authenticate } from '../auth/users.js';
 import {
   SESSION_COOKIE,
@@ -316,6 +320,90 @@ function designViewFromRow(row: DesignRow): DesignView {
   };
 }
 
+// --- Designer sessions --------------------------------------------------
+// A "designer session" is a saved agent conversation at /designer/:id —
+// the chat transcript plus enough source/state info that reopening the
+// URL restores the exact editor view. Created on the user's first chat
+// turn (POST /designer/sessions) and PATCHed after every successful
+// /agent/chat reply so the latest messages + styleSpec are durable.
+const insertDesignerSession = db.prepare(`
+  insert into designer_sessions
+    (id, userId, title, templateId, sourceKind, sourceId, styleSpec, directorScript, messages)
+  values
+    (@id, @userId, @title, @templateId, @sourceKind, @sourceId, @styleSpec, @directorScript, @messages)
+`);
+const listDesignerSessionsForUser = db.prepare(`
+  select id, title, templateId, sourceKind, sourceId, createdAt, updatedAt
+  from designer_sessions
+  where userId = ?
+  order by updatedAt desc
+  limit 100
+`);
+const selectDesignerSessionRow = db.prepare(
+  `select * from designer_sessions where id = ?`,
+);
+// directorScript uses a sentinel string '__null__' to distinguish "don't
+// touch" (coalesce keeps the old value) from "the agent reverted the plan
+// to null" (PATCH should clear it). All other JSON columns reuse coalesce
+// because they're never validly null after creation.
+const updateDesignerSessionFields = db.prepare(`
+  update designer_sessions
+  set title          = coalesce(@title, title),
+      messages       = coalesce(@messages, messages),
+      styleSpec      = coalesce(@styleSpec, styleSpec),
+      directorScript = case
+        when @directorScript is null then directorScript
+        when @directorScript = '__null__' then null
+        else @directorScript
+      end,
+      updatedAt      = datetime('now')
+  where id = @id and userId = @userId
+`);
+const deleteDesignerSessionForUser = db.prepare(
+  `delete from designer_sessions where id = ? and userId = ?`,
+);
+
+type DesignerSessionRow = {
+  id: string;
+  userId: string;
+  title: string;
+  templateId: string;
+  sourceKind: 'stock' | 'job';
+  sourceId: string;
+  styleSpec: string;            // JSON
+  directorScript: string | null; // JSON | null
+  messages: string;             // JSON
+  createdAt: string;
+  updatedAt: string;
+};
+
+type DesignerSessionView = Omit<
+  DesignerSessionRow,
+  'styleSpec' | 'directorScript' | 'messages'
+> & {
+  styleSpec: Record<string, unknown>;
+  directorScript: unknown | null;
+  messages: unknown[];
+};
+
+function designerSessionViewFromRow(row: DesignerSessionRow): DesignerSessionView {
+  return {
+    ...row,
+    styleSpec: JSON.parse(row.styleSpec),
+    directorScript: row.directorScript ? JSON.parse(row.directorScript) : null,
+    messages: JSON.parse(row.messages),
+  };
+}
+
+// Title auto-derivation: trim, collapse whitespace, cap at 60 chars. Empty
+// fallback so the column never holds an empty string (UI shows "Untitled
+// session" if every word ends up filtered).
+function deriveSessionTitle(raw: string): string {
+  const cleaned = raw.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return 'Untitled session';
+  return cleaned.length > 60 ? cleaned.slice(0, 60).trimEnd() + '…' : cleaned;
+}
+
 // Insert-with-prebuilt-JSON path used by /designs/:id/render. The standard
 // insertJob doesn't take transcript/captionPlan/faces — they're populated
 // by the worker pipeline. For caption-designer renders we already know all
@@ -323,9 +411,9 @@ function designViewFromRow(row: DesignRow): DesignView {
 // enrich/face_detect entirely.
 const insertJobWithAnalysis = db.prepare(`
   insert into jobs
-    (id, userId, inputPath, templateId, styleSpec, transcript, captionPlan, faces, keepInputUntil, hidden)
+    (id, userId, inputPath, templateId, styleSpec, transcript, captionPlan, faces, directorScript, keepInputUntil, hidden)
   values
-    (@id, @userId, @inputPath, @templateId, @styleSpec, @transcript, @captionPlan, @faces, @keepInputUntil, @hidden)
+    (@id, @userId, @inputPath, @templateId, @styleSpec, @transcript, @captionPlan, @faces, @directorScript, @keepInputUntil, @hidden)
   returning id, status, createdAt
 `);
 
@@ -924,6 +1012,137 @@ app.delete('/designs/:id', { preHandler: requireAuth }, async (req, reply) => {
   return { id, deleted: true };
 });
 
+// --- Designer sessions endpoints ----------------------------------------
+
+app.get('/designer/sessions', { preHandler: requireAuth }, async (req) => {
+  return listDesignerSessionsForUser.all(req.user!.id);
+});
+
+app.post('/designer/sessions', { preHandler: requireAuth }, async (req, reply) => {
+  const body = req.body as {
+    templateId?: unknown;
+    sourceKind?: unknown;
+    sourceId?: unknown;
+    styleSpec?: unknown;
+    directorScript?: unknown;
+    firstMessage?: unknown;
+    messages?: unknown;
+  } | null;
+  if (!body || typeof body !== 'object') {
+    return reply.code(400).send({ error: 'body must be a JSON object' });
+  }
+  const sourceKind = String(body.sourceKind ?? '');
+  if (sourceKind !== 'stock' && sourceKind !== 'job') {
+    return reply.code(400).send({ error: 'sourceKind must be "stock" or "job"' });
+  }
+  const sourceId = String(body.sourceId ?? '').trim();
+  if (!sourceId) return reply.code(400).send({ error: 'sourceId is required' });
+  const templateId = String(body.templateId ?? 'reel-clone');
+  if (body.styleSpec === undefined || typeof body.styleSpec !== 'object' || body.styleSpec === null) {
+    return reply.code(400).send({ error: 'styleSpec must be an object' });
+  }
+  const firstMessage = typeof body.firstMessage === 'string' ? body.firstMessage : '';
+  const messages = Array.isArray(body.messages) ? body.messages : [];
+
+  const id = randomUUID();
+  insertDesignerSession.run({
+    id,
+    userId: req.user!.id,
+    title: deriveSessionTitle(firstMessage),
+    templateId,
+    sourceKind,
+    sourceId,
+    styleSpec: JSON.stringify(body.styleSpec),
+    directorScript:
+      body.directorScript !== undefined && body.directorScript !== null
+        ? JSON.stringify(body.directorScript)
+        : null,
+    messages: JSON.stringify(messages),
+  });
+  const row = selectDesignerSessionRow.get(id) as DesignerSessionRow | undefined;
+  if (!row) return reply.code(500).send({ error: 'session insert disappeared' });
+  return designerSessionViewFromRow(row);
+});
+
+app.get('/designer/sessions/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const row = selectDesignerSessionRow.get(id) as DesignerSessionRow | undefined;
+  const owned = requireOwnership(req, reply, row);
+  if (!owned) return reply;
+  return designerSessionViewFromRow(owned);
+});
+
+app.patch('/designer/sessions/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const row = selectDesignerSessionRow.get(id) as DesignerSessionRow | undefined;
+  const owned = requireOwnership(req, reply, row);
+  if (!owned) return reply;
+  const body = req.body as {
+    title?: unknown;
+    messages?: unknown;
+    styleSpec?: unknown;
+    // null = explicit clear; undefined = don't touch.
+    directorScript?: unknown;
+  } | null;
+  if (!body || typeof body !== 'object') {
+    return reply.code(400).send({ error: 'body must be a JSON object' });
+  }
+  let titleVal: string | null = null;
+  if (body.title !== undefined) {
+    const t = String(body.title).trim();
+    if (!t) return reply.code(400).send({ error: 'title cannot be empty' });
+    titleVal = t.length > 60 ? t.slice(0, 60).trimEnd() + '…' : t;
+  }
+  let messagesVal: string | null = null;
+  if (body.messages !== undefined) {
+    if (!Array.isArray(body.messages)) {
+      return reply.code(400).send({ error: 'messages must be an array' });
+    }
+    messagesVal = JSON.stringify(body.messages);
+  }
+  let styleSpecVal: string | null = null;
+  if (body.styleSpec !== undefined) {
+    if (!body.styleSpec || typeof body.styleSpec !== 'object') {
+      return reply.code(400).send({ error: 'styleSpec must be an object' });
+    }
+    styleSpecVal = JSON.stringify(body.styleSpec);
+  }
+  // directorScript needs a tri-state: undefined = leave alone, null =
+  // clear, object = replace. The prepared statement decodes the '__null__'
+  // sentinel back to a SQL NULL on the column.
+  let directorScriptVal: string | null = null;
+  if (body.directorScript !== undefined) {
+    if (body.directorScript === null) {
+      directorScriptVal = '__null__';
+    } else if (typeof body.directorScript !== 'object') {
+      return reply
+        .code(400)
+        .send({ error: 'directorScript must be an object or null' });
+    } else {
+      directorScriptVal = JSON.stringify(body.directorScript);
+    }
+  }
+  updateDesignerSessionFields.run({
+    id,
+    userId: req.user!.id,
+    title: titleVal,
+    messages: messagesVal,
+    styleSpec: styleSpecVal,
+    directorScript: directorScriptVal,
+  });
+  const updated = selectDesignerSessionRow.get(id) as DesignerSessionRow;
+  return designerSessionViewFromRow(updated);
+});
+
+app.delete('/designer/sessions/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const result = deleteDesignerSessionForUser.run(id, req.user!.id);
+  if (result.changes === 0) {
+    return reply.code(404).send({ error: 'not found' });
+  }
+  return { id, deleted: true };
+});
+
 // Kick off a render of a design. Resolves the source video (stock or job),
 // copies it into storage/inputs/ as the input for the new job, derives
 // transcript + captionPlan from the design's caption track, packs the
@@ -974,6 +1193,10 @@ app.post('/designs/:id/render', { preHandler: requireAuth }, async (req, reply) 
     durationSec?: number;
     templateId?: string;
     styleSpec?: Record<string, any>;
+    // The whole-video scene plan when the agent's apply_director_script ran.
+    // Threaded straight through to the renderer's <CueLayer> so audio cues
+    // fire identically to the live preview.
+    directorScript?: unknown | null;
   };
   const captionTrack = state.tracks.find((t) => t?.type === 'captions');
   const captionWords: Array<{ id: string; text: string; start: number; duration: number; groupId: string }> =
@@ -1021,6 +1244,8 @@ app.post('/designs/:id/render', { preHandler: requireAuth }, async (req, reply) 
     transcript: JSON.stringify(transcriptJson),
     captionPlan: JSON.stringify(captionPlanJson),
     faces: 'null',
+    directorScript:
+      state.directorScript == null ? null : JSON.stringify(state.directorScript),
     keepInputUntil: null,
     hidden: 0,
   });
@@ -1246,14 +1471,43 @@ app.get('/jobs/:id/output', { preHandler: requireAuth }, async (req, reply) => {
     return reply.code(409).send({ error: 'not ready', status: row.status });
   }
   // ?download=<basename> opts the response into "save as" mode (instead of
-  // playing inline in a <video> tag). The editor's Export-render flow uses
-  // it to trigger a real browser download even though the file lives on
-  // S3 cross-origin — fetch+blob would CORS-fail, but a plain anchor click
-  // following a 302 to a URL with `Content-Disposition: attachment` set
-  // works in every browser.
+  // playing inline in a <video> tag). For Lambda-stored outputs we used to
+  // 302-redirect to a presigned S3 URL with the `Content-Disposition`
+  // override baked in. That works, but the redirect always causes a brief
+  // navigation visible in the URL bar / new-tab flash — the request has
+  // to go cross-origin to S3 and back.
+  //
+  // To get a TRULY silent download (same tab, no URL change, no flash),
+  // stream the S3 object server-side and relay the bytes with our own
+  // `Content-Disposition: attachment` header. The browser sees a
+  // same-origin response and saves it without any navigation.
+  //
+  // Without `?download` we still 302 to a presigned URL so the editor's
+  // <video> tag can stream the rendered output for inline preview.
   const downloadName = (req.query as { download?: string } | null)?.download;
   const s3 = parseS3Uri(row.outputPath);
   if (s3) {
+    if (downloadName) {
+      try {
+        const { body, contentLength } = await fetchOutputStream(row.outputPath);
+        reply.header('content-type', 'video/mp4');
+        if (typeof contentLength === 'number') {
+          reply.header('content-length', contentLength);
+        }
+        const safe = downloadName.replace(/"/g, '');
+        reply.header(
+          'content-disposition',
+          `attachment; filename="${safe}"`,
+        );
+        return reply.send(body);
+      } catch (err) {
+        req.log.error({ err }, `s3 stream failed for ${row.outputPath}`);
+        return reply.code(502).send({
+          error: 'could not stream output',
+          message: (err as Error).message,
+        });
+      }
+    }
     try {
       const signed = await presignOutputUrl(row.outputPath, 3600, downloadName);
       return reply.redirect(signed, 302);

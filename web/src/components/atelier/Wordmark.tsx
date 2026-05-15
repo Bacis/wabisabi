@@ -1,20 +1,25 @@
 import { Link } from 'react-router-dom';
+import { BrandMark } from './BrandMark';
 import styles from './atelier.module.css';
 
+// Top-left brand lockup. New form (per Caption Studio · wabisabi design):
+//   [amber-square 'w']  CAPTION STUDIO  |  wabisabi
+// The `tagline` prop is preserved for back-compat with old callers but is
+// rendered as the sub label after the divider when supplied; otherwise we
+// default to "wabisabi".
 export function Wordmark({
-  to = '/agent/new',
-  tagline = 'CAPTION AGENT · V0.1',
+  to = '/',
+  tagline,
 }: {
   to?: string;
   tagline?: string;
 }) {
   return (
-    <Link to={to} className={styles.wordmark} aria-label="Atelier home">
-      <span className={styles.wmGlyph} aria-hidden="true">A</span>
-      <span className={styles.wmText}>
-        <span className={styles.wmName}>Atelier</span>
-        <span className={styles.wmTagline}>{tagline}</span>
-      </span>
+    <Link to={to} className={styles.wordmark} aria-label="Caption Studio home">
+      <BrandMark />
+      <span className={styles.wmName}>Caption Studio</span>
+      <span className={styles.wmSep} aria-hidden="true" />
+      <span className={styles.wmSub}>{tagline ?? 'wabisabi'}</span>
     </Link>
   );
 }

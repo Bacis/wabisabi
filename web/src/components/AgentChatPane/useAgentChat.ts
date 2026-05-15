@@ -1,9 +1,15 @@
-// Chat state for /agent/new. Owns the UI thread (user bubbles + agent
-// action cards) plus the threadId. Authoritative conversation history
-// lives server-side in LangGraph's MemorySaver — we just send the latest
-// turn each time and render what comes back.
+// Chat state for /designer/:id. Owns the UI thread (user bubbles + agent
+// action cards) plus the threadId. The threadId doubles as the
+// designer_sessions row id: when the host page provides a sessionId, the
+// hook uses it as the threadId so the server-side LangGraph thread and the
+// persisted DB row share a single key.
+//
+// Persistence is a host-page concern (see /designer/new and /designer/:id):
+// the hook calls onFirstUserTurn() right before sending the user's first
+// chat turn (so the page can mint a DB row + navigate) and onTurnComplete()
+// after each successful agent reply (so the page can PATCH the row).
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useEditor } from '@/lib/editor/store';
 import { postAgentChat, type AgentChatResponse, type AgentToolCall } from '@/lib/api';
 import {
@@ -51,15 +57,93 @@ function uuid() {
   return `id-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export function useAgentChat() {
-  // Stable per chat session. Reset when the chat panel remounts (e.g. user
-  // picks a different stock clip).
-  const threadIdRef = useRef<string | null>(null);
-  if (threadIdRef.current === null) threadIdRef.current = uuid();
+export type UseAgentChatOpts = {
+  /**
+   * Stable session id for this conversation. When provided, doubles as the
+   * threadId so the server-side LangGraph thread aligns with the persisted
+   * designer_sessions row. When null/absent, the hook mints a client-side
+   * uuid (the /designer/new "draft" flow until the first message lands).
+   */
+  sessionId?: string | null;
+  /**
+   * Messages to seed the UI thread with (replayed when resuming a saved
+   * session). Applied once on the first render that the prop is non-null;
+   * subsequent message edits live in hook state.
+   */
+  initialMessages?: UIMessage[];
+  /**
+   * Called right before the user's FIRST chat turn is dispatched to the
+   * agent. The page should mint the designer_sessions row keyed by
+   * `threadId` and navigate to /designer/{threadId}. If the promise
+   * rejects, the chat still proceeds — the conversation just won't be
+   * persisted until the next successful PATCH.
+   */
+  onFirstUserTurn?: (payload: {
+    threadId: string;
+    firstMessage: string;
+  }) => Promise<void> | void;
+  /**
+   * Called after every successful agent reply with the full updated
+   * messages array, the latest styleSpec, and the latest directorScript
+   * (the whole-video scene plan; null if the agent has never fired
+   * apply_director_script for this session OR a revert just dropped it).
+   * The page PATCHes the designer_sessions row with these so reopens
+   * restore the entire editor state.
+   */
+  onTurnComplete?: (payload: {
+    messages: UIMessage[];
+    styleSpec: Record<string, unknown>;
+    directorScript: unknown | null;
+  }) => void;
+};
 
-  const [messages, setMessages] = useState<UIMessage[]>([]);
+export function useAgentChat(opts: UseAgentChatOpts = {}) {
+  const { sessionId, initialMessages, onFirstUserTurn, onTurnComplete } = opts;
+
+  // Stable per chat session. When the host page provides a sessionId, we
+  // pin to it (resuming a saved session). Otherwise we mint a client-side
+  // uuid and reuse it once the page mints the matching DB row.
+  const threadIdRef = useRef<string | null>(null);
+  if (threadIdRef.current === null) {
+    threadIdRef.current = sessionId ?? uuid();
+  }
+  // Track which sessionId we've pinned to so a late-arriving prop (page
+  // hydrating from the server) replaces the placeholder uuid cleanly.
+  const pinnedSessionIdRef = useRef<string | null>(sessionId ?? null);
+  if (sessionId && pinnedSessionIdRef.current !== sessionId) {
+    threadIdRef.current = sessionId;
+    pinnedSessionIdRef.current = sessionId;
+  }
+
+  const [messages, setMessages] = useState<UIMessage[]>(initialMessages ?? []);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Hydrate from prop once initialMessages arrives (the parent fetches the
+  // session in an effect, so the first render is empty). Keyed by sessionId
+  // so navigating between sessions reseeds correctly.
+  const hydratedKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!sessionId || !initialMessages) return;
+    if (hydratedKeyRef.current === sessionId) return;
+    hydratedKeyRef.current = sessionId;
+    setMessages(initialMessages);
+  }, [sessionId, initialMessages]);
+
+  // Capture callbacks in refs so send() can reference the latest version
+  // without retriggering its useCallback identity (which would re-render
+  // AgentChatPane on every parent re-render).
+  const firstTurnRef = useRef(onFirstUserTurn);
+  firstTurnRef.current = onFirstUserTurn;
+  const turnCompleteRef = useRef(onTurnComplete);
+  turnCompleteRef.current = onTurnComplete;
+  // A "session" here means: has the page persisted a row for this thread
+  // yet? In draft mode (no sessionId prop, no first-turn yet) we still need
+  // to fire onFirstUserTurn exactly once.
+  const firstTurnFiredRef = useRef<boolean>(!!sessionId);
+  useEffect(() => {
+    if (sessionId) firstTurnFiredRef.current = true;
+  }, [sessionId]);
 
   // Pull only the store actions we need; reads happen inside send() via
   // useEditor.getState() so we always see the latest spec.
@@ -82,18 +166,31 @@ export function useAgentChat() {
       if (!trimmed || sending) return;
 
       const userId = uuid();
-      setMessages((prev) => [
-        ...prev,
-        {
-          kind: 'user',
-          id: userId,
-          text: input.text,
-          slashSource: input.slashSource,
-          attachedWord: input.attachedWord,
-        },
-      ]);
+      const userMessage: UIUserMessage = {
+        kind: 'user',
+        id: userId,
+        text: input.text,
+        slashSource: input.slashSource,
+        attachedWord: input.attachedWord,
+      };
+      setMessages((prev) => [...prev, userMessage]);
       setError(null);
       setSending(true);
+
+      // First-turn hook: page mints the DB row + redirects to /designer/:id
+      // before the chat request flies. Don't block the chat if persistence
+      // fails — degraded mode keeps the local convo going.
+      if (!firstTurnFiredRef.current) {
+        firstTurnFiredRef.current = true;
+        try {
+          await firstTurnRef.current?.({
+            threadId: threadIdRef.current!,
+            firstMessage: input.text,
+          });
+        } catch (err) {
+          console.warn('designer session create failed; continuing in draft mode', err);
+        }
+      }
 
       const snapshot = useEditor.getState();
       const priorSpec = snapshot.styleSpec;
@@ -173,20 +270,32 @@ export function useAgentChat() {
           }
         }
 
-        setMessages((prev) => [
-          ...prev,
-          {
-            kind: 'agent',
-            id: uuid(),
-            assistantMessage: res.assistantMessage,
-            toolTrace: res.toolTrace,
-            priorSpec,
-            priorTemplateId,
-            priorDirectorScript,
-            applied,
-            appliedDirectorScript: res.patch?.directorScript ?? null,
-          },
-        ]);
+        const agentMessage: UIAgentMessage = {
+          kind: 'agent',
+          id: uuid(),
+          assistantMessage: res.assistantMessage,
+          toolTrace: res.toolTrace,
+          priorSpec,
+          priorTemplateId,
+          priorDirectorScript,
+          applied,
+          appliedDirectorScript: res.patch?.directorScript ?? null,
+        };
+        setMessages((prev) => {
+          const next = [...prev, agentMessage];
+          // Fire the persistence callback with the full updated transcript
+          // + the freshly-applied styleSpec + directorScript. Microtask
+          // defer keeps the PATCH out of React's commit phase.
+          const snap = useEditor.getState();
+          queueMicrotask(() => {
+            turnCompleteRef.current?.({
+              messages: next,
+              styleSpec: snap.styleSpec,
+              directorScript: snap.directorScript,
+            });
+          });
+          return next;
+        });
         // Clear the selection chip — user can re-click another word to scope
         // the next turn. Matches the prototype's behavior where the chip
         // disappears after the message lands.
