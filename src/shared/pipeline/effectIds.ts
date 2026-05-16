@@ -8,7 +8,7 @@ export const EFFECT_IDS = [
   'none',
   'samba', 'crystal', 'magnetic',
   'breathe', 'flare',
-  'resonance', 'plasma', 'inflation', 'ferro', 'shockwave',
+  'resonance', 'inflation', 'ferro', 'shockwave',
   'slice',
 ] as const;
 
@@ -22,7 +22,6 @@ export const EFFECT_KIND_BY_ID: Record<EffectId, 'none' | 'per-letter' | 'per-wo
   breathe: 'per-word',
   flare: 'per-word',
   resonance: 'svg-filter',
-  plasma: 'svg-filter',
   inflation: 'svg-filter',
   ferro: 'svg-filter',
   shockwave: 'svg-filter',

@@ -60,6 +60,15 @@ export type AudioPattern = {
   };
 };
 
+export type MotionPreset =
+  | 'spring-scale-in'
+  | 'soft-blur-in'
+  | 'per-character-rise'
+  | 'per-word-crossfade'
+  | 'shimmer-sweep'
+  | 'bottom-up-letters'
+  | 'focus-blur-resolve';
+
 export type StyleOverride = {
   fill?: string;
   emphasisFill?: string;
@@ -68,6 +77,7 @@ export type StyleOverride = {
   casing?: 'none' | 'uppercase' | 'lowercase';
   effect?: string;
   intensity?: number;
+  motionPreset?: MotionPreset;
 };
 
 export type ProjectInvariants = {
@@ -307,6 +317,23 @@ export const ROLE_DEFAULT_MAX_PER_LINE: Record<GroupRole, number> = {
   'outro': 2,
 };
 
+// Mirrors ROLE_DEFAULTS.motionPreset on the server. Drives
+// animation.preset on the chunkOverride so each group renders with its
+// own entry animation — a multi-group reel naturally tours the seven
+// presets without the planner having to think about it.
+export const ROLE_DEFAULT_MOTION_PRESET: Record<GroupRole, MotionPreset> = {
+  'intro-hook': 'shimmer-sweep',
+  'hero-title-card': 'focus-blur-resolve',
+  'backstory-beat': 'per-word-crossfade',
+  'enumerated-list': 'per-character-rise',
+  'stat-callout': 'spring-scale-in',
+  'pull-quote': 'soft-blur-in',
+  'pov-shift': 'per-word-crossfade',
+  'comparison-pair': 'bottom-up-letters',
+  'cta-overlay': 'spring-scale-in',
+  'outro': 'soft-blur-in',
+};
+
 // Mirrors ROLE_DEFAULTS.casing on the server. Drives font.textTransform on
 // the chunkOverride so title cards and CTAs render in uppercase while
 // backstory beats stay sentence-case.
@@ -360,6 +387,10 @@ export function directorScriptToChunkOverrides(
     const anchor = g.placement?.anchor ?? ROLE_DEFAULT_ANCHOR[g.role];
     // Honor explicit per-group maxPerLine; fall back to role defaults.
     const groupMaxPerLine = g.maxPerLine ?? ROLE_DEFAULT_MAX_PER_LINE[g.role];
+    // Per-group entry animation: planner override wins, otherwise the role
+    // default. Every group ends up with a preset so a multi-group reel
+    // visibly varies its animation language without manual chunkOverrides.
+    const motionPreset = g.overrides?.motionPreset ?? ROLE_DEFAULT_MOTION_PRESET[g.role];
     // Per-role cascade-stack parameters. Chapter-card roles flatten the
     // cascade (1.0 / 1.0) so all stacked words land at the same large
     // size; speaker-callout roles keep the gentle taper.
@@ -369,6 +400,7 @@ export function directorScriptToChunkOverrides(
       reel: {
         layout: { strategy },
         ...(isChapterCard ? { cascadeTopRatio: 1.0, cascadeBottomRatio: 1.0, emphasisLineBreak: true } : {}),
+        wordReveal: 'progressive',
       },
       font: {
         size: g.overrides?.fontSize ?? baseSize * sizeMultiplier,
@@ -378,6 +410,9 @@ export function directorScriptToChunkOverrides(
         align,
         position: anchor,
         maxWordsPerLine: groupMaxPerLine,
+      },
+      animation: {
+        preset: motionPreset,
       },
     };
     // Carry explicit per-group color overrides through. Layered onto the

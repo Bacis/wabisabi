@@ -40,7 +40,7 @@ export const PRESETS: Record<string, Preset> = {
         emphasisFill: '#ffe14b',
       },
       layout: { position: 'bottom', safeMargin: 0.15, maxWordsPerLine: 4 },
-      animation: { preset: 'pop', emphasisScale: 1.15, durationMs: 120 },
+      animation: { preset: 'spring-scale-in' },
     },
   },
   // Cinematic — the latest reel-clone styleSpec, OCR-derived from the
@@ -77,8 +77,10 @@ export const PRESETS: Record<string, Preset> = {
       // Empirically measured char-advance for Inter Black at letterSpacing=-2.
       charAdvance: 0.558,
       animation: {
-        preset: 'karaoke',
+        preset: 'per-word-crossfade',
         tailMs: 200,
+        // scaleFrom + durationMs retained for reel-clone's bespoke spring
+        // animation, which still drives a scale-from-small entry per word.
         scaleFrom: 0.7,
         durationMs: 140,
       },

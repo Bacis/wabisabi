@@ -1,7 +1,13 @@
 import React from 'react';
 import { useCurrentFrame, useVideoConfig } from 'remotion';
 import { effectivePosition, type FaceData } from './positioning';
-import { animateWord } from './animationPresets';
+import {
+  evalEnter,
+  getSpec,
+  peakScale,
+  type AnimPreset,
+  type RenderFrame,
+} from './animationPresets';
 import { resolveChunkStyle, type ChunkOverride } from './styleMerge';
 
 // Caption-only overlay. Exactly the same logic as the body of PopWords —
@@ -55,7 +61,9 @@ export type StyleSpec = {
     };
   };
   animation?: {
-    preset?: 'pop' | 'fade' | 'karaoke' | 'typewriter' | 'slide';
+    preset?: AnimPreset;
+    // Legacy tunables. The new spec-driven runtime ignores these; reel-clone
+    // and stylepack code still reads them for bespoke spring animations.
     durationMs?: number;
     emphasisScale?: number;
     scaleFrom?: number;
@@ -130,7 +138,7 @@ export function resolveStyle(spec: StyleSpec) {
   };
   const padding = { x: 24, y: 12, ...spec.layout?.padding };
   const anim = {
-    preset: 'pop' as const,
+    preset: 'per-word-crossfade' as AnimPreset,
     durationMs: 120,
     emphasisScale: 1.15,
     scaleFrom: 0.6,
@@ -265,84 +273,108 @@ export const CaptionLayer: React.FC<Props> = ({ transcript, captionPlan, faces, 
           borderRadius: r.layout.borderRadius,
         }}
       >
-        {activeChunk.words.map((w, i) => {
-          const isEmphasis = activeChunk.emphasis[i] ?? false;
+        {(() => {
+          const spec = getSpec(r.anim.preset);
+          const peak = peakScale(spec);
+          const usesScale = peak > 1.001;
+          const isPerChar = spec.target === 'per-character';
+          const isWhole = spec.target === 'whole' || spec.target === 'per-line';
+          const wholeAnchor = activeChunk.words[0]!.start;
+          const charStaggerSec = spec.enter.stagger_ms / 1000;
 
-          // Reserve flex-layout space for the word's peak transform-scale
-          // overshoot. `transform: scale()` is visual-only — the flex row
-          // still reserves the word's natural width, so a 1.15x emphasis
-          // word visually bleeds ~7.5% of its width into each neighbor.
-          // The chunk `gap` alone doesn't cover that for wider words.
-          //
-          // We approximate the rendered word width as
-          //   length * fontSize * charAdvance
-          // (sans-serif avg char advance ≈ 0.55). Applying half the
-          // overshoot as marginInline on each side guarantees the flex
-          // row pushes neighbors out of the way, independent of font
-          // metrics specifics. Always size to the *peak* (emphasis +
-          // activeBoost) so the reserved slot is stable — no layout
-          // shift when the activeBoost kicks in mid-word.
-          const peakScale =
-            (isEmphasis ? r.anim.emphasisScale : 1) * r.anim.activeBoost;
-          const estCharAdvance = 0.55;
-          const estWordWidth = w.word.length * r.font.size * estCharAdvance;
-          const overshootMarginPx = Math.max(0, (peakScale - 1) * estWordWidth) / 2;
+          return activeChunk.words.map((w, i) => {
+            const isEmphasis = activeChunk.emphasis[i] ?? false;
+            const color = isEmphasis ? chunkEmphasisColor : r.color.fill;
 
-          const anim = animateWord(r.anim.preset, {
-            t,
-            frame,
-            fps,
-            word: w,
-            isEmphasis,
-            chunkStart: activeChunk.words[0]!.start,
-            fillColor: r.color.fill,
-            emphasisColor: chunkEmphasisColor,
-            scaleFrom: r.anim.scaleFrom,
-            emphasisScale: r.anim.emphasisScale,
-            activeBoost: r.anim.activeBoost,
-            durationMs: r.anim.durationMs,
-            spring: r.springCfg,
+            // Overshoot reservation — only relevant for scale-using specs.
+            // Approximate rendered word width as length × fontSize × 0.55
+            // (sans-serif avg char advance); reserve half the overshoot
+            // as marginInline on each side so flex neighbors stay out of
+            // the way independent of font metrics.
+            const estWordWidth = w.word.length * r.font.size * 0.55;
+            const overshootMarginPx = usesScale
+              ? Math.max(0, (peak - 1) * estWordWidth) / 2
+              : 0;
+
+            const useGradient = !!r.gradientImage && color === r.color.fill;
+            const colorStyle: React.CSSProperties = useGradient
+              ? {
+                  backgroundImage: r.gradientImage,
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  color: 'transparent',
+                }
+              : { color };
+
+            const leafFontStyle: React.CSSProperties = {
+              fontFamily: r.font.family,
+              fontWeight: r.font.weight,
+              fontSize: r.font.size,
+              letterSpacing: r.font.letterSpacing,
+              textTransform: r.font.textTransform,
+              ...colorStyle,
+              WebkitTextStroke: `${r.color.strokeWidth}px ${r.color.stroke}`,
+              paintOrder: 'stroke fill',
+              lineHeight: 1,
+              textShadow: r.textShadow,
+              fontVariationSettings: r.variationSettings,
+              transition: 'color 80ms linear',
+            };
+
+            if (isPerChar) {
+              const chars = [...w.word];
+              return (
+                <span
+                  key={i}
+                  style={{
+                    display: 'inline-flex',
+                    whiteSpace: 'nowrap',
+                    lineHeight: 1,
+                    marginInline: overshootMarginPx,
+                  }}
+                >
+                  {chars.map((ch, ci) => {
+                    const anchor = w.start + ci * charStaggerSec;
+                    const f: RenderFrame = evalEnter(spec, t, anchor);
+                    return (
+                      <span
+                        key={ci}
+                        style={{
+                          ...leafFontStyle,
+                          display: 'inline-block',
+                          transform: f.transform,
+                          opacity: f.opacity,
+                          filter: f.filter,
+                        }}
+                      >
+                        {ch === ' ' ? ' ' : ch}
+                      </span>
+                    );
+                  })}
+                </span>
+              );
+            }
+
+            const anchor = isWhole ? wholeAnchor : w.start;
+            const f: RenderFrame = evalEnter(spec, t, anchor);
+            return (
+              <span
+                key={i}
+                style={{
+                  ...leafFontStyle,
+                  display: 'inline-block',
+                  transform: f.transform,
+                  opacity: f.opacity,
+                  filter: f.filter,
+                  marginInline: overshootMarginPx,
+                }}
+              >
+                {w.word}
+              </span>
+            );
           });
-
-          const useGradient = r.gradientImage && anim.color === r.color.fill;
-          const gradientStyle: React.CSSProperties = useGradient
-            ? {
-                backgroundImage: r.gradientImage,
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                color: 'transparent',
-              }
-            : {
-                color: anim.color,
-              };
-
-          return (
-            <span
-              key={i}
-              style={{
-                fontFamily: r.font.family,
-                fontWeight: r.font.weight,
-                fontSize: r.font.size,
-                letterSpacing: r.font.letterSpacing,
-                textTransform: r.font.textTransform,
-                ...gradientStyle,
-                WebkitTextStroke: `${r.color.strokeWidth}px ${r.color.stroke}`,
-                paintOrder: 'stroke fill',
-                transform: anim.transform,
-                opacity: anim.opacity,
-                display: 'inline-block',
-                lineHeight: 1,
-                textShadow: r.textShadow,
-                fontVariationSettings: r.variationSettings,
-                transition: 'color 80ms linear',
-                marginInline: overshootMarginPx,
-              }}
-            >
-              {w.word}
-            </span>
-          );
-        })}
+        })()}
       </div>
     </div>
   );

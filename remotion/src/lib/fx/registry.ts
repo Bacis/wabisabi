@@ -18,7 +18,7 @@ export type EffectId =
   | 'none'
   | 'samba' | 'crystal' | 'magnetic'         // per-letter (Vol.02)
   | 'breathe' | 'flare'                       // per-word (Vol.02)
-  | 'resonance' | 'plasma' | 'inflation' | 'ferro' | 'shockwave'  // svg-filter (Vol.03)
+  | 'resonance' | 'inflation' | 'ferro' | 'shockwave'  // svg-filter (Vol.03)
   | 'slice';                                  // structural
 
 export type EffectDescriptor = {
@@ -38,7 +38,6 @@ export const EFFECT_DESCRIPTORS: Record<EffectId, EffectDescriptor> = {
   breathe:   { id: 'breathe',   kind: 'per-word',     family: 'vol02', defaultIntensity: 0.5 },
   flare:     { id: 'flare',     kind: 'per-word',     family: 'vol02', defaultIntensity: 0.5 },
   resonance: { id: 'resonance', kind: 'svg-filter',   family: 'vol03', defaultIntensity: 0.5 },
-  plasma:    { id: 'plasma',    kind: 'svg-filter',   family: 'vol03', defaultIntensity: 0.5 },
   inflation: { id: 'inflation', kind: 'svg-filter',   family: 'vol03', defaultIntensity: 0.5 },
   ferro:     { id: 'ferro',     kind: 'svg-filter',   family: 'vol03', defaultIntensity: 0.5 },
   shockwave: { id: 'shockwave', kind: 'svg-filter',   family: 'vol03', defaultIntensity: 0.5 },
@@ -52,7 +51,7 @@ export const PER_LETTER_EFFECT_IDS: ReadonlyArray<EffectId> =
   EFFECT_IDS.filter((id) => EFFECT_DESCRIPTORS[id].kind === 'per-letter');
 
 export const SVG_FILTER_EFFECT_IDS: ReadonlyArray<Vol03Effect> =
-  ['resonance', 'plasma', 'inflation', 'ferro', 'shockwave'];
+  ['resonance', 'inflation', 'ferro', 'shockwave'];
 
 export function getEffectKind(id: string | undefined | null): EffectKind {
   if (!id) return 'none';

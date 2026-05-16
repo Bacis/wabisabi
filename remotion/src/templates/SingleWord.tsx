@@ -8,7 +8,12 @@ import {
 } from 'remotion';
 import { loadFont } from '@remotion/google-fonts/Inter';
 import { effectivePosition, type FaceData } from '../lib/positioning';
-import { animateWord } from '../lib/animationPresets';
+import {
+  evalEnter,
+  getSpec,
+  type AnimPreset,
+  type RenderFrame,
+} from '../lib/animationPresets';
 import { resolveChunkStyle, type ChunkOverride } from '../lib/styleMerge';
 
 loadFont('normal', {
@@ -59,7 +64,8 @@ type StyleSpec = {
     };
   };
   animation?: {
-    preset?: 'pop' | 'fade' | 'karaoke' | 'typewriter' | 'slide';
+    preset?: AnimPreset;
+    // Legacy fields preserved for compatibility with reel-clone tunables.
     durationMs?: number;
     emphasisScale?: number;
     scaleFrom?: number;
@@ -169,7 +175,7 @@ function resolveStyle(spec: StyleSpec) {
     ...spec.layout?.singleWord,
   };
   const anim = {
-    preset: 'pop' as const,
+    preset: 'per-word-crossfade' as AnimPreset,
     durationMs: 150,
     emphasisScale: 1.15,
     scaleFrom: 0.6,
@@ -214,8 +220,6 @@ export const SingleWord: React.FC<Props> = ({
   // the face-position fallback since positioning isn't a per-chunk call.
   const baseResolved = resolveStyle(styleSpec);
 
-  const effectivePreset = baseResolved.anim.preset === 'karaoke' ? 'pop' : baseResolved.anim.preset;
-
   // Fit-clamp uses the *longest word in the whole transcript* so the
   // render size is stable across the video — computed against the base
   // spec, not per-chunk, so a chunk override to font.size won't break
@@ -245,24 +249,17 @@ export const SingleWord: React.FC<Props> = ({
   const renderSize = Math.min(r.font.size * r.singleWord.sizeMultiplier, maxFitSize);
 
   const chunkEmphasisColor = r.emphasisPalette[chunkIdx % r.emphasisPalette.length]!;
+  const wordColor = isEmphasis ? chunkEmphasisColor : r.color.fill;
 
-  const anim = activeWord
-    ? animateWord(effectivePreset, {
-        t,
-        frame,
-        fps,
-        word: activeWord,
-        isEmphasis,
-        chunkStart: activeWord.start,
-        fillColor: r.color.fill,
-        emphasisColor: chunkEmphasisColor,
-        scaleFrom: r.anim.scaleFrom,
-        emphasisScale: r.anim.emphasisScale,
-        activeBoost: r.anim.activeBoost,
-        durationMs: r.anim.durationMs,
-        spring: r.springCfg,
-      })
-    : null;
+  const animSpec = getSpec(r.anim.preset);
+  const isPerChar = animSpec.target === 'per-character';
+  const charStaggerSec = animSpec.enter.stagger_ms / 1000;
+
+  // For per-word / whole / per-line specs SingleWord renders the active
+  // word as one unit. For per-character specs each letter gets its own
+  // staggered entry — the single-word view becomes a kinetic letter cascade.
+  const wholeEntry: RenderFrame | null =
+    activeWord && !isPerChar ? evalEnter(animSpec, t, activeWord.start) : null;
 
   const position = effectivePosition(faces, t, r.layout.position);
 
@@ -275,7 +272,7 @@ export const SingleWord: React.FC<Props> = ({
 
   const hasBackground = Boolean(r.color.background);
 
-  const useGradient = r.gradientImage && anim && anim.color === r.color.fill;
+  const useGradient = !!r.gradientImage && wordColor === r.color.fill;
   const fillStyle: React.CSSProperties = useGradient
     ? {
         backgroundImage: r.gradientImage,
@@ -285,7 +282,7 @@ export const SingleWord: React.FC<Props> = ({
         color: 'transparent',
       }
     : {
-        color: anim?.color ?? r.color.fill,
+        color: wordColor,
       };
 
   return (
@@ -296,7 +293,7 @@ export const SingleWord: React.FC<Props> = ({
         />
       )}
 
-      {activeWord && anim && (
+      {activeWord && (
         <div
           style={{
             position: 'absolute',
@@ -315,26 +312,60 @@ export const SingleWord: React.FC<Props> = ({
               borderRadius: hasBackground ? r.layout.borderRadius : 0,
             }}
           >
-            <span
-              style={{
-                fontFamily: r.font.family,
-                fontWeight: r.font.weight,
-                fontSize: renderSize,
-                letterSpacing: r.font.letterSpacing,
-                textTransform: r.font.textTransform,
-                ...fillStyle,
-                WebkitTextStroke: `${r.color.strokeWidth}px ${r.color.stroke}`,
-                paintOrder: 'stroke fill',
-                transform: anim.transform,
-                opacity: anim.opacity,
-                display: 'inline-block',
-                lineHeight: 1,
-                textShadow: r.textShadow,
-                fontVariationSettings: r.variationSettings,
-              }}
-            >
-              {activeWord.word}
-            </span>
+            {isPerChar ? (
+              <span style={{ display: 'inline-flex', whiteSpace: 'nowrap', lineHeight: 1 }}>
+                {[...activeWord.word].map((ch, ci) => {
+                  const anchor = activeWord.start + ci * charStaggerSec;
+                  const f = evalEnter(animSpec, t, anchor);
+                  return (
+                    <span
+                      key={ci}
+                      style={{
+                        fontFamily: r.font.family,
+                        fontWeight: r.font.weight,
+                        fontSize: renderSize,
+                        letterSpacing: r.font.letterSpacing,
+                        textTransform: r.font.textTransform,
+                        ...fillStyle,
+                        WebkitTextStroke: `${r.color.strokeWidth}px ${r.color.stroke}`,
+                        paintOrder: 'stroke fill',
+                        transform: f.transform,
+                        opacity: f.opacity,
+                        filter: f.filter,
+                        display: 'inline-block',
+                        lineHeight: 1,
+                        textShadow: r.textShadow,
+                        fontVariationSettings: r.variationSettings,
+                      }}
+                    >
+                      {ch}
+                    </span>
+                  );
+                })}
+              </span>
+            ) : (
+              <span
+                style={{
+                  fontFamily: r.font.family,
+                  fontWeight: r.font.weight,
+                  fontSize: renderSize,
+                  letterSpacing: r.font.letterSpacing,
+                  textTransform: r.font.textTransform,
+                  ...fillStyle,
+                  WebkitTextStroke: `${r.color.strokeWidth}px ${r.color.stroke}`,
+                  paintOrder: 'stroke fill',
+                  transform: wholeEntry?.transform ?? 'none',
+                  opacity: wholeEntry?.opacity ?? 1,
+                  filter: wholeEntry?.filter,
+                  display: 'inline-block',
+                  lineHeight: 1,
+                  textShadow: r.textShadow,
+                  fontVariationSettings: r.variationSettings,
+                }}
+              >
+                {activeWord.word}
+              </span>
+            )}
           </div>
         </div>
       )}

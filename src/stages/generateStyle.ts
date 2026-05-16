@@ -57,18 +57,15 @@ layout:
   gapRatio       number    space between words as multiple of font.size (default 0.25)
 
 animation:
-  preset         "pop" | "fade" | "karaoke" | "typewriter" | "slide"
-                 - pop: springy scale-in (default, most common)
-                 - fade: smooth opacity cross-fade per chunk
-                 - karaoke: words light up as spoken, classic sing-along
-                 - typewriter: words appear one at a time
-                 - slide: words translate up into place
-  durationMs     number    animation duration (default 120, range 50-600)
-  emphasisScale  1-3       scale multiplier for emphasized words (default 1.15)
-  scaleFrom      0-1       starting scale for pop/slide (default 0.6)
-  activeBoost    1-2       extra scale on currently-spoken word (default 1.06)
+  preset         one of (each embeds its own duration / easing / stagger — DO NOT set durationMs/scaleFrom/spring):
+                 - spring-scale-in     iOS icon overshoot, per-word, 360ms (95ms stagger)
+                 - soft-blur-in        Apple hero blur fade, per-character, 900ms (25ms stagger)
+                 - per-character-rise  tvOS crisp letter rise, per-character, 700ms (24ms)
+                 - per-word-crossfade  calm keynote rhythm, per-word, 700ms (default)
+                 - shimmer-sweep       premium horizontal glide, whole headline, 850ms
+                 - bottom-up-letters   pronounced letter staircase, per-character, 400ms (88ms)
+                 - focus-blur-resolve  cinematic focus pull, whole headline, 760ms
   tailMs         number    how long chunks linger after last word (default 200)
-  spring         {damping, stiffness, mass}   physics (default 12/200/0.6)
 
 templateId (top-level, sibling to styleSpec):
   "pop-words"      standard multi-word caption lines (default)
@@ -82,12 +79,13 @@ templateId (top-level, sibling to styleSpec):
 4. For full re-styles ("make it look like a horror movie"), include every field needed to achieve the look; unspecified fields use schema defaults.
 5. Look names to rules of thumb:
    - "neon" / "glow" → color.shadow with large blurPx, no offset, same hue as the text
-   - "karaoke" / "sing-along" → animation.preset: "karaoke"
+   - "keynote" / "calm" / "editorial" → animation.preset: "per-word-crossfade"
+   - "cinematic" / "hero" / "focus pull" → animation.preset: "focus-blur-resolve"
    - "cinematic" / "reel" / "instagram" / "premium" / "epic" / "showcase" → templateId: "reel-clone"
-   - "minimal" / "clean" / "understated" → lower weight (400-600), no uppercase, thin stroke, fade preset
+   - "minimal" / "clean" / "understated" → lower weight (400-600), no uppercase, thin stroke, soft-blur-in preset
    - "retro" / "vintage" → serif font, warm colors, lower saturation
    - "cyberpunk" / "sci-fi" → cool colors, palette of cyan/magenta, glow shadow
-   - "bold" / "aggressive" / "hype" → weight 900, uppercase, larger emphasisScale, fast duration
+   - "bold" / "aggressive" / "hype" → weight 900, uppercase, spring-scale-in preset
 6. When the user names multiple colors for emphasis, use a palette array for emphasisFill.
 7. notes is a single short sentence describing what you did (max 100 chars). It's shown to the user.
 

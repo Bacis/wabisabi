@@ -7,7 +7,7 @@
 //   - Overlay items → <Sequence> + <AbsoluteFill> with per-item transform
 //   - Caption groups: each frame finds the active word, locates its group,
 //     and renders an <AbsoluteFill> at the group's transform with all phrase
-//     words inside; the active word springs up via Remotion's spring().
+//     words inside; the active word animates via the shared entry-spec runtime.
 //   - Audio clips (currently always empty in V1) → <Audio>
 //
 // Falls back gracefully when `styleSpec.designer` is absent (e.g. someone
@@ -22,9 +22,13 @@ import {
   Sequence,
   useCurrentFrame,
   useVideoConfig,
-  spring,
-  interpolate,
 } from 'remotion';
+import {
+  evalEnter,
+  getSpec,
+  type AnimPreset,
+  type RenderFrame,
+} from '../lib/animationPresets';
 
 type Transform = {
   x: number;
@@ -92,7 +96,10 @@ type DesignerPayload = {
 // agent's apply_style_patch / tune_field tools drive entry behavior here even
 // though the rest of the StyleSpec is per-group via styleSpec.designer.
 type AnimationOverrides = {
-  preset?: 'pop' | 'fade' | 'karaoke' | 'typewriter' | 'slide';
+  preset?: AnimPreset;
+  // Retained for compatibility with the StyleSpec schema but unused by the
+  // spec-driven entry runtime. The active-word size boost comes from
+  // GroupStyle.scaleActive, not from these tunables.
   durationMs?: number;
   emphasisScale?: number;
   scaleFrom?: number;
@@ -272,64 +279,21 @@ const Word: React.FC<{
   frame: number;
   animation?: AnimationOverrides;
 }> = ({ word, active, style, fontSize, fps, frame, animation }) => {
-  // Spring on activation: when the active word changes, this Word
-  // re-mounts (different key path is not used; Remotion keeps Words across
-  // frames so we read frame relative to word.start to drive the spring).
-  const activeFrame = frame - Math.round(word.start * fps);
+  // The active-word entry animation is driven by the StyleSpec preset
+  // (interpreted via the shared animationPresets spec engine). Inactive
+  // words sit at their resting transform with the group's resting style.
+  const t = frame / fps;
+  const spec = getSpec(animation?.preset);
+  const entry: RenderFrame = active
+    ? evalEnter(spec, t, word.start)
+    : { opacity: 1, transform: 'none', filter: undefined };
 
-  // Pull animation overrides — agent's apply_style_patch / tune_field tools
-  // write here. Falling back to the original hardcoded values means inactive
-  // (no styleSpec.animation set) behaves identically to pre-override.
-  const preset = animation?.preset ?? 'pop';
-  const damping = animation?.spring?.damping ?? 12;
-  const stiffness = animation?.spring?.stiffness ?? 180;
-  const mass = animation?.spring?.mass ?? 1;
-  const targetScale = animation?.emphasisScale ?? style.scaleActive;
-  const fromScale = animation?.scaleFrom ?? 1;
-  const durationFrames =
-    animation?.durationMs != null
-      ? Math.max(1, Math.round((animation.durationMs / 1000) * fps))
-      : null;
-
-  // 'pop' (and 'karaoke', 'typewriter') keep spring-driven scale.
-  // 'fade' opacity-only entry; 'slide' opacity + translateY.
-  let scale = 1;
-  let opacity = 1;
-  let translateY = 0;
-  let rotate = 0;
-
-  if (active) {
-    if (preset === 'fade') {
-      const durF = durationFrames ?? Math.round(0.25 * fps);
-      opacity = interpolate(activeFrame, [0, durF], [0, 1], {
-        extrapolateLeft: 'clamp',
-        extrapolateRight: 'clamp',
-      });
-      scale = targetScale;
-    } else if (preset === 'slide') {
-      const durF = durationFrames ?? Math.round(0.3 * fps);
-      opacity = interpolate(activeFrame, [0, durF], [0, 1], {
-        extrapolateLeft: 'clamp',
-        extrapolateRight: 'clamp',
-      });
-      translateY = interpolate(activeFrame, [0, durF], [fontSize * 0.5, 0], {
-        extrapolateLeft: 'clamp',
-        extrapolateRight: 'clamp',
-      });
-      scale = targetScale;
-    } else if (preset === 'karaoke') {
-      // Karaoke: instant highlight, no scale/opacity animation — let the
-      // bg/color swap carry the read.
-      scale = targetScale;
-    } else {
-      // 'pop' / default / 'typewriter' fallback: spring scale from fromScale
-      // to targetScale. durationMs influences perceived snap only via the
-      // spring config; if user wants slower, they lower stiffness.
-      const s = spring({ frame: activeFrame, fps, config: { damping, stiffness, mass } });
-      scale = interpolate(s, [0, 1], [fromScale, targetScale]);
-      rotate = interpolate(s, [0, 1], [0, style.rotateActive]);
-    }
-  }
+  // GroupStyle.scaleActive is the designer's per-group "active word looks
+  // bigger" boost; multiply it onto whatever the spec produces so the
+  // active word still pops slightly larger than its neighbors.
+  const restScale = active ? style.scaleActive : 1;
+  const restRotate = active ? style.rotateActive : 0;
+  const transform = `${entry.transform === 'none' ? '' : entry.transform} scale(${restScale}) rotate(${restRotate}deg)`.trim();
 
   return (
     <span
@@ -342,9 +306,10 @@ const Word: React.FC<{
         fontSize,
         lineHeight: 1.1,
         boxShadow: active && style.glow ? `0 0 ${fontSize * 0.8}px ${style.glow}` : undefined,
-        transform: `translateY(${translateY}px) scale(${scale}) rotate(${rotate}deg)`,
+        transform,
         transformOrigin: 'center',
-        opacity,
+        opacity: entry.opacity,
+        filter: entry.filter,
         whiteSpace: 'nowrap',
       }}
     >

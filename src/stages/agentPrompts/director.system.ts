@@ -15,6 +15,7 @@
 import {
   GROUP_ROLES,
   LAYOUT_STRATEGIES,
+  MOTION_PRESETS,
   RENDERER_READY_STRATEGIES,
   SONIC_GESTURES,
 } from '../../shared/director/vocabularies.js';
@@ -39,8 +40,22 @@ const ROLE_RATIONALE: Record<typeof GROUP_ROLES[number], string> = {
 };
 
 const groupRoleBullets = GROUP_ROLES.map(
-  (role) => `- ${role}: ${ROLE_RATIONALE[role]} (default layout: ${ROLE_DEFAULTS[role].layoutStrategy})`,
+  (role) =>
+    `- ${role}: ${ROLE_RATIONALE[role]} (default layout: ${ROLE_DEFAULTS[role].layoutStrategy}, default motion: ${ROLE_DEFAULTS[role].motionPreset})`,
 ).join('\n');
+
+const motionPresetBullets = MOTION_PRESETS.map((id) => {
+  const blurb: Record<typeof MOTION_PRESETS[number], string> = {
+    'spring-scale-in':    'iOS-icon overshoot, per-word — punchy pop for stats / CTA',
+    'soft-blur-in':       'Apple per-character blur fade — premium quotes / outros',
+    'per-character-rise': 'tvOS crisp letter rise — clean lists / enumerations',
+    'per-word-crossfade': 'Calm keynote rhythm, per-word — narration / pov-shift default',
+    'shimmer-sweep':      'Whole-headline horizontal glide — opening hooks',
+    'bottom-up-letters':  'Pronounced per-letter staircase — comparison pairs / dramatic reveal',
+    'focus-blur-resolve': 'Cinematic blur → crisp focus pull — hero title cards',
+  };
+  return `- ${id} — ${blurb[id]}`;
+}).join('\n');
 
 const layoutBullets = LAYOUT_STRATEGIES.map((id) => {
   const ready = RENDERER_READY_STRATEGIES.has(id) ? '[READY]' : '[forward-compat — falls back to cascade-stack]';
@@ -131,6 +146,12 @@ ${groupRoleBullets}
 ${layoutBullets}
 
 When in doubt, omit "layoutStrategy" and let the role default take over.
+
+# MOTION_PRESETS (7 — entry animations, one per group)
+
+${motionPresetBullets}
+
+Every group inherits its role's default motion preset automatically — you don't need to set it. Override only when the user explicitly asks for a different feel on a specific group, via "overrides": { "motionPreset": "<id>" } on that group. The defaults already give a multi-group reel a varied animation tour.
 
 # SONIC_GESTURES (16 — felt-impact descriptors)
 

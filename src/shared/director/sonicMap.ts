@@ -33,7 +33,7 @@ export const SONIC_MOTION_MAP = {
   drop:    { effect: 'shockwave', intensity: 0.6,  spring: { damping: 9,  stiffness: 260, mass: 0.7 } },
   shimmer: { effect: 'flare',     intensity: 0.75, spring: { damping: 16, stiffness: 240, mass: 0.4 } },
   rumble:  { effect: 'resonance', intensity: 0.5,  spring: { damping: 8,  stiffness: 200, mass: 0.8 } },
-  sizzle:  { effect: 'plasma',    intensity: 0.7,  spring: { damping: 14, stiffness: 240, mass: 0.5 } },
+  sizzle:  { effect: 'flare',     intensity: 0.7,  spring: { damping: 14, stiffness: 240, mass: 0.5 } },
   flutter: { effect: 'samba',     intensity: 0.4,  spring: { damping: 18, stiffness: 220, mass: 0.4 } },
   snap:    { effect: 'magnetic',  intensity: 0.8,  spring: { damping: 6,  stiffness: 380, mass: 0.3 } },
   sigh:    { effect: 'breathe',   intensity: 0.4,  spring: { damping: 18, stiffness: 160, mass: 0.6 } },

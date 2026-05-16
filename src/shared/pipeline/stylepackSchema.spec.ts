@@ -118,9 +118,9 @@ describe('effectAssignmentSchema', () => {
     expect(variantIds).toEqual(expected);
   });
 
-  it('parses a plasma assignment with default intensity 0.5', () => {
-    const out = effectAssignmentSchema.parse({ effect: 'plasma' });
-    expect(out.effect).toBe('plasma');
+  it('parses a shockwave assignment with default intensity 0.5', () => {
+    const out = effectAssignmentSchema.parse({ effect: 'shockwave' });
+    expect(out.effect).toBe('shockwave');
     expect(out.params.intensity).toBe(0.5);
   });
 
@@ -130,26 +130,26 @@ describe('effectAssignmentSchema', () => {
   });
 
   it('rejects intensity outside [0, 1]', () => {
-    expect(effectAssignmentSchema.safeParse({ effect: 'plasma', params: { intensity: 1.5 } }).success).toBe(false);
-    expect(effectAssignmentSchema.safeParse({ effect: 'plasma', params: { intensity: -0.1 } }).success).toBe(false);
+    expect(effectAssignmentSchema.safeParse({ effect: 'shockwave', params: { intensity: 1.5 } }).success).toBe(false);
+    expect(effectAssignmentSchema.safeParse({ effect: 'shockwave', params: { intensity: -0.1 } }).success).toBe(false);
   });
 });
 
 describe('fxConfigSchema.tiers', () => {
   it('accepts a single-effect-per-tier shape', () => {
     const out = fxConfigSchema.parse({
-      tiers: { p0: { effect: 'plasma', params: { intensity: 0.7 } } },
+      tiers: { p0: { effect: 'shockwave', params: { intensity: 0.7 } } },
     });
     const tier = out.tiers.p0;
     expect(Array.isArray(tier)).toBe(false);
-    expect((tier as { effect: string }).effect).toBe('plasma');
+    expect((tier as { effect: string }).effect).toBe('shockwave');
   });
 
   it('accepts an array of stacked effects per tier', () => {
     const out = fxConfigSchema.parse({
       tiers: {
         p0: [
-          { effect: 'plasma', params: { intensity: 0.6 } },
+          { effect: 'shockwave', params: { intensity: 0.6 } },
           { effect: 'flare' },
         ],
       },

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { compose, composePartial } from './compose.js';
 import {
   fontInterBlack,
-  fxPlasmaEmphasis,
+  fxSambaLetters,
   fxShockwaveEmphasis,
   paletteYellowRed,
   themeCinematicCascade,
@@ -63,9 +63,9 @@ describe('compose', () => {
   it('respects the discriminator-replace rule for fx tier assignments', () => {
     // Two fx packs both target byPaletteIndex.0 with different effects.
     // The later one's params should replace the earlier one's wholly —
-    // not merge ({ effect: 'plasma' } ∪ { effect: 'shockwave' } would be
+    // not merge ({ effect: 'samba' } ∪ { effect: 'shockwave' } would be
     // ambiguous nonsense).
-    const out = compose(fxPlasmaEmphasis, fxShockwaveEmphasis);
+    const out = compose(fxSambaLetters, fxShockwaveEmphasis);
     const tier = ((out.reel as Record<string, unknown>).tiers as Record<string, unknown>)
       .byPaletteIndex as Record<string, { effect: string; intensity: number }>;
     expect(tier['0']!.effect).toBe('shockwave');
@@ -99,6 +99,6 @@ describe('getPresetPack', () => {
 
   it('returns null for unknown slot or preset id', () => {
     expect(getPresetPack('theme', 'totallyMadeUp')).toBeNull();
-    expect(getPresetPack('madeup', 'plasmaEmphasis')).toBeNull();
+    expect(getPresetPack('madeup', 'shockwaveEmphasis')).toBeNull();
   });
 });

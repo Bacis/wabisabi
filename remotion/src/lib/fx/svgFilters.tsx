@@ -1,7 +1,7 @@
-// FX Lab Vol.03 — intensity-driven body motion (resonance / plasma /
-// inflation / ferro / shockwave). Each takes a single 0..1 intensity that
-// scales BOTH amplitude AND rate; primitive attributes are recomputed per
-// frame from useCurrentFrame() inside the React tree, so seeds advance
+// FX Lab Vol.03 — intensity-driven body motion (resonance / inflation /
+// ferro / shockwave). Each takes a single 0..1 intensity that scales
+// BOTH amplitude AND rate; primitive attributes are recomputed per frame
+// from useCurrentFrame() inside the React tree, so seeds advance
 // deterministically and the same frame always produces the same render
 // (Player + Lambda parity).
 //
@@ -11,14 +11,14 @@
 import React from 'react';
 import { blendRgbHex, hexToRgb } from './colorBlend';
 
-export type Vol03Effect = 'resonance' | 'plasma' | 'inflation' | 'ferro' | 'shockwave';
+export type Vol03Effect = 'resonance' | 'inflation' | 'ferro' | 'shockwave';
 
 export const VOL03_EFFECTS: ReadonlyArray<Vol03Effect> = [
-  'resonance', 'plasma', 'inflation', 'ferro', 'shockwave',
+  'resonance', 'inflation', 'ferro', 'shockwave',
 ];
 
 export function isVol03Effect(e: string | undefined): e is Vol03Effect {
-  return e === 'resonance' || e === 'plasma' || e === 'inflation'
+  return e === 'resonance' || e === 'inflation'
     || e === 'ferro' || e === 'shockwave';
 }
 
@@ -53,35 +53,6 @@ export function FxFilter({
         <feDisplacementMap in="SourceGraphic" in2="t1" scale={scale1} result="d1" />
         <feTurbulence type="fractalNoise" baseFrequency="0.06" numOctaves={2} seed={seed2} result="t2" />
         <feDisplacementMap in="d1" in2="t2" scale={scale2} />
-      </filter>
-    );
-  }
-
-  if (effect === 'plasma') {
-    const seed = Math.floor(t * (1 + I * 4)) % 100;
-    const bf1 = (0.018 + I * 0.012).toFixed(4);
-    const bf2 = (0.025 + I * 0.018).toFixed(4);
-    const alphaMul = Math.min(1, I * 1.1).toFixed(3);
-    return (
-      <filter id={id} x="-10%" y="-10%" width="120%" height="120%">
-        <feTurbulence type="fractalNoise" baseFrequency={`${bf1} ${bf2}`} numOctaves={2} seed={seed} result="noise" />
-        <feComponentTransfer in="noise" result="hot">
-          <feFuncR type="table" tableValues="0.05 0.4 0.95 1 0.95" />
-          <feFuncG type="table" tableValues="0 0.05 0.5 0.85 0.95" />
-          <feFuncB type="table" tableValues="0.2 0 0 0.05 0.4" />
-          <feFuncA type="table" tableValues="0 1 1 1 1" />
-        </feComponentTransfer>
-        <feComposite in="hot" in2="SourceGraphic" operator="in" result="masked" />
-        <feColorMatrix
-          in="masked"
-          type="matrix"
-          values={`1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 ${alphaMul} 0`}
-          result="opacityCtl"
-        />
-        <feMerge>
-          <feMergeNode in="SourceGraphic" />
-          <feMergeNode in="opacityCtl" />
-        </feMerge>
       </filter>
     );
   }

@@ -10,26 +10,32 @@
 // the app. New roles must add an entry; the satisfies clause below makes
 // the build fail until they do.
 
-import type { Casing, GroupRole, LayoutStrategyId } from './vocabularies.js';
+import type { Casing, GroupRole, LayoutStrategyId, MotionPreset } from './vocabularies.js';
 import { GROUP_ROLES } from './vocabularies.js';
 
 export type RoleDefault = {
   layoutStrategy: LayoutStrategyId;
   casing: Casing;
   sizeMultiplier: number;
+  // Entry animation preset for words in this group. Each role gets a
+  // distinct preset so a multi-group reel naturally reads as a sequence
+  // of different visual languages (cinematic title → keynote backstory
+  // → crisp list → stat pop → quote blur, etc.). Planners can still
+  // override per group via group.overrides.motionPreset.
+  motionPreset: MotionPreset;
 };
 
 export const ROLE_DEFAULTS = {
-  'intro-hook':       { layoutStrategy: 'single-line-flow', casing: 'none',      sizeMultiplier: 1.0 },
-  'hero-title-card':  { layoutStrategy: 'cascade-stack',    casing: 'uppercase', sizeMultiplier: 1.2 },
-  'backstory-beat':   { layoutStrategy: 'single-line-flow', casing: 'none',      sizeMultiplier: 0.9 },
-  'enumerated-list':  { layoutStrategy: 'lower-third',      casing: 'none',      sizeMultiplier: 1.0 },
-  'stat-callout':     { layoutStrategy: 'cascade-stack',    casing: 'uppercase', sizeMultiplier: 1.3 },
-  'pull-quote':       { layoutStrategy: 'cascade-stack',    casing: 'none',      sizeMultiplier: 1.0 },
-  'pov-shift':        { layoutStrategy: 'single-line-flow', casing: 'none',      sizeMultiplier: 0.95 },
-  'comparison-pair':  { layoutStrategy: 'cascade-stack',    casing: 'uppercase', sizeMultiplier: 1.0 },
-  'cta-overlay':      { layoutStrategy: 'lower-third',      casing: 'uppercase', sizeMultiplier: 1.1 },
-  'outro':            { layoutStrategy: 'single-line-flow', casing: 'none',      sizeMultiplier: 1.0 },
+  'intro-hook':       { layoutStrategy: 'single-line-flow', casing: 'none',      sizeMultiplier: 1.0,  motionPreset: 'shimmer-sweep' },
+  'hero-title-card':  { layoutStrategy: 'cascade-stack',    casing: 'uppercase', sizeMultiplier: 1.2,  motionPreset: 'focus-blur-resolve' },
+  'backstory-beat':   { layoutStrategy: 'single-line-flow', casing: 'none',      sizeMultiplier: 0.9,  motionPreset: 'per-word-crossfade' },
+  'enumerated-list':  { layoutStrategy: 'lower-third',      casing: 'none',      sizeMultiplier: 1.0,  motionPreset: 'per-character-rise' },
+  'stat-callout':     { layoutStrategy: 'cascade-stack',    casing: 'uppercase', sizeMultiplier: 1.3,  motionPreset: 'spring-scale-in' },
+  'pull-quote':       { layoutStrategy: 'cascade-stack',    casing: 'none',      sizeMultiplier: 1.0,  motionPreset: 'soft-blur-in' },
+  'pov-shift':        { layoutStrategy: 'single-line-flow', casing: 'none',      sizeMultiplier: 0.95, motionPreset: 'per-word-crossfade' },
+  'comparison-pair':  { layoutStrategy: 'cascade-stack',    casing: 'uppercase', sizeMultiplier: 1.0,  motionPreset: 'bottom-up-letters' },
+  'cta-overlay':      { layoutStrategy: 'lower-third',      casing: 'uppercase', sizeMultiplier: 1.1,  motionPreset: 'spring-scale-in' },
+  'outro':            { layoutStrategy: 'single-line-flow', casing: 'none',      sizeMultiplier: 1.0,  motionPreset: 'soft-blur-in' },
 } as const satisfies Record<GroupRole, RoleDefault>;
 
 // Runtime sanity: every role in GROUP_ROLES must have a default. The

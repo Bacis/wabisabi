@@ -260,7 +260,6 @@ export const effectAssignmentSchema = z.discriminatedUnion('effect', [
   effectVariant('breathe'),
   effectVariant('flare'),
   effectVariant('resonance'),
-  effectVariant('plasma'),
   effectVariant('inflation'),
   effectVariant('ferro'),
   effectVariant('shockwave'),

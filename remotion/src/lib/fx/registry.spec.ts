@@ -28,7 +28,7 @@ describe('EFFECT_DESCRIPTORS', () => {
   });
 
   it('classifies all Vol.03 SVG-filter effects as svg-filter', () => {
-    for (const id of ['resonance', 'plasma', 'inflation', 'ferro', 'shockwave'] as const) {
+    for (const id of ['resonance', 'inflation', 'ferro', 'shockwave'] as const) {
       expect(EFFECT_DESCRIPTORS[id].kind).toBe('svg-filter');
     }
   });
@@ -43,9 +43,9 @@ describe('PER_LETTER_EFFECT_IDS / SVG_FILTER_EFFECT_IDS', () => {
     expect([...PER_LETTER_EFFECT_IDS].sort()).toEqual(['crystal', 'magnetic', 'samba']);
   });
 
-  it('SVG_FILTER_EFFECT_IDS lists the five Vol.03 filters', () => {
+  it('SVG_FILTER_EFFECT_IDS lists the four Vol.03 filters', () => {
     expect([...SVG_FILTER_EFFECT_IDS].sort()).toEqual(
-      ['ferro', 'inflation', 'plasma', 'resonance', 'shockwave'],
+      ['ferro', 'inflation', 'resonance', 'shockwave'],
     );
   });
 });
@@ -59,8 +59,8 @@ describe('getEffectKind / isKnownEffect', () => {
   });
 
   it('returns the descriptor kind for known ids', () => {
-    expect(getEffectKind('plasma')).toBe('svg-filter');
+    expect(getEffectKind('shockwave')).toBe('svg-filter');
     expect(getEffectKind('samba')).toBe('per-letter');
-    expect(isKnownEffect('plasma')).toBe(true);
+    expect(isKnownEffect('shockwave')).toBe(true);
   });
 });

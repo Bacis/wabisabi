@@ -31,6 +31,7 @@ import {
   casingSchema,
   groupRoleSchema,
   layoutStrategyIdSchema,
+  motionPresetSchema,
   sonicGestureSchema,
 } from './vocabularies.js';
 
@@ -91,6 +92,10 @@ export const styleOverrideSchema = z.object({
   casing: casingSchema.optional(),
   effect: z.string().optional(),
   intensity: z.number().min(0).max(1).optional(),
+  // Per-group entry animation preset. When omitted the role default from
+  // ROLE_DEFAULTS[role].motionPreset is used so every role gets a signature
+  // animation language out of the box.
+  motionPreset: motionPresetSchema.optional(),
 });
 export type StyleOverride = z.infer<typeof styleOverrideSchema>;
 
@@ -108,7 +113,7 @@ export const projectInvariantsSchema = z.object({
   fontSize: z.number().positive().default(96),
   casing: casingSchema.default('none'),
   // Default motion FX when a group/beat doesn't override. Use 'none' for
-  // plain captions; specific effects (samba/plasma/etc.) are tier-style.
+  // plain captions; specific effects (samba/shockwave/etc.) are tier-style.
   defaultEffect: z.string().default('none'),
   defaultIntensity: z.number().min(0).max(1).default(0.5),
 });

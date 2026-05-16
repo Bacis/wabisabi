@@ -118,3 +118,23 @@ export const audioPatternTypeSchema = z.enum(AUDIO_PATTERN_TYPES);
 export const CASINGS = ['none', 'uppercase', 'lowercase'] as const;
 export type Casing = (typeof CASINGS)[number];
 export const casingSchema = z.enum(CASINGS);
+
+// ---------------------------------------------------------------------------
+// MOTION_PRESETS — entry-animation specs ported from the pixel-point
+// `animate-text` catalog. Each id resolves to a portable keyframe spec in
+// remotion/src/lib/animationPresets.ts (MODE_SPECS) at render time. The
+// names are duplicated here so the director schema can validate without
+// depending on the renderer bundle.
+
+export const MOTION_PRESETS = [
+  'spring-scale-in',     // iOS-icon overshoot, per-word
+  'soft-blur-in',        // Apple per-character blur fade
+  'per-character-rise',  // tvOS crisp letter rise
+  'per-word-crossfade',  // calm keynote rhythm, per-word (default)
+  'shimmer-sweep',       // whole-headline horizontal glide
+  'bottom-up-letters',   // pronounced per-letter staircase
+  'focus-blur-resolve',  // cinematic blur → crisp focus pull
+] as const;
+
+export type MotionPreset = (typeof MOTION_PRESETS)[number];
+export const motionPresetSchema = z.enum(MOTION_PRESETS);

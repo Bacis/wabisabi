@@ -132,7 +132,17 @@ export const StyleSpecSchema = z
       .optional(),
     animation: z
       .object({
-        preset: z.enum(['pop', 'fade', 'karaoke', 'typewriter', 'slide']).default('pop'),
+        preset: z
+          .enum([
+            'spring-scale-in',
+            'soft-blur-in',
+            'per-character-rise',
+            'per-word-crossfade',
+            'shimmer-sweep',
+            'bottom-up-letters',
+            'focus-blur-resolve',
+          ])
+          .default('per-word-crossfade'),
         durationMs: z.number().positive().default(120),
         emphasisScale: z.number().min(1).max(3).default(1.15),
         // Starting scale for the pop/slide intro animation — the word

@@ -77,7 +77,6 @@ function tierGroup(
           // Vol.03 — intensity-driven body distortion. Use the Intensity
           // slider below to sweep amplitude + rate together.
           { value: 'resonance', label: 'Resonance — dual-frequency vibration ◉' },
-          { value: 'plasma', label: 'Plasma Core — heat fill flow ◉' },
           { value: 'inflation', label: 'Inflation — dilate breathe ◉' },
           { value: 'slice', label: 'Slice Glitch — banded offsets ◉' },
           { value: 'ferro', label: 'Ferrofluid — magnetic spike halo ◉' },
@@ -85,7 +84,7 @@ function tierGroup(
         ],
         default: 'none',
         description:
-          'Per-tier motion. Vol.02 (samba/breathe/flare/crystal/magnetic) layer on the entry spring. Vol.03 (◉ marked: resonance/plasma/inflation/slice/ferro/shockwave) are intensity-driven body distortions; set Intensity below.',
+          'Per-tier motion. Vol.02 (samba/breathe/flare/crystal/magnetic) layer on the entry spring. Vol.03 (◉ marked: resonance/inflation/slice/ferro/shockwave) are intensity-driven body distortions; set Intensity below.',
       },
       {
         kind: 'slider',
@@ -99,7 +98,7 @@ function tierGroup(
           'Single dial driving both amplitude and rate. 0.05 = barely-perceptible, 0.95 = violent.',
         showIf: {
           path: `${pathPrefix}.effect`,
-          oneOf: ['resonance', 'plasma', 'inflation', 'slice', 'ferro', 'shockwave'],
+          oneOf: ['resonance', 'inflation', 'slice', 'ferro', 'shockwave'],
         },
       },
     ],
@@ -108,10 +107,8 @@ function tierGroup(
 
 export const reelClone: TemplateDescriptor = {
   templateId: 'reel-clone',
-  // Animation preset is dispatched in lib/animationPresets.ts (used by
-  // SingleWord); ReelClone hardcodes its own spring scale + tail logic,
-  // so the dropdown wouldn't actually do anything.
-  excludeCommonPaths: ['animation.preset'],
+  // Animation preset is shared with the other templates — reel-clone now
+  // drives its entry through the same evalEnter spec engine.
   groups: [
     {
       id: 'themes',

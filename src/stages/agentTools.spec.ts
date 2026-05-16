@@ -32,14 +32,14 @@ describe('validateApplyPreset', () => {
 
 describe('validateSetEffect', () => {
   it('accepts a palette-tier assignment with valid params', () => {
-    const result = validateSetEffect({ tier: 'p0', effect: 'plasma', params: { intensity: 0.6 } });
+    const result = validateSetEffect({ tier: 'p0', effect: 'shockwave', params: { intensity: 0.6 } });
     expect(result.ok).toBe(true);
     if (result.ok) {
       expect(result.applied).toBe('reel.tiers.p0');
       const reelPatch = (result.patch.reel as Record<string, unknown>);
       const tier = (reelPatch.tiers as { byPaletteIndex: Record<string, { effect: string; intensity: number }> })
         .byPaletteIndex['0']!;
-      expect(tier.effect).toBe('plasma');
+      expect(tier.effect).toBe('shockwave');
       expect(tier.intensity).toBe(0.6);
     }
   });
@@ -55,18 +55,18 @@ describe('validateSetEffect', () => {
   });
 
   it('rejects an unknown tier key', () => {
-    const result = validateSetEffect({ tier: 'p0x', effect: 'plasma' });
+    const result = validateSetEffect({ tier: 'p0x', effect: 'shockwave' });
     expect(result.ok).toBe(false);
   });
 
   it('rejects an unknown effect id with the list of known effects', () => {
     const result = validateSetEffect({ tier: 'p0', effect: 'glitter-rainbow' });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error).toContain('plasma');
+    if (!result.ok) expect(result.error).toContain('shockwave');
   });
 
   it('rejects out-of-range intensity (the wordReveal-style footgun goes away)', () => {
-    const result = validateSetEffect({ tier: 'p0', effect: 'plasma', params: { intensity: 2 } });
+    const result = validateSetEffect({ tier: 'p0', effect: 'shockwave', params: { intensity: 2 } });
     expect(result.ok).toBe(false);
   });
 });

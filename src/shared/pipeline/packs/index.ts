@@ -42,9 +42,7 @@ export const themePopMinimal: StylepackPartial = {
     maxWordsPerLine: 4,
   },
   animation: {
-    preset: 'pop',
-    durationMs: 120,
-    emphasisScale: 1.15,
+    preset: 'spring-scale-in',
   },
 };
 
@@ -103,10 +101,8 @@ export const paletteWhiteOnly: StylepackPartial = {
 
 export const motionProgressiveReveal: StylepackPartial = {
   animation: {
-    preset: 'karaoke',
+    preset: 'per-word-crossfade',
     tailMs: 200,
-    scaleFrom: 0.7,
-    durationMs: 140,
   },
   reel: {
     wordReveal: 'progressive',
@@ -115,10 +111,7 @@ export const motionProgressiveReveal: StylepackPartial = {
 
 export const motionSnappyPop: StylepackPartial = {
   animation: {
-    preset: 'pop',
-    durationMs: 80,
-    emphasisScale: 1.35,
-    spring: { damping: 14, stiffness: 240, mass: 0.5 },
+    preset: 'spring-scale-in',
   },
 };
 
@@ -140,16 +133,6 @@ export const accentNeonGlow: StylepackPartial = {
 // ---------------------------------------------------------------------------
 // fx/* — single-effect-per-tier assignments. Composable; later wins on tier
 // key thanks to the composer's discriminator-aware replace.
-
-export const fxPlasmaEmphasis: StylepackPartial = {
-  reel: {
-    tiers: {
-      byPaletteIndex: {
-        '0': { effect: 'plasma', intensity: 0.6 },
-      },
-    },
-  },
-};
 
 export const fxShockwaveEmphasis: StylepackPartial = {
   reel: {
@@ -196,7 +179,6 @@ export const PRESET_PACKS = {
     neonGlow: accentNeonGlow,
   },
   fx: {
-    plasmaEmphasis: fxPlasmaEmphasis,
     shockwaveEmphasis: fxShockwaveEmphasis,
     sambaLetters: fxSambaLetters,
   },

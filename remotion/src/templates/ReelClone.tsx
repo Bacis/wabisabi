@@ -1,5 +1,6 @@
 import React from 'react';
-import { AbsoluteFill, OffthreadVideo, spring, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
+import { AbsoluteFill, OffthreadVideo, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
+import { evalEnter, getSpec, type AnimPreset } from '../lib/animationPresets';
 import { loadFont } from '@remotion/google-fonts/Inter';
 import type { FaceData } from '../lib/positioning';
 import type {
@@ -22,7 +23,6 @@ import { selectChunks } from '../lib/chunking';
 import { makeSizing } from '../lib/sizing';
 import { pickActiveChunk } from '../lib/motion/activeChunk';
 import { pickEntryFrame } from '../lib/motion/wordReveal';
-import { computeEntrySpring } from '../lib/motion/springEntry';
 import {
   valueKey as anchorValueKey,
 } from '../lib/layout/anchorRules';
@@ -173,23 +173,14 @@ export const ReelClone: React.FC<Props> = ({
   const placement = resolvePlacement(styleSpec);
   const align = placement.alignment;
 
-  // Animation. `preset` switches the *kind* of entry behavior layered on top
-  // of the spring; `scaleFrom`, `durationMs`, `spring.*` parameterize it.
-  //   pop / karaoke / typewriter / undefined → existing scale+opacity behavior
-  //                                            driven by scaleFrom (opacity ramps
-  //                                            only when scaleFrom < 1).
-  //   fade  → opacity ramp 0→1 over durationMs even when scaleFrom stays 1,
-  //           so the agent can say "make it fade" without also tuning scaleFrom.
-  //   slide → opacity 0→1 + translateY from size*0.4 down to 0 over durationMs.
-  // Explicit scaleFrom < 1 wins over preset for the opacity computation, so
-  // golden-frame fixtures (preset=karaoke + scaleFrom=0.7) keep their look.
-  const animPreset = (anim.preset ?? 'pop') as 'pop' | 'fade' | 'karaoke' | 'typewriter' | 'slide';
+  // Animation. `preset` selects one of the portable entry specs (ported from
+  // pixel-point/animate-text); each spec embeds its own duration, easing,
+  // stagger, and target unit. The renderer interprets the spec via evalEnter
+  // for every word — the bespoke spring path is gone, replaced by the same
+  // engine that drives PopWords / SingleWord / CaptionDesigner.
+  const animPreset = anim.preset as AnimPreset | undefined;
+  const animSpec = getSpec(animPreset);
   const tailMs = anim.tailMs ?? 200;
-  const scaleFrom = anim.scaleFrom ?? 1.0;
-  const springDamping = anim.spring?.damping ?? 14;
-  const springStiffness = anim.spring?.stiffness ?? 240;
-  const springMass = anim.spring?.mass ?? 0.5;
-  const animDuration = anim.durationMs ?? 150;
 
   // Reel-specific config (all StyleSpec-driven, all with safe defaults)
   const emphasisStyleRaw = (reel.emphasisStyle ?? 'combined') as
@@ -218,7 +209,7 @@ export const ReelClone: React.FC<Props> = ({
   type TierFill = string | GradientFillObj;
   type EffectId =
     | 'none' | 'samba' | 'breathe' | 'flare' | 'crystal' | 'magnetic'
-    | 'resonance' | 'plasma' | 'inflation' | 'slice' | 'ferro' | 'shockwave';
+    | 'resonance' | 'inflation' | 'slice' | 'ferro' | 'shockwave';
   type TierStyle = {
     fill?: TierFill;
     fontFamily?: string;
@@ -230,7 +221,7 @@ export const ReelClone: React.FC<Props> = ({
     // Vol.02 — see web/src/lib/templateDescriptors/reel-clone.ts for the
     // picker. Per-letter effects (samba/crystal/magnetic) split the word
     // into character spans; full-word effects (breathe/flare) wrap once.
-    // Vol.03 effects (resonance/plasma/inflation/slice/ferro/shockwave) are
+    // Vol.03 effects (resonance/inflation/slice/ferro/shockwave) are
     // SVG-filter-based body distortions driven by `intensity` (0..1).
     effect?: EffectId;
     // Single 0..1 dial driving both amplitude and rate of the Vol.03
@@ -473,36 +464,17 @@ export const ReelClone: React.FC<Props> = ({
                     // (transform doesn't affect CSS layout) handle the
                     // visual reveal once the word's start time hits.
                     const entryFrame = pickEntryFrame(wordReveal as 'progressive' | 'all' | undefined, wordStartFrame, activeChunk, fps);
-                    const { progress, scale, opacity: springOpacity } = computeEntrySpring({
-                      frame,
-                      entryFrame,
-                      fps,
-                      animDurationMs: animDuration,
-                      scaleFrom,
-                      spring: { damping: springDamping, stiffness: springStiffness, mass: springMass },
-                    });
-
-                    // Preset-specific entry layer on top of the spring. fade
-                    // forces an opacity ramp even when scaleFrom defaults to 1
-                    // (which otherwise leaves opacity at 1 throughout the
-                    // entry, making "fade" invisible). slide adds a translateY
-                    // entry alongside the opacity ramp.
-                    let opacity = springOpacity;
-                    let entryTranslateY = 0;
-                    if (animPreset === 'fade' || animPreset === 'slide') {
-                      const durFrames = Math.max(1, Math.round((animDuration / 1000) * fps));
-                      const elapsed = Math.max(0, frame - entryFrame);
-                      const linProgress = Math.min(1, elapsed / durFrames);
-                      // Only override opacity when the spring path wouldn't have
-                      // produced a ramp (scaleFrom >= 1). Preserves existing
-                      // scaleFrom-driven opacity behavior when both are set.
-                      if (scaleFrom >= 1) opacity = linProgress;
-                      if (animPreset === 'slide') {
-                        // 40% of the per-line size, in CSS px units — translates
-                        // each word in from below. Cleared once the entry ends.
-                        entryTranslateY = (1 - linProgress) * (sizeHint * lineScale) * 0.4;
-                      }
-                    }
+                    // Each unit (word OR character, depending on the spec
+                    // target) animates from this anchor time. For per-word
+                    // or whole specs we use the word's own entry; for
+                    // per-character specs we offset by charIndex × stagger
+                    // inside the per-letter render path below.
+                    const entryAnchorSec = entryFrame / fps;
+                    const wordEntry = evalEnter(animSpec, t, entryAnchorSec);
+                    const opacity = wordEntry.opacity;
+                    const entryTransform = wordEntry.transform === 'none' ? '' : wordEntry.transform;
+                    const entryFilter = wordEntry.filter;
+                    const isPerCharSpec = animSpec.target === 'per-character';
 
                     // Position-aware emphasis treatment:
                     //   anchor block = emphasis on its own line at the bottom
@@ -580,7 +552,7 @@ export const ReelClone: React.FC<Props> = ({
                     // transform/opacity from FX-Lab math (the spring
                     // entry is bypassed for per-letter so the effect math
                     // owns the motion). Vol.03 body-distortion effects
-                    // (resonance/plasma/inflation/ferro/shockwave) attach
+                    // (resonance/inflation/ferro/shockwave) attach
                     // an SVG filter via url(...) and keep the single span;
                     // slice glitch is structural (10 banded copies) and
                     // routes to <SliceWord/>.
@@ -660,19 +632,23 @@ export const ReelClone: React.FC<Props> = ({
                           fontStyles={fontStyles}
                           fillStyles={fillStyles}
                           baseColor={typeof sliceColor === 'string' ? sliceColor : fillColor}
-                          scale={scale}
+                          transform={entryTransform}
+                          filter={entryFilter}
                           opacity={opacity}
                         />
                       );
                     }
 
-                    // Full-word effects path: keep the single-span render
-                    // (preserves entry spring scale + opacity), augment
-                    // style with breathe blur, flare text-shadow, or a
-                    // Vol.03 filter url() reference.
-                    if (!isPerLetterEffect) {
+                    // Full-word effects path: single span when the spec target
+                    // is whole / per-word (and no per-letter FX is active),
+                    // augmented with breathe blur, flare text-shadow, or a
+                    // Vol.03 filter url() reference. The entry transform/
+                    // filter from evalEnter compose with the FX style.
+                    if (!isPerLetterEffect && !isPerCharSpec) {
                       const wordExtras: React.CSSProperties = {};
-                      let combinedScale = scale;
+                      // Composable scale append — inflation wants to layer a
+                      // breathing scale on top of the entry transform.
+                      let extraTransform = '';
                       if (tierEffect === 'breathe') {
                         wordExtras.filter = `blur(${breatheBlurPx(elapsedMs).toFixed(2)}px)`;
                       } else if (tierEffect === 'flare') {
@@ -683,27 +659,18 @@ export const ReelClone: React.FC<Props> = ({
                           : (typeof baseFinalColor === 'string' ? baseFinalColor : '#6ba5ff');
                         wordExtras.textShadow = flareTextShadow(elapsedMs, flareColor);
                       } else if (isFilterEffect && tierKey != null) {
-                        // Vol.03 filter — body distortion via SVG filter url().
                         wordExtras.filter = `url(#fx-${tierKey}-${tierEffect})`;
-                        // Inflation also gets a subtle whole-word breath scale
-                        // on top of the dilate so the body visibly inflates &
-                        // contracts (the dilate alone fattens but doesn't sell
-                        // the breath rhythm).
                         if (tierEffect === 'inflation') {
                           const I = Math.max(0, Math.min(1, tierIntensity));
                           const breathRate = 1.6 + I * 3.0;
                           const breathPhase = Math.sin(t * breathRate);
-                          combinedScale = scale * (1 + breathPhase * I * 0.04);
+                          extraTransform = ` scale(${(1 + breathPhase * I * 0.04).toFixed(4)})`;
                         }
                       }
-                      // Compose entryTranslateY with the existing scale. Either
-                      // appears alone or together; "translateY(0)" + "scale(1)"
-                      // is a no-op so we skip when both default.
-                      const hasTranslate = entryTranslateY !== 0;
-                      const hasScale = combinedScale !== 1;
-                      const transform = hasTranslate || hasScale
-                        ? `${hasTranslate ? `translateY(${entryTranslateY}px) ` : ''}${hasScale ? `scale(${combinedScale})` : ''}`.trim()
-                        : undefined;
+                      // FX filter wins over the entry blur filter when both
+                      // would apply — Vol.03 filters are the dominant visual.
+                      const finalFilter = wordExtras.filter ?? entryFilter;
+                      const composedTransform = (entryTransform + extraTransform).trim();
                       return (
                         <span
                           key={i}
@@ -711,12 +678,60 @@ export const ReelClone: React.FC<Props> = ({
                             ...fontStyles,
                             ...fillStyles,
                             ...wordExtras,
-                            transform,
+                            filter: finalFilter,
+                            transform: composedTransform.length > 0 ? composedTransform : undefined,
                             transformOrigin: 'left baseline',
                             opacity,
                           }}
                         >
                           {text}
+                        </span>
+                      );
+                    }
+
+                    // Per-character spec path (and no per-letter FX): split
+                    // the word into letter spans, each anchored to
+                    // wordStart + ci × spec.enter.stagger_ms. This is what
+                    // turns soft-blur-in / per-character-rise / bottom-up-
+                    // letters into a real per-letter cascade on reel-clone.
+                    if (!isPerLetterEffect && isPerCharSpec) {
+                      const chars = Array.from(text);
+                      const charStaggerSec = animSpec.enter.stagger_ms / 1000;
+                      return (
+                        <span
+                          key={i}
+                          style={{
+                            ...fontStyles,
+                            ...fillStyles,
+                            display: 'inline-flex',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {chars.map((ch, ci) => {
+                            const charAnchor = entryAnchorSec + ci * charStaggerSec;
+                            const cf = evalEnter(animSpec, t, charAnchor);
+                            return (
+                              <span
+                                key={ci}
+                                style={{
+                                  display: 'inline-block',
+                                  transform: cf.transform === 'none' ? undefined : cf.transform,
+                                  transformOrigin: 'left baseline',
+                                  opacity: cf.opacity,
+                                  filter: cf.filter,
+                                  // Each letter span inherits font/fill from
+                                  // the wrapper for non-gradient fills; for
+                                  // gradient fills we duplicate so each glyph
+                                  // paints (background-clip:text on a parent
+                                  // doesn't propagate to children).
+                                  ...(isGradient ? fillStyles : null),
+                                  whiteSpace: 'pre',
+                                }}
+                              >
+                                {ch === ' ' ? ' ' : ch}
+                              </span>
+                            );
+                          })}
                         </span>
                       );
                     }

@@ -13,7 +13,8 @@ export function SliceWord({
   fontStyles,
   fillStyles,
   baseColor,
-  scale,
+  transform,
+  filter,
   opacity,
 }: {
   text: string;
@@ -22,7 +23,11 @@ export function SliceWord({
   fontStyles: React.CSSProperties;
   fillStyles: React.CSSProperties;
   baseColor: string;
-  scale: number;
+  // Outer transform applied to the whole slice stack — e.g. the entry
+  // animation's translate/scale produced by evalEnter. Empty string or
+  // undefined means no outer transform.
+  transform?: string;
+  filter?: string;
   opacity: number;
 }) {
   const I = Math.max(0, Math.min(1, intensity));
@@ -78,9 +83,10 @@ export function SliceWord({
       style={{
         position: 'relative',
         display: 'inline-block',
-        transform: scale !== 1 ? `scale(${scale})` : undefined,
+        transform: transform && transform.length > 0 ? transform : undefined,
         transformOrigin: 'left baseline',
         opacity,
+        filter,
       }}
     >
       {/* Layout placeholder so the word reserves correct width — invisible but laid out */}

@@ -27,11 +27,11 @@ describe('summarizeSpec', () => {
 
   it('falls back to slot listing when no archetype matches', () => {
     const spec = composePartial(
-      PRESET_PACKS.fx.plasmaEmphasis,
+      PRESET_PACKS.fx.sambaLetters,
       PRESET_PACKS.accent.neonGlow,
     );
     const out = summarizeSpec(spec as Record<string, unknown>);
-    expect(out).toContain('fx:plasmaEmphasis');
+    expect(out).toContain('fx:sambaLetters');
     expect(out).toContain('accent:neonGlow');
   });
 
