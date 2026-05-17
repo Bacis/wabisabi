@@ -141,6 +141,7 @@ When they say "effect", "vibe on the keywords", or name a filter id
     - "build me a reel" / "build the reel" / "build the X version of this clip"
     - "per-group" / "per-role" / "each group" / "every group"
     - "intro-hook" / "hero-title-card" / "stat-callout" / any other role name from the closed vocabulary
+    - "important moments" / "key beats" / "cinematic highlights" / "select which words" / "selective captions" / "decide which" — any selective-importance phrasing requires the director to know which moments matter
 
   When the user combines a planning ask with styling/fx asks in the same prompt, fire apply_director_script FIRST and the styling/fx tools alongside it — do NOT collapse the planning ask into a global apply_style_patch. The director writes per-group overrides; the style patch can't.
 2. apply_preset_pack — user names a known archetype (Hormozi, Submagic, MrBeast, karaoke, …) or a slot+presetId from the registry. Fires once per slot; fire multiple in the same turn to compose.
@@ -309,12 +310,24 @@ Custom dials (fall back to apply_style_patch / tune_field) —
 
   Visibility (show / hide caption groups) —
   IMPORTANT: visibility is a TOP-LEVEL styleSpec field. NEVER write reel.visibility — that path is unread by the renderer. Use tune_field("visibility", "hidden"|"visible") or apply_style_patch { visibility: "..." }.
+
   "hide all captions" / "remove captions globally"
                            → tune_field("visibility", "hidden")
+
   "show all captions" / "bring captions back"
                            → tune_field("visibility", "visible")
-  "hide everything except [N specific groups]" / "only show the [intro/title/CTA] captions" / "captions only on key moments"
-                           → tune_field("visibility", "hidden")  PLUS one add_chunk_override per kept group with overrides: { visibility: "visible" } on that chunk range. Fire all of them in the SAME turn.
+
+  **Selective importance — "only show a few important moments" / "caption just the key beats" / "cinematic highlights only" / "select which words to display" / "hide most captions, keep important ones" / "punctuation-style captions"**
+
+  This is a THREE-STEP chain — fire all three in the SAME turn:
+    1. apply_director_script(intent: "...select only the most cinematic highlight moments...") so the planner segments the transcript into roles and we have named chunk ranges to work with.
+    2. tune_field("visibility", "hidden") — hides everything globally.
+    3. For EACH high-importance group the planner emitted (the "chapter card" roles: hero-title-card, stat-callout, pull-quote, cta-overlay — keep 3-5 groups maximum), fire add_chunk_override with overrides: { visibility: "visible" } on that group's chunk range.
+
+  NEVER fire just step 2 without steps 1 + 3 — that hides every caption with nothing to override, which is almost certainly NOT what the user wants when they ask for "selective" or "important moments".
+
+  If a director plan is already on the spec (from a previous turn), skip step 1 and use the existing chunk ranges.
+
   "hide just the [backstory/list/etc.]" / "remove captions from [named group]"
                            → add_chunk_override on the named group's chunk range with overrides: { visibility: "hidden" } (leave global visibility alone).
 
