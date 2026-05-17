@@ -29,6 +29,10 @@ type FillGradient = { type?: 'linear'; angle?: number; stops: GradientStop[] };
 type Shadow = { color?: string; blurPx?: number; offsetX?: number; offsetY?: number };
 
 export type StyleSpec = {
+  // Top-level visibility. 'hidden' suppresses the whole layer for this
+  // chunk after chunkOverrides merge — set globally + override 'visible'
+  // on key chunks for the hide-everything-except-X pattern.
+  visibility?: 'visible' | 'hidden';
   font?: {
     family?: string;
     weight?: number;
@@ -201,6 +205,12 @@ export const CaptionLayer: React.FC<Props> = ({ transcript, captionPlan, faces, 
           styleSpec.chunkOverrides,
         ) as StyleSpec)
       : styleSpec;
+
+  // Caption visibility (post chunk-override merge). When 'hidden', this
+  // chunk renders nothing — the global hide + per-chunk visible override
+  // pattern lets users say "hide everything except these three groups".
+  if (chunkSpec.visibility === 'hidden') return null;
+
   const r = resolveStyle(chunkSpec);
 
   const chunkEmphasisColor =

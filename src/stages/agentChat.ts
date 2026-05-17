@@ -176,7 +176,7 @@ set_layout_strategy({ strategy, params }) — switches layout shape.
 
 apply_style_patch({ styleSpec }) — partial styleSpec patch applied globally. Merge semantics: included fields override; omitted preserved. NEVER restate the whole spec; ship only changes.
 
-tune_field({ path, value }) — single-field write. path is a dot-path with one of these roots: font / color / layout / animation / reel / charAdvance. Examples: "font.weight" 900 ; "color.emphasisFill" "#ffd700" ; "reel.cascadeBottomRatio" 0.47.
+tune_field({ path, value }) — single-field write. path is a dot-path with one of these roots: visibility / font / color / layout / animation / reel / charAdvance. Examples: "visibility" "hidden" ; "font.weight" 900 ; "color.emphasisFill" "#ffd700" ; "reel.cascadeBottomRatio" 0.47.
 
 add_chunk_override({ range, overrides }) — per-chunk override on styleSpec.chunkOverrides. range is a [startChunk, endChunk] CHUNK index pair, not word indices. If you don't know the chunk, use apply_style_patch.
 
@@ -307,6 +307,17 @@ Custom dials (fall back to apply_style_patch / tune_field) —
   "all at once" / "show everything together" / "no stagger" (revert progressive)
                            → tune_field("reel.wordReveal", "all")
 
+  Visibility (show / hide caption groups) —
+  IMPORTANT: visibility is a TOP-LEVEL styleSpec field. NEVER write reel.visibility — that path is unread by the renderer. Use tune_field("visibility", "hidden"|"visible") or apply_style_patch { visibility: "..." }.
+  "hide all captions" / "remove captions globally"
+                           → tune_field("visibility", "hidden")
+  "show all captions" / "bring captions back"
+                           → tune_field("visibility", "visible")
+  "hide everything except [N specific groups]" / "only show the [intro/title/CTA] captions" / "captions only on key moments"
+                           → tune_field("visibility", "hidden")  PLUS one add_chunk_override per kept group with overrides: { visibility: "visible" } on that chunk range. Fire all of them in the SAME turn.
+  "hide just the [backstory/list/etc.]" / "remove captions from [named group]"
+                           → add_chunk_override on the named group's chunk range with overrides: { visibility: "hidden" } (leave global visibility alone).
+
   Typography / color —
   "bold" / "aggressive"    → tune_field("font.weight", 900) and tune_field("font.textTransform", "uppercase") in one turn
   "cyberpunk"              → apply_style_patch { color: { fill: "#00f0ff", emphasisFill: ["#ff00d0", "#00f0ff"], shadow: { color: "#00f0ff", blurPx: 28, offsetX: 0, offsetY: 0 } } }
@@ -314,6 +325,7 @@ Custom dials (fall back to apply_style_patch / tune_field) —
 
 # StyleSpec schema (for apply_style_patch / tune_field — every field optional)
 
+visibility: "visible" | "hidden" (top-level, NOT under reel.*). Default visible. Use the per-chunk override trick to hide globally but keep a few groups visible — set styleSpec.visibility = "hidden" globally, then add_chunk_override on each chunk range you want shown with overrides: { visibility: "visible" }.
 font: family / weight 100-900 / size px / letterSpacing px / textTransform none|uppercase|lowercase
 color: fill hex / stroke hex / strokeWidth 0-24 / emphasisFill hex OR [hex,...] / background hex / shadow { color, blurPx, offsetX, offsetY } / fillGradient { type:"linear", angle, stops:[{pos,color}] }
 layout: position top|middle|bottom / safeMargin 0-0.5 / maxWordsPerLine int / align left|center|right / padding {x,y} / borderRadius / gapRatio

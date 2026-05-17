@@ -37,6 +37,11 @@ const shadowSchema = z.object({
 
 export const StyleSpecSchema = z
   .object({
+    // Top-level caption visibility. Set 'hidden' to suppress the whole
+    // caption layer; per-chunk overrides via chunkOverrides can flip
+    // selected groups back to 'visible' for the "hide everything except
+    // these key moments" pattern.
+    visibility: z.enum(['visible', 'hidden']).default('visible'),
     font: z
       .object({
         family: z.string().default('Inter'),

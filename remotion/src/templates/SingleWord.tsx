@@ -32,6 +32,7 @@ type FillGradient = { type?: 'linear'; angle?: number; stops: GradientStop[] };
 type Shadow = { color?: string; blurPx?: number; offsetX?: number; offsetY?: number };
 
 type StyleSpec = {
+  visibility?: 'visible' | 'hidden';
   font?: {
     family?: string;
     weight?: number;
@@ -293,7 +294,7 @@ export const SingleWord: React.FC<Props> = ({
         />
       )}
 
-      {activeWord && (
+      {activeWord && chunkSpec.visibility !== 'hidden' && (
         <div
           style={{
             position: 'absolute',

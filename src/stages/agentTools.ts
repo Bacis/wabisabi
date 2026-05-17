@@ -186,7 +186,7 @@ export function validateSetLayoutStrategy(input: {
 // final StyleSpecSchema.parse(): if the dot-path produces an invalid spec,
 // the parse error becomes the tool's error message.
 
-const TUNE_ALLOWED_ROOTS = ['font', 'color', 'layout', 'animation', 'reel', 'charAdvance'] as const;
+const TUNE_ALLOWED_ROOTS = ['visibility', 'font', 'color', 'layout', 'animation', 'reel', 'charAdvance'] as const;
 
 export function validateTuneField(input: { path: string; value: unknown }): ValidatorResult {
   const segments = input.path.split('.').filter((s) => s.length > 0);

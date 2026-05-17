@@ -175,8 +175,10 @@ export const CaptionDesigner: React.FC<Props> = ({ videoFile, styleSpec }) => {
           </Sequence>
         ))}
 
-      {/* Captions */}
-      {captionTrack?.type === 'captions' && (
+      {/* Captions — gated by top-level visibility. CaptionDesigner doesn't
+          have its own chunkOverrides cascade, so the visibility check is
+          global; per-group hiding lives in the reel-clone / pop-words paths. */}
+      {captionTrack?.type === 'captions' && styleSpec.visibility !== 'hidden' && (
         <CaptionsLayer
           words={captionTrack.items}
           groups={captionTrack.groups}

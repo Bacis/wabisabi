@@ -355,6 +355,7 @@ export const ReelClone: React.FC<Props> = ({
         />
       )}
       <FxFilterDefs requests={fxRequests} frameSec={t} />
+      {effectiveSpec.visibility !== 'hidden' && (
       <div
         data-caption-container
         style={
@@ -788,6 +789,7 @@ export const ReelClone: React.FC<Props> = ({
           })()}
         </div>
       </div>
+      )}
     </AbsoluteFill>
   );
 };
