@@ -1643,6 +1643,7 @@ app.post('/agent/chat', { preHandler: requireAuth }, async (req, reply) => {
     selectedWord?: { idx: number; text: string; t: number; d: number };
     transcriptSummary?: { totalWords: number; durationSec: number };
     transcript?: PlannerWord[];
+    directorScript?: unknown;
     model?: string;
   };
   if (!body?.threadId || typeof body.threadId !== 'string') {
@@ -1663,6 +1664,7 @@ app.post('/agent/chat', { preHandler: requireAuth }, async (req, reply) => {
       selectedWord: body.selectedWord,
       transcriptSummary: body.transcriptSummary,
       transcript: body.transcript,
+      directorScript: body.directorScript ?? null,
       model: body.model,
     });
     return result;

@@ -220,6 +220,7 @@ export function useAgentChat(opts: UseAgentChatOpts = {}) {
             durationSec: snapshot.durationSec,
           },
           transcript,
+          directorScript: priorDirectorScript,
         });
 
         // Apply the patch (if any) to the live preview.

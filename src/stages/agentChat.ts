@@ -82,6 +82,14 @@ export type RunAgentChatArgs = {
    */
   transcript?: PlannerWord[];
   /**
+   * Current director plan on the design. Required server-side by
+   * set_caption_visibility(mode:"selective") which needs to map role names
+   * (hero-title-card, stat-callout, etc.) back to chunk ranges. Null when
+   * no plan exists; the agent will fire apply_director_script first in
+   * that case.
+   */
+  directorScript?: unknown | null;
+  /**
    * OpenRouter model id. Defaults to the AGENT_MODEL env var, then to
    * DEFAULT_AGENT_MODEL. Switching this rebuilds the ChatAnthropic client;
    * the checkpointer + system message are reused.
@@ -308,28 +316,28 @@ Custom dials (fall back to apply_style_patch / tune_field) —
   "all at once" / "show everything together" / "no stagger" (revert progressive)
                            → tune_field("reel.wordReveal", "all")
 
-  Visibility (show / hide caption groups) —
-  IMPORTANT: visibility is a TOP-LEVEL styleSpec field. NEVER write reel.visibility — that path is unread by the renderer. Use tune_field("visibility", "hidden"|"visible") or apply_style_patch { visibility: "..." }.
+  Visibility (show / hide caption groups) — ALWAYS use set_caption_visibility for these patterns. Do NOT try to manually chain tune_field("visibility", ...) + add_chunk_override; that chain is fragile and the wrapper exists precisely so you don't have to.
 
   "hide all captions" / "remove captions globally"
-                           → tune_field("visibility", "hidden")
+                           → set_caption_visibility({ mode: "none" })
 
-  "show all captions" / "bring captions back"
-                           → tune_field("visibility", "visible")
+  "show all captions" / "bring captions back" / "captions everywhere again"
+                           → set_caption_visibility({ mode: "all" })
 
-  **Selective importance — "only show a few important moments" / "caption just the key beats" / "cinematic highlights only" / "select which words to display" / "hide most captions, keep important ones" / "punctuation-style captions"**
+  "only show important moments" / "caption just the key beats" / "cinematic highlights only" / "selective captions" / "decide which words to display" / "hide most captions, keep important ones" / "punctuation-style captions"
+                           → If a director plan already exists on the spec, fire just:
+                               set_caption_visibility({ mode: "selective" })
+                             (defaults to keeping hero-title-card / stat-callout / pull-quote / cta-overlay visible).
+                           → If no director plan exists yet, fire BOTH in the same turn:
+                               apply_director_script({ intent: "..." })
+                               set_caption_visibility({ mode: "selective" })
+                             The planner runs first, then the visibility tool reads its chunk ranges.
 
-  This is a THREE-STEP chain — fire all three in the SAME turn:
-    1. apply_director_script(intent: "...select only the most cinematic highlight moments...") so the planner segments the transcript into roles and we have named chunk ranges to work with.
-    2. tune_field("visibility", "hidden") — hides everything globally.
-    3. For EACH high-importance group the planner emitted (the "chapter card" roles: hero-title-card, stat-callout, pull-quote, cta-overlay — keep 3-5 groups maximum), fire add_chunk_override with overrides: { visibility: "visible" } on that group's chunk range.
-
-  NEVER fire just step 2 without steps 1 + 3 — that hides every caption with nothing to override, which is almost certainly NOT what the user wants when they ask for "selective" or "important moments".
-
-  If a director plan is already on the spec (from a previous turn), skip step 1 and use the existing chunk ranges.
+  To customize which roles stay visible, pass importantRoles:
+                           set_caption_visibility({ mode: "selective", importantRoles: ["hero-title-card", "cta-overlay"] })
 
   "hide just the [backstory/list/etc.]" / "remove captions from [named group]"
-                           → add_chunk_override on the named group's chunk range with overrides: { visibility: "hidden" } (leave global visibility alone).
+                           → add_chunk_override on the named group's chunk range with overrides: { visibility: "hidden" } (leave global visibility alone; this is the only visibility case where add_chunk_override is the right tool).
 
   Typography / color —
   "bold" / "aggressive"    → tune_field("font.weight", 900) and tune_field("font.textTransform", "uppercase") in one turn
@@ -515,6 +523,161 @@ export async function runAgentChat(args: RunAgentChatArgs): Promise<RunAgentChat
         overrides: z
           .record(z.string(), z.any())
           .describe('Partial styleSpec fields scoped to this chunk range'),
+      }),
+    },
+  );
+
+  // Composite visibility tool — collapses the global-hide + per-chunk-show
+  // chain into a single call. LLMs reliably fail to execute multi-step
+  // recipes (we tried; the agent kept firing one of the three required
+  // calls and claiming "selective captions locked"). This tool computes
+  // the full result in code: it merges visibility:'visible' overrides
+  // onto whichever existing chunk overrides match the requested roles.
+  const CHAPTER_CARD_ROLES = ['hero-title-card', 'stat-callout', 'pull-quote', 'cta-overlay'] as const;
+  const setCaptionVisibility = tool(
+    (input: {
+      mode: 'all' | 'none' | 'selective';
+      importantRoles?: string[];
+    }) => {
+      const currentSpec = (args.currentSpec ?? {}) as Record<string, unknown>;
+      const existingOverrides = Array.isArray(currentSpec.chunkOverrides)
+        ? (currentSpec.chunkOverrides as Array<{
+            range: [number, number];
+            overrides: Record<string, unknown>;
+          }>)
+        : [];
+
+      // Strip any visibility fields from existing overrides so prior
+      // selective state can't leak into the new mode.
+      const stripped = existingOverrides
+        .map((o) => {
+          const { visibility: _v, ...rest } = o.overrides as Record<string, unknown> & {
+            visibility?: unknown;
+          };
+          return { range: o.range, overrides: rest };
+        })
+        // Drop entries that became empty after stripping.
+        .filter((o) => Object.keys(o.overrides).length > 0);
+
+      if (input.mode === 'all') {
+        draftPatch = {
+          scope: 'global',
+          ...(draftPatch?.styleSpec ? { styleSpec: draftPatch.styleSpec } : {}),
+          styleSpec: {
+            ...(draftPatch?.styleSpec ?? {}),
+            visibility: 'visible',
+            chunkOverrides: stripped,
+          },
+        };
+        toolTrace.push({ name: 'set_caption_visibility', input });
+        return JSON.stringify({ ok: true, applied: 'visibility:all', kept: 0 });
+      }
+
+      if (input.mode === 'none') {
+        draftPatch = {
+          scope: 'global',
+          ...(draftPatch?.styleSpec ? { styleSpec: draftPatch.styleSpec } : {}),
+          styleSpec: {
+            ...(draftPatch?.styleSpec ?? {}),
+            visibility: 'hidden',
+            chunkOverrides: stripped,
+          },
+        };
+        toolTrace.push({ name: 'set_caption_visibility', input });
+        return JSON.stringify({ ok: true, applied: 'visibility:none', kept: 0 });
+      }
+
+      // mode === 'selective'
+      const script = args.directorScript as
+        | { groups: Array<{ wordRange: [number, number]; role: string; id?: string }> }
+        | null
+        | undefined;
+      if (!script || !Array.isArray(script.groups) || script.groups.length === 0) {
+        return JSON.stringify({
+          ok: false,
+          error:
+            "selective visibility needs a director plan on this session — fire apply_director_script first, then call set_caption_visibility again",
+        });
+      }
+
+      const roles =
+        input.importantRoles && input.importantRoles.length > 0
+          ? input.importantRoles
+          : Array.from(CHAPTER_CARD_ROLES);
+
+      // Map roles → chunk ranges via the same conversion the renderer
+      // uses (Math.floor(wordRange / maxPerLine)). Use the spec's
+      // maxWordsPerLine when set; fall back to 4 (matches the renderer).
+      const maxPerLine =
+        ((currentSpec.layout as Record<string, unknown> | undefined)?.maxWordsPerLine as
+          | number
+          | undefined) ?? 4;
+      const wantedRanges: Array<[number, number]> = script.groups
+        .filter((g) => roles.includes(g.role))
+        .map((g) => [
+          Math.floor(g.wordRange[0] / maxPerLine),
+          Math.floor(g.wordRange[1] / maxPerLine),
+        ]);
+
+      if (wantedRanges.length === 0) {
+        return JSON.stringify({
+          ok: false,
+          error: `selective visibility: no groups in the current plan match the requested roles (${roles.join(', ')}). The plan contains: ${script.groups.map((g) => g.role).join(', ')}.`,
+        });
+      }
+
+      // Build the new override list: keep all existing (stripped of
+      // visibility), then for each wanted range, ADD or MERGE
+      // visibility:'visible' onto that range.
+      const wantedKeys = new Set(wantedRanges.map((r) => `${r[0]}-${r[1]}`));
+      const merged = stripped.map((o) => {
+        const key = `${o.range[0]}-${o.range[1]}`;
+        if (wantedKeys.has(key)) {
+          return { range: o.range, overrides: { ...o.overrides, visibility: 'visible' as const } };
+        }
+        return o;
+      });
+      // Add brand-new entries for wanted ranges that didn't have an
+      // existing override (e.g. when no director plan compiler has run).
+      const existingKeys = new Set(stripped.map((o) => `${o.range[0]}-${o.range[1]}`));
+      for (const r of wantedRanges) {
+        const key = `${r[0]}-${r[1]}`;
+        if (!existingKeys.has(key)) {
+          merged.push({ range: r, overrides: { visibility: 'visible' } });
+        }
+      }
+
+      draftPatch = {
+        scope: 'global',
+        ...(draftPatch?.styleSpec ? { styleSpec: draftPatch.styleSpec } : {}),
+        styleSpec: {
+          ...(draftPatch?.styleSpec ?? {}),
+          visibility: 'hidden',
+          chunkOverrides: merged,
+        },
+      };
+      toolTrace.push({ name: 'set_caption_visibility', input });
+      return JSON.stringify({
+        ok: true,
+        applied: 'visibility:selective',
+        kept: wantedRanges.length,
+        roles,
+      });
+    },
+    {
+      name: 'set_caption_visibility',
+      description:
+        'Set caption visibility in one call. mode "all" shows every caption, "none" hides every caption, "selective" hides everything except the groups matching importantRoles (defaults to hero-title-card/stat-callout/pull-quote/cta-overlay). Prefer this single call over manually firing tune_field + add_chunk_override — those chains are fragile.',
+      schema: z.object({
+        mode: z.enum(['all', 'none', 'selective']).describe(
+          'all = show every caption, none = hide every caption, selective = hide everything except the named-role groups',
+        ),
+        importantRoles: z
+          .array(z.string())
+          .optional()
+          .describe(
+            'Roles to keep visible when mode=selective. Defaults to the chapter-card set (hero-title-card, stat-callout, pull-quote, cta-overlay). Use the same role names as apply_director_script.',
+          ),
       }),
     },
   );
@@ -744,7 +907,7 @@ export async function runAgentChat(args: RunAgentChatArgs): Promise<RunAgentChat
     // (typed as `unknown` to avoid importing the type at module top).
     llm: model as Parameters<typeof createReactAgent>[0]['llm'],
     tools: [
-      applyStylePatch, addChunkOverride, switchTemplate, acknowledgeNoChange,
+      applyStylePatch, addChunkOverride, setCaptionVisibility, switchTemplate, acknowledgeNoChange,
       applyPresetTool, setEffectTool, setLayoutStrategyTool, tuneFieldTool,
       applyDirectorScriptTool,
     ],

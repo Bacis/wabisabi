@@ -599,6 +599,13 @@ export type AgentChatRequest = {
    * Director planner. Always send when known.
    */
   transcript?: DirectorPlanWord[];
+  /**
+   * Current director plan (if one has been applied this session). Required
+   * server-side by set_caption_visibility(mode:"selective") so the tool can
+   * map role names like hero-title-card to actual chunk ranges. Omit when
+   * no plan exists yet.
+   */
+  directorScript?: DirectorScript | null;
   /** Optional OpenRouter model id override; falls back to AGENT_MODEL env / Haiku. */
   model?: string;
 };
