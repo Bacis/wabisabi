@@ -57,14 +57,16 @@ function ShellInner() {
           >
             Themes
           </NavLink>
-          <a
-            className={styles.shellNavLink}
-            aria-disabled="true"
-            href="#"
-            onClick={(e) => e.preventDefault()}
+          <NavLink
+            to="/docs"
+            className={({ isActive }) =>
+              [styles.shellNavLink, isActive ? styles.active : '']
+                .filter(Boolean)
+                .join(' ')
+            }
           >
             Docs
-          </a>
+          </NavLink>
         </nav>
         <div className={styles.shellRight}>
           <span className={styles.creditsChip}>

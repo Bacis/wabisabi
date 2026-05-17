@@ -8,6 +8,7 @@ import { ThemesPage } from './pages/ThemesPage';
 import { DesignerSessionPage } from './pages/designer/DesignerSessionPage';
 import { DesignerHistoryPage } from './pages/designer/DesignerHistoryPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { DocsPage } from './pages/docs/DocsPage';
 import { NotFoundPage } from './pages/NotFoundPage';
 import { useAuth } from './lib/auth';
 
@@ -42,6 +43,7 @@ export function App() {
           <Route path="library" element={<LibraryPage />} />
           <Route path="themes" element={<ThemesPage />} />
           <Route path="settings" element={<SettingsPage />} />
+          <Route path="docs" element={<DocsPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>
