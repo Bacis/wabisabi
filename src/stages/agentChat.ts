@@ -587,16 +587,28 @@ export async function runAgentChat(args: RunAgentChatArgs): Promise<RunAgentChat
         return JSON.stringify({ ok: true, applied: 'visibility:none', kept: 0 });
       }
 
-      // mode === 'selective'
-      const script = args.directorScript as
-        | { groups: Array<{ wordRange: [number, number]; role: string; id?: string }> }
-        | null
-        | undefined;
+      // mode === 'selective'.
+      // Prefer a plan produced earlier in THIS turn (draftPatch) over the
+      // session-level plan threaded in via args. Without the draftPatch
+      // check, calling apply_director_script + set_caption_visibility in
+      // the same turn loops: the visibility tool keeps reading the stale
+      // args (frozen at request time) and the agent keeps re-firing the
+      // director call to "fix" it, eventually tripping the LangGraph
+      // recursion limit.
+      const script =
+        ((draftPatch?.directorScript as
+          | { groups: Array<{ wordRange: [number, number]; role: string; id?: string }> }
+          | null
+          | undefined) ??
+          (args.directorScript as
+            | { groups: Array<{ wordRange: [number, number]; role: string; id?: string }> }
+            | null
+            | undefined));
       if (!script || !Array.isArray(script.groups) || script.groups.length === 0) {
         return JSON.stringify({
           ok: false,
           error:
-            "selective visibility needs a director plan on this session — fire apply_director_script first, then call set_caption_visibility again",
+            "selective visibility needs a director plan. Fire apply_director_script FIRST in this same turn, THEN call set_caption_visibility once — don't retry the visibility call after the error.",
         });
       }
 
