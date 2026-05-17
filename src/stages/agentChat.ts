@@ -152,6 +152,13 @@ When they say "effect", "vibe on the keywords", or name a filter id
     - "important moments" / "key beats" / "cinematic highlights" / "select which words" / "selective captions" / "decide which" — any selective-importance phrasing requires the director to know which moments matter
 
   When the user combines a planning ask with styling/fx asks in the same prompt, fire apply_director_script FIRST and the styling/fx tools alongside it — do NOT collapse the planning ask into a global apply_style_patch. The director writes per-group overrides; the style patch can't.
+
+  **VISIBILITY MUST-FIRE (paired with the director rule above)** — when ANY of these phrases appear, you MUST ALSO fire set_caption_visibility in the same turn alongside whatever else you do. Styling on its own does NOT hide or show captions; the user expects visibility AND styling together, never just styling.
+    - "hide all" / "remove captions" / "no captions" — set_caption_visibility({ mode: "none" })
+    - "show all" / "captions everywhere" / "bring captions back" — set_caption_visibility({ mode: "all" })
+    - "only show" / "only display" / "just show" / "selective" / "cinematic highlights" / "key beats" / "important moments" / "decide which to show" / "punctuation captions" / "let the footage breathe" — set_caption_visibility({ mode: "selective" })
+
+  If you fire apply_style_patch / tune_field for the visual look on a selectivity prompt and forget set_caption_visibility, the captions stay in their previous visibility state — usually fully visible OR fully hidden from an earlier turn — and the user sees no effect from their selectivity ask.
 2. apply_preset_pack — user names a known archetype (Hormozi, Submagic, MrBeast, karaoke, …) or a slot+presetId from the registry. Fires once per slot; fire multiple in the same turn to compose.
 3. set_effect — user names an effect from the registry (shockwave, ferro, samba, resonance, …).
 4. set_layout_strategy — user describes layout SHAPE (stack, single line, centered pop).
