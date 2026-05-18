@@ -532,7 +532,13 @@ function readStockIndex(): StockClipSummary[] {
   if (!existsSync(STOCK_INDEX_PATH)) return [];
   try {
     const parsed = JSON.parse(readFileSync(STOCK_INDEX_PATH, 'utf8'));
-    return Array.isArray(parsed) ? (parsed as StockClipSummary[]) : [];
+    if (!Array.isArray(parsed)) return [];
+    // clip.mp4 is gitignored; deployments only have meta/transcript json.
+    // Skip clips whose mp4 isn't actually on disk so prod doesn't advertise
+    // entries that GET /clips/stock/:id will 404 on.
+    return (parsed as StockClipSummary[]).filter((c) =>
+      existsSync(join(STOCK_CLIPS_DIR, c.id, 'clip.mp4')),
+    );
   } catch (err) {
     app.log.warn({ err }, 'stock clip index.json is invalid — treating as empty');
     return [];
