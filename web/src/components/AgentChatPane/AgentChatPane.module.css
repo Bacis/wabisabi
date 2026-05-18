@@ -200,61 +200,33 @@
   flex-shrink: 0;
   gap: 12px;
 }
-.previewBar .left,
-.previewBar .right {
+.previewBar .previewBarLeft {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
 }
 .previewBar .clipName {
   color: var(--ag-ink-2);
   letter-spacing: 0.04em;
 }
 .previewBar .tag {
-  padding: 2px 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
   background: var(--ag-surface);
-  border-radius: 3px;
+  border-radius: 4px;
   border: 1px solid var(--ag-line);
-  color: var(--ag-ink-4);
+  color: var(--ag-ink-3);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   font-size: 9.5px;
 }
-.modeToggle {
-  display: inline-flex;
-  background: var(--ag-surface);
-  border: 1px solid var(--ag-line);
-  border-radius: 6px;
-  padding: 1px;
+.previewBar .tagIco {
+  color: var(--ag-ink-4);
+  flex-shrink: 0;
+  display: block;
 }
-.modeToggle button {
-  padding: 4px 9px;
-  font-family: var(--ag-font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--ag-ink-3);
-  background: none;
-  border: 0;
-  border-radius: 4px;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.modeToggle button.active {
-  background: var(--ag-ai-soft);
-  color: var(--ag-ai);
-  box-shadow: inset 0 0 0 1px var(--ag-ai-line);
-}
-.modeToggle .dot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: 0 0 6px currentColor;
-}
-
 /* Preview stage — holds the phone frame, centered with padding. Container
    queries (set on .zonePreview) let the bezel + caption scale fluidly. */
 .previewStage {
@@ -268,7 +240,7 @@
 }
 .zoneTimeline {
   min-width: 0;
-  min-height: 156px;
+  min-height: 196px;
   flex-shrink: 0;
   border-top: 1px solid var(--ag-line);
   background: var(--ag-panel);
@@ -331,6 +303,11 @@
   overflow: hidden;
   min-height: 0;
   background: var(--ag-bg-2);
+  /* Breathing room between stacked lanes (ruler → groups → waveform →
+     audioFx). Per-lane margins would conflict with the absolute-positioned
+     playhead overlay, so we space them via padding on the body + a
+     flex-column container that the lanes opt into via `margin-top`. */
+  padding: 6px 0 8px;
 }
 .ctlRuler {
   height: 22px;
@@ -338,6 +315,7 @@
   border-bottom: 1px solid var(--ag-line);
   background: var(--ag-panel);
   cursor: pointer;
+  margin-bottom: 8px;
 }
 .ctlTick {
   position: absolute;
@@ -361,7 +339,10 @@
   /* Default lane height — used by the no-script transcript band and the
      audio peaks lane (overridden). */
   height: 28px;
-  border-bottom: 1px solid var(--ag-line);
+  /* Margin between stacked lanes; the borders that used to separate them
+     read as cramped at the new height (per-feedback "looks crowded"). */
+  margin-top: 6px;
+  border-radius: 4px;
   cursor: pointer;
 }
 .ctlLane.audio {
@@ -498,7 +479,6 @@
    transcript preview line. */
 .ctlLane.groupsLane {
   height: 64px;
-  border-bottom: 1px solid var(--ag-line);
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 70%),
     rgba(0, 0, 0, 0.22);
@@ -1082,8 +1062,14 @@
    bezel that clips the Player. */
 .previewBackdrop {
   position: relative;
-  height: min(100%, 720px);
-  aspect-ratio: 9 / 16;
+  /* For horizontal sources the bezel grows wider than tall — the
+     height: min(...) cap was tuned for 9:16 portrait; using
+     min(100%, <available>) keeps the bezel fitting the stage at any
+     aspect. PhoneFrame sets --canvas-aspect inline from the active
+     canvasW/H so this stays correct as the source changes. */
+  height: 100%;
+  max-height: 720px;
+  aspect-ratio: var(--canvas-aspect, 9 / 16);
   max-width: 100%;
   display: grid;
   place-items: center;
@@ -1115,7 +1101,7 @@
   position: relative;
   z-index: 1;
   height: 100%;
-  aspect-ratio: 9 / 16;
+  aspect-ratio: var(--canvas-aspect, 9 / 16);
   max-width: 100%;
   border-radius: clamp(18px, 4cqh, 32px);
   overflow: hidden;
@@ -1276,47 +1262,14 @@
 .chatHead {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 14px 16px 12px;
+  justify-content: flex-end;
+  padding: 12px 16px;
   border-bottom: 1px solid var(--ag-line);
   flex-shrink: 0;
 }
-.chatHead .title {
+.chatHead .headRight {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-.chatHead .agentMark {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: radial-gradient(circle at 30% 30%, var(--ag-ai), var(--ag-ai-2) 70%);
-  display: grid;
-  place-items: center;
-  color: #04141c;
-  font-family: var(--ag-font-serif);
-  font-style: italic;
-  font-size: 16px;
-  font-weight: 600;
-  box-shadow: 0 0 16px var(--ag-ai-soft), inset 0 0 0 1px rgba(255, 255, 255, 0.18);
-}
-.chatHead .agentName {
-  font-family: var(--ag-font-serif);
-  font-style: italic;
-  font-size: 17px;
-  color: var(--ag-ink);
-  letter-spacing: -0.005em;
-}
-.chatHead .agentSub {
-  font-family: var(--ag-font-mono);
-  font-size: 9.5px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--ag-ink-3);
-  margin-top: 1px;
-}
-.chatHead .actions {
-  display: flex;
   gap: 2px;
 }
 .iconBtn {
@@ -1421,54 +1374,6 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--ag-ink-3);
-}
-
-/* Branch bar — V1 stub: cosmetic */
-.branchBar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--ag-line);
-  font-family: var(--ag-font-mono);
-  font-size: 10.5px;
-  color: var(--ag-ink-3);
-  background: linear-gradient(180deg, rgba(126, 224, 255, 0.03), transparent);
-  flex-shrink: 0;
-}
-.branchBar svg {
-  color: var(--ag-ai);
-  opacity: 0.7;
-}
-.branchBar .crumb {
-  color: var(--ag-ink-4);
-}
-.branchBar .crumb.cur {
-  color: var(--ag-ai);
-}
-.branchBar .arr {
-  color: var(--ag-ink-5);
-  margin: 0 2px;
-}
-.branchBar .grow {
-  flex: 1;
-}
-.branchBar .fork {
-  font-family: var(--ag-font-mono);
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ag-ink-3);
-  padding: 3px 7px;
-  border-radius: 4px;
-  border: 1px solid var(--ag-line);
-  background: none;
-  cursor: pointer;
-}
-.branchBar .fork:hover {
-  color: var(--ag-ai);
-  border-color: var(--ag-ai-line);
-  background: var(--ag-ai-soft);
 }
 
 .chatBody {

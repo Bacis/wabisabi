@@ -117,14 +117,7 @@ export function AgentChatPane({
   return (
     <div className={styles.chat}>
       <div className={styles.chatHead}>
-        <div className="title">
-          <div className={styles.agentMark}>A</div>
-          <div>
-            <div className={styles.agentName}>Atelier</div>
-            <div className={styles.agentSub}>Caption Agent · v0.1</div>
-          </div>
-        </div>
-        <div className="actions">
+        <div className={styles.headRight}>
           <StartersButton />
           <button type="button" className={styles.iconBtn} title="History">
             <Icon name="history" size={14} />
@@ -133,19 +126,6 @@ export function AgentChatPane({
             <Icon name="more" size={14} />
           </button>
         </div>
-      </div>
-
-      <div className={styles.branchBar}>
-        <Icon name="branch" size={13} />
-        <span className={styles.crumb}>main</span>
-        <span className={styles.arr}>/</span>
-        <span className={`${styles.crumb} ${styles.cur}`}>
-          {chat.threadId.slice(0, 8)}
-        </span>
-        <span className={styles.grow} />
-        <button type="button" className={styles.fork} title="Fork branch (V2)">
-          + FORK
-        </button>
       </div>
 
       <div className={styles.chatBody} ref={bodyRef}>

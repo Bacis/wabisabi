@@ -7,12 +7,20 @@
 // lives elsewhere. When the curated list is empty, we show a friendly
 // empty state so the page never looks broken.
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   CURATED_RENDERS,
   type CuratedRender,
   type CuratedRenderStatus,
 } from '@/data/curatedRenders';
+import {
+  deleteUpload,
+  listUploads,
+  renameUpload,
+  type UserVideo,
+} from '@/lib/api';
+import { useUnauthenticatedHandler } from '@/lib/auth';
 import styles from './LibraryPage.module.css';
 
 type StatusFilter = 'all' | CuratedRenderStatus;
@@ -28,6 +36,50 @@ const FILTERS: Array<{ id: StatusFilter; label: string }> = [
 export function LibraryPage() {
   const [filter, setFilter] = useState<StatusFilter>('all');
   const [search, setSearch] = useState('');
+  const navigate = useNavigate();
+  const onAuthError = useUnauthenticatedHandler();
+  const [uploads, setUploads] = useState<UserVideo[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    listUploads()
+      .then((rows) => {
+        if (!cancelled) setUploads(rows);
+      })
+      .catch((err) => {
+        onAuthError(err);
+        if (!cancelled) setUploads([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function openUpload(v: UserVideo) {
+    navigate(`/?upload=${encodeURIComponent(v.id)}`);
+  }
+
+  async function onRename(v: UserVideo) {
+    const next = window.prompt('Rename upload', v.displayName)?.trim();
+    if (!next || next === v.displayName) return;
+    try {
+      const updated = await renameUpload(v.id, next);
+      setUploads((cur) => (cur ?? []).map((row) => (row.id === v.id ? updated : row)));
+    } catch (err) {
+      window.alert(`Rename failed: ${(err as Error).message}`);
+    }
+  }
+
+  async function onDelete(v: UserVideo) {
+    if (!window.confirm(`Delete "${v.displayName}"? This cannot be undone.`)) return;
+    try {
+      await deleteUpload(v.id);
+      setUploads((cur) => (cur ?? []).filter((row) => row.id !== v.id));
+    } catch (err) {
+      window.alert(`Delete failed: ${(err as Error).message}`);
+    }
+  }
 
   const counts = useMemo(() => {
     const out: Record<StatusFilter, number> = {
@@ -172,6 +224,43 @@ export function LibraryPage() {
           </div>
         </section>
 
+        {/* Your uploads — persistent source videos. Owned by the user;
+            click to caption, kebab menu to rename or delete. Surfaces
+            BEFORE the curated showcase since the user's own clips are
+            the more useful entry point on return visits. */}
+        <div>
+          <div className={styles.groupHead}>
+            <span className={styles.label}>
+              <b>Your uploads</b>
+            </span>
+            <span className={styles.line} />
+            <span className={styles.label}>
+              {uploads == null
+                ? 'loading…'
+                : `${uploads.length} ${uploads.length === 1 ? 'clip' : 'clips'}`}
+            </span>
+          </div>
+          {uploads && uploads.length > 0 ? (
+            <div className={styles.grid}>
+              {uploads.map((v) => (
+                <UploadCard
+                  key={v.id}
+                  upload={v}
+                  onOpen={() => openUpload(v)}
+                  onRename={() => onRename(v)}
+                  onDelete={() => onDelete(v)}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className={styles.emptySub} style={{ marginTop: '0.5rem' }}>
+              {uploads == null
+                ? 'Loading your uploads…'
+                : 'No uploads yet — attach a clip from the Start page composer.'}
+            </p>
+          )}
+        </div>
+
         {grouped.length === 0 ? (
           <div className={styles.empty}>
             <span className={styles.emptyKicker}>NOTHING TO SHOW</span>
@@ -206,6 +295,135 @@ export function LibraryPage() {
         )}
       </main>
     </div>
+  );
+}
+
+function fmtDuration(sec: number | null): string {
+  if (sec == null || !Number.isFinite(sec) || sec <= 0) return '—';
+  const total = Math.round(sec);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return m > 0 ? `${m}:${s.toString().padStart(2, '0')}` : `${s}s`;
+}
+
+function fmtSize(bytes: number | null): string {
+  if (bytes == null || !Number.isFinite(bytes) || bytes <= 0) return '—';
+  if (bytes >= 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`;
+  if (bytes >= 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(0)} MB`;
+  return `${Math.round(bytes / 1024)} KB`;
+}
+
+function UploadCard({
+  upload,
+  onOpen,
+  onRename,
+  onDelete,
+}: {
+  upload: UserVideo;
+  onOpen: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  return (
+    <article
+      className={`${styles.render}`}
+      style={{ cursor: 'pointer' }}
+      onClick={onOpen}
+    >
+      <div className={styles.thumb}>
+        <div className={styles.bg} />
+        <span className={`${styles.badge} ${styles.done}`}>
+          <span className={styles.d} /> Upload
+        </span>
+        <span className={styles.duration}>{fmtDuration(upload.durationSec)}</span>
+      </div>
+      <div className={styles.body}>
+        <div className={styles.title}>{upload.displayName}</div>
+        <div className={styles.clip}>{upload.originalFilename}</div>
+        <div className={styles.metaRow}>
+          <span className={styles.when}>
+            {fmtSize(upload.sizeBytes)} · {new Date(upload.createdAt + 'Z').toLocaleDateString()}
+          </span>
+          <div className={styles.actions} style={{ position: 'relative' }}>
+            <button
+              type="button"
+              className={styles.aBtn}
+              title="More"
+              onClick={(e) => {
+                e.stopPropagation();
+                setMenuOpen((v) => !v);
+              }}
+            >
+              <svg
+                className={styles.ico}
+                width="13"
+                height="13"
+                viewBox="0 0 16 16"
+                strokeWidth={1.5}
+              >
+                <circle cx="3" cy="8" r="1" />
+                <circle cx="8" cy="8" r="1" />
+                <circle cx="13" cy="8" r="1" />
+              </svg>
+            </button>
+            {menuOpen && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: '120%',
+                  background: 'var(--ag-panel, #111)',
+                  border: '1px solid var(--ag-line, #333)',
+                  borderRadius: 6,
+                  padding: 4,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  minWidth: 120,
+                  zIndex: 10,
+                }}
+              >
+                <button
+                  type="button"
+                  style={{
+                    background: 'none',
+                    color: 'inherit',
+                    border: 'none',
+                    padding: '6px 10px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onRename();
+                  }}
+                >
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  style={{
+                    background: 'none',
+                    color: '#ff6b6b',
+                    border: 'none',
+                    padding: '6px 10px',
+                    textAlign: 'left',
+                    cursor: 'pointer',
+                  }}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onDelete();
+                  }}
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </article>
   );
 }
 

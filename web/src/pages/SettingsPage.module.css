@@ -49,3 +49,106 @@
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+/* ─── API keys card ─── */
+.cardHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cardEyebrow {
+  font-size: 11px;
+  color: var(--ag-ink-4);
+}
+.code {
+  font-family: var(--ag-font-mono);
+  font-size: 12px;
+  background: var(--ag-surface-2, rgba(255, 255, 255, 0.04));
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--ag-line);
+  color: var(--ag-ink-2);
+}
+.createRow {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.createInput {
+  flex: 1;
+  min-width: 0;
+}
+.reveal {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px dashed var(--ag-amber, #d4a056);
+  border-radius: 6px;
+  background: rgba(212, 160, 86, 0.06);
+}
+.revealRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.revealToken {
+  flex: 1;
+  font-family: var(--ag-font-mono);
+  font-size: 12px;
+  color: var(--ag-ink);
+  word-break: break-all;
+  background: var(--ag-surface-2, rgba(0, 0, 0, 0.3));
+  padding: 8px 10px;
+  border-radius: 4px;
+  user-select: all;
+}
+.error {
+  font-size: 12px;
+  color: var(--ag-danger, #d97a7a);
+  padding: 8px 10px;
+  border: 1px solid var(--ag-danger, #d97a7a);
+  border-radius: 4px;
+  background: rgba(217, 122, 122, 0.08);
+}
+.keyList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-top: 8px;
+}
+.keyRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ag-line);
+}
+.keyRow:last-child {
+  border-bottom: 0;
+}
+.keyMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.keyName {
+  font-size: 13px;
+  color: var(--ag-ink);
+}
+.keyPrefix {
+  font-family: var(--ag-font-mono);
+  font-size: 11px;
+  color: var(--ag-ink-3);
+}
+.keyHint {
+  font-family: var(--ag-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ag-ink-4);
+}

@@ -256,11 +256,18 @@ export const SingleWord: React.FC<Props> = ({
   const isPerChar = animSpec.target === 'per-character';
   const charStaggerSec = animSpec.enter.stagger_ms / 1000;
 
+  // Fast-speech adaptive clamp: SingleWord swaps the active word at every
+  // word boundary, so the per-word display time is the natural budget.
+  // Cap entry to 35% of that so the animation always finishes before the
+  // next word replaces this one.
+  const wordOnScreenSec = activeWord ? Math.max(0, activeWord.end - activeWord.start) : 0;
+  const maxEntryDurSec = Math.max(0.04, wordOnScreenSec * 0.35);
+
   // For per-word / whole / per-line specs SingleWord renders the active
   // word as one unit. For per-character specs each letter gets its own
   // staggered entry — the single-word view becomes a kinetic letter cascade.
   const wholeEntry: RenderFrame | null =
-    activeWord && !isPerChar ? evalEnter(animSpec, t, activeWord.start) : null;
+    activeWord && !isPerChar ? evalEnter(animSpec, t, activeWord.start, maxEntryDurSec) : null;
 
   const position = effectivePosition(faces, t, r.layout.position);
 
@@ -291,6 +298,7 @@ export const SingleWord: React.FC<Props> = ({
       {videoFile && (
         <OffthreadVideo
           src={videoFile.startsWith('http') ? videoFile : staticFile(videoFile)}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
       )}
 
@@ -317,7 +325,7 @@ export const SingleWord: React.FC<Props> = ({
               <span style={{ display: 'inline-flex', whiteSpace: 'nowrap', lineHeight: 1 }}>
                 {[...activeWord.word].map((ch, ci) => {
                   const anchor = activeWord.start + ci * charStaggerSec;
-                  const f = evalEnter(animSpec, t, anchor);
+                  const f = evalEnter(animSpec, t, anchor, maxEntryDurSec);
                   return (
                     <span
                       key={ci}

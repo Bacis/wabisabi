@@ -32,6 +32,13 @@ export type LoadedSource = {
   initialTemplateId: string;
   initialStyleSpec: Record<string, any>;
   outputUrl: string | null;
+  // Source's intrinsic pixel dimensions. Drives the editor canvas
+  // aspect — horizontal sources (w > h) open a 1920×1080 canvas, vertical
+  // sources keep the 1080×1920 default. Null when the source kind doesn't
+  // carry dims (legacy jobs without widthPx columns); the editor falls
+  // back to the vertical default.
+  widthPx: number | null;
+  heightPx: number | null;
 };
 
 export type EditorSourceState =
@@ -75,6 +82,8 @@ export function useEditableSource(source: EditorSource): EditorSourceState {
             initialTemplateId: 'reel-clone',
             initialStyleSpec: {},
             outputUrl: null,
+            widthPx: clip.width ?? null,
+            heightPx: clip.height ?? null,
           });
         })
         .catch(failWith);
@@ -103,6 +112,8 @@ export function useEditableSource(source: EditorSource): EditorSourceState {
             initialTemplateId: theme.templateId,
             initialStyleSpec: theme.styleSpec,
             outputUrl: null,
+            widthPx: theme.showcaseClip.width ?? null,
+            heightPx: theme.showcaseClip.height ?? null,
           });
         })
         .catch(failWith);
@@ -131,6 +142,8 @@ export function useEditableSource(source: EditorSource): EditorSourceState {
               initialTemplateId: j.templateId,
               initialStyleSpec: j.styleSpec ?? {},
               outputUrl: j.status === 'done' ? `/jobs/${jobId}/output` : null,
+              widthPx: j.widthPx ?? null,
+              heightPx: j.heightPx ?? null,
             });
             return;
           }

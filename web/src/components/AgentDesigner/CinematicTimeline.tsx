@@ -32,11 +32,23 @@ export function CinematicTimeline() {
 
   const dur = durationSec || 1;
   const pct = (t: number) => (t / dur) * 100;
-  const ticks = useMemo(() => {
-    const out: number[] = [];
-    for (let s = 0; s <= dur; s += 1) out.push(s);
-    return out;
+  // Render a tick mark every second for visual rhythm, but only print a
+  // label every Nth tick so the ruler stays readable on long clips.
+  // ~10 labels max across the visible range; targets that empirically fit
+  // the editor's timeline width without overlapping.
+  const labelStep = useMemo(() => {
+    if (dur <= 10) return 1;
+    if (dur <= 30) return 5;
+    if (dur <= 120) return 10;
+    return 30;
   }, [dur]);
+  const ticks = useMemo(() => {
+    const out: Array<{ t: number; labeled: boolean }> = [];
+    for (let s = 0; s <= dur; s += 1) {
+      out.push({ t: s, labeled: s % labelStep === 0 });
+    }
+    return out;
+  }, [dur, labelStep]);
 
   function seekFromEvent(e: React.MouseEvent<HTMLDivElement>) {
     const r = e.currentTarget.getBoundingClientRect();
@@ -73,12 +85,14 @@ export function CinematicTimeline() {
       </div>
       <div className={styles.ctlBody}>
         <div className={styles.ctlRuler} onClick={seekFromEvent}>
-          {ticks.map((t, i) => (
+          {ticks.map(({ t, labeled }, i) => (
             <span key={i}>
               <span className={styles.ctlTick} style={{ left: `${pct(t)}%` }} />
-              <span className={styles.ctlTickLbl} style={{ left: `${pct(t)}%` }}>
-                {t.toFixed(1)}s
-              </span>
+              {labeled && (
+                <span className={styles.ctlTickLbl} style={{ left: `${pct(t)}%` }}>
+                  {t}s
+                </span>
+              )}
             </span>
           ))}
         </div>

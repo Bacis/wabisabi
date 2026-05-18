@@ -115,11 +115,13 @@ type Props = {
   styleSpec: { designer?: DesignerPayload; animation?: AnimationOverrides } & Record<string, unknown>;
 };
 
-const CANVAS_W = 1080;
-const CANVAS_H = 1920;
+// CaptionDesigner reads the canvas dimensions from useVideoConfig (set by
+// calculateMetadata from props.videoMeta) so it adapts to horizontal
+// sources. The CANVAS_W/H names are kept as local references inside the
+// component for readability of the position math.
 
 export const CaptionDesigner: React.FC<Props> = ({ videoFile, styleSpec }) => {
-  const { fps } = useVideoConfig();
+  const { fps, width: CANVAS_W, height: CANVAS_H } = useVideoConfig();
   const designer = styleSpec?.designer;
 
   if (!designer) {
@@ -192,6 +194,7 @@ export const CaptionDesigner: React.FC<Props> = ({ videoFile, styleSpec }) => {
 
 const OverlayLayer: React.FC<{ item: OverlayItem }> = ({ item }) => {
   const t = item.transform;
+  const { width: CANVAS_W, height: CANVAS_H } = useVideoConfig();
   return (
     <div
       style={{
@@ -222,7 +225,7 @@ const CaptionsLayer: React.FC<{
   animation?: AnimationOverrides;
 }> = ({ words, groups, groupStyles, animation }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width: CANVAS_W, height: CANVAS_H } = useVideoConfig();
   const tSec = frame / fps;
 
   // Find the currently active word.
@@ -286,8 +289,14 @@ const Word: React.FC<{
   // words sit at their resting transform with the group's resting style.
   const t = frame / fps;
   const spec = getSpec(animation?.preset);
+  // Fast-speech adaptive clamp: cap the per-word entry animation to 35% of
+  // this word's on-screen time so the animation always resolves before the
+  // word loses active status. Matches the clamp in ReelClone / CaptionLayer
+  // / SingleWord.
+  const wordOnScreenSec = Math.max(0, word.duration);
+  const maxEntryDurSec = Math.max(0.04, wordOnScreenSec * 0.35);
   const entry: RenderFrame = active
-    ? evalEnter(spec, t, word.start)
+    ? evalEnter(spec, t, word.start, maxEntryDurSec)
     : { opacity: 1, transform: 'none', filter: undefined };
 
   // GroupStyle.scaleActive is the designer's per-group "active word looks

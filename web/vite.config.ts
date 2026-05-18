@@ -37,6 +37,15 @@ const API_ONLY_PATHS = [
   // so the live Player's <Audio> elements can fetch them at the same
   // path Remotion's render-time staticFile() resolves to.
   '/audio',
+  // User-uploaded source videos: /uploads/init, /uploads/:id/finalize,
+  // GET /uploads (list), GET/PATCH/DELETE /uploads/:id. The SPA has no
+  // /uploads route — these are pure API endpoints behind requireAuth.
+  '/uploads',
+  // MCP server (single chat tool, bearer-auth) + per-user API key CRUD
+  // for the Settings page. Both are pure JSON; the SPA has no /mcp or
+  // /keys route, so straight pass-through with no SPA bypass.
+  '/mcp',
+  '/keys',
 ];
 const SHARED_PATHS = [
   // /themes (SPA gallery page) + GET/POST /themes (REST). Browser nav lands

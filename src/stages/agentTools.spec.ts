@@ -28,6 +28,29 @@ describe('validateApplyPreset', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.error).toContain('cinematicCascade');
   });
+
+  // The variety expansion adds ~30 new packs across theme/font/palette so
+  // freeform requests reach more than the cinematicCascade + interBlack +
+  // yellowRed default. Smoke a representative id from each new slot so a
+  // future accidental delete shows up in CI.
+  it.each([
+    ['theme', 'concertPoster'],
+    ['theme', 'opEd'],
+    ['theme', 'lateNightNeon'],
+    ['font', 'fraunces'],
+    ['font', 'bricolageGrotesque'],
+    ['font', 'permanentMarker'],
+    ['palette', 'editorialCream'],
+    ['palette', 'vegasPinkCyan'],
+    ['palette', 'arcadeNeon'],
+  ])('resolves the expanded %s/%s pack to a non-empty patch', (slot, presetId) => {
+    const result = validateApplyPreset({ slot, presetId });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.applied).toBe(`preset.${slot}.${presetId}`);
+      expect(Object.keys(result.patch as Record<string, unknown>).length).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe('validateSetEffect', () => {

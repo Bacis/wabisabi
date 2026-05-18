@@ -10,10 +10,12 @@
 // loadFont('normal', { weights: ['400'], subsets: ['latin'] }) twice with
 // the same args is a no-op.
 //
-// Adding a font to the picker:
-//   1. Verify @remotion/google-fonts/<Name> exists.
+// Adding a font:
+//   1. Verify node_modules/@remotion/google-fonts/dist/esm/<Name>.mjs exists.
 //   2. Add the loadFont() call here.
-//   3. Add the family-name string to FontFamily.tsx's FONTS list.
+//   3. (Optional) Reference the family name from a `font/*` pack in
+//      src/shared/pipeline/packs/index.ts so the agent can reach it via
+//      apply_preset_pack(font, …).
 
 import { loadFont as loadInter } from '@remotion/google-fonts/Inter';
 import { loadFont as loadPlusJakarta } from '@remotion/google-fonts/PlusJakartaSans';
@@ -42,6 +44,20 @@ import { loadFont as loadArchivoBlack } from '@remotion/google-fonts/ArchivoBlac
 // Without these the cinematic headings flash to the Lora/Inter fallback.
 import { loadFont as loadInstrumentSerif } from '@remotion/google-fonts/InstrumentSerif';
 import { loadFont as loadOnest } from '@remotion/google-fonts/Onest';
+
+// 2026-trending picks sourced from Typewolf + Creative Boom + caption-font
+// roundups. Each adds a distinct headline vibe the agent's font slot can now
+// reach via apply_preset_pack(font, …) — without these the agent falls back
+// to interBlack/impactBold and every clip ends up looking the same.
+import { loadFont as loadFraunces } from '@remotion/google-fonts/Fraunces';
+import { loadFont as loadBricolage } from '@remotion/google-fonts/BricolageGrotesque';
+import { loadFont as loadSpaceGrotesk } from '@remotion/google-fonts/SpaceGrotesk';
+import { loadFont as loadUnbounded } from '@remotion/google-fonts/Unbounded';
+import { loadFont as loadHanken } from '@remotion/google-fonts/HankenGrotesk';
+import { loadFont as loadRecursive } from '@remotion/google-fonts/Recursive';
+import { loadFont as loadInstrumentSans } from '@remotion/google-fonts/InstrumentSans';
+import { loadFont as loadMontserrat } from '@remotion/google-fonts/Montserrat';
+import { loadFont as loadPoppins } from '@remotion/google-fonts/Poppins';
 
 // Standard subset for all caption use cases. Adding 'symbols' / 'math' would
 // double network requests for fonts the user is unlikely to need in lyrics.
@@ -78,3 +94,18 @@ loadArchivoBlack('normal', { weights: ['400'], subsets: SUBSETS as any });
 loadInstrumentSerif('normal', { weights: ['400'], subsets: SUBSETS as any });
 loadInstrumentSerif('italic', { weights: ['400'], subsets: SUBSETS as any });
 loadOnest('normal', { weights: ['400', '500', '700'], subsets: SUBSETS as any });
+
+// 2026-trending caption picks — match the font.* packs in
+// src/shared/pipeline/packs/index.ts. Weight ranges follow the same rule as
+// above: single-axis display fonts get '400' only; text/variable families
+// load 400 + 700 + 800/900 so the agent's weight slider can target meaningful
+// emphasis steps without re-fetching.
+loadFraunces('normal', { weights: ['400', '700', '900'], subsets: SUBSETS as any });
+loadBricolage('normal', { weights: ['400', '700', '800'], subsets: SUBSETS as any });
+loadSpaceGrotesk('normal', { weights: ['400', '700'], subsets: SUBSETS as any });
+loadUnbounded('normal', { weights: ['400', '700', '800'], subsets: SUBSETS as any });
+loadHanken('normal', { weights: ['400', '700', '900'], subsets: SUBSETS as any });
+loadRecursive('normal', { weights: ['400', '700', '900'], subsets: SUBSETS as any });
+loadInstrumentSans('normal', { weights: ['400', '700'], subsets: SUBSETS as any });
+loadMontserrat('normal', { weights: ['400', '700', '800', '900'], subsets: SUBSETS as any });
+loadPoppins('normal', { weights: ['400', '700', '800', '900'], subsets: SUBSETS as any });

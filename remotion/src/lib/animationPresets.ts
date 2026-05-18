@@ -257,8 +257,23 @@ function buildTransform(x: number, y: number, scale: number, rotate: number): st
 // for per-word, the word's `start`; for per-character within a word, the
 // word's start plus `charIndex * stagger_ms`. Before the anchor the unit
 // holds at `from`; after `anchor + duration` it holds at `to`.
-export function evalEnter(spec: AnimSpec, t: number, anchorSec: number): RenderFrame {
-  const dur = Math.max(0.001, spec.enter.duration_ms / 1000);
+export function evalEnter(
+  spec: AnimSpec,
+  t: number,
+  anchorSec: number,
+  maxDurationSec?: number,
+): RenderFrame {
+  // When `maxDurationSec` is provided the renderer is asking us to compress
+  // the entry into a window shorter than the spec's nominal duration —
+  // typically the chunk's on-screen time × a fraction (~0.35). Without this
+  // clamp, a 700ms / 900ms preset on a fast-speech 500ms chunk visibly cuts
+  // off mid-flight as the next chunk takes over. Clamp NEVER extends; only
+  // shortens.
+  const requested = spec.enter.duration_ms / 1000;
+  const dur = Math.max(
+    0.001,
+    maxDurationSec !== undefined ? Math.min(requested, maxDurationSec) : requested,
+  );
   const easing = parseBezier(spec.enter.easing);
   const range: [number, number] = [anchorSec, anchorSec + dur];
   const opts = {

@@ -6,12 +6,12 @@
 // identical — only the layout + chat pane differ.
 
 import { useEffect, useState } from 'react';
-import { Loader2 } from 'lucide-react';
 import { useEditableSource, type EditorSource } from '@/lib/useEditableSource';
 import { useEditor } from '@/lib/editor/store';
 import { buildInitialState } from '@/lib/editor/loadFromSource';
 import { useKeyboard } from '@/components/preview/useKeyboard';
 import { AgentWorkspace } from './AgentWorkspace';
+import { WorkspaceSkeleton } from './WorkspaceSkeleton';
 import { HeaderActions } from './HeaderActions';
 import type { UseAgentChatOpts } from '@/components/AgentChatPane/useAgentChat';
 import styles from '@/components/AgentChatPane/AgentChatPane.module.css';
@@ -75,6 +75,11 @@ export function AgentDesigner({
       templateId: 'reel-clone',
       styleSpec: initialStyleSpecOverride ?? loaded.data.initialStyleSpec,
       transcriptText: persisted.transcriptText,
+      // Surface the source's intrinsic dims so the editor opens in the
+      // matching canvas aspect. Falls back to 1080×1920 inside loadDesign
+      // when either is missing (legacy jobs / stock clips without dims).
+      canvasWidth: loaded.data.widthPx ?? undefined,
+      canvasHeight: loaded.data.heightPx ?? undefined,
     });
     // loadDesign always clears directorScript (Day 16 default for a fresh
     // load). When we're resuming a saved session that had a Director plan,
@@ -95,9 +100,22 @@ export function AgentDesigner({
   ]);
 
   if (loaded.status === 'loading') {
+    // Keep the editor chrome visible during source prep — the chat zone
+    // shows the user's prompt as a sent bubble + a "wabisabi is
+    // preparing" indicator, the preview + timeline get shimmer
+    // placeholders. As soon as loaded.status flips to 'ready' the real
+    // AgentWorkspace replaces the skeleton in-place (same grid).
+    //
+    // Loaded.data isn't available yet (we're still loading), but
+    // useEditableSource exposes status+error only — there's no
+    // partial-data state to read dims from until 'ready'. Skeleton
+    // defaults to 9:16, which is correct for stock clips. The aspect
+    // will pop to the real one once the editor opens; that's mid-load
+    // anyway so the visual shift is brief.
     return (
-      <div className={styles.loading} style={{ padding: 32 }}>
-        <Loader2 className="size-4 animate-spin" /> Loading source…
+      <div className={styles.root}>
+        <HeaderActions />
+        <WorkspaceSkeleton initialPrompt={initialPrompt} />
       </div>
     );
   }

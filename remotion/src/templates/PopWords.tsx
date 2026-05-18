@@ -39,6 +39,7 @@ export const PopWords: React.FC<Props> = ({
       {videoFile && (
         <OffthreadVideo
           src={videoFile.startsWith('http') ? videoFile : staticFile(videoFile)}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
         />
       )}
       <CaptionLayer

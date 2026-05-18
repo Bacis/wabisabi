@@ -52,6 +52,15 @@ export type EditorStore = {
   designName: string;
   source: DesignSourceRef;
 
+  // Source canvas dimensions. Defaults to 1080×1920 (vertical reel) and
+  // is overridden when a horizontal source loads (widthPx > heightPx).
+  // Drives Player compositionWidth/Height, the editor's coordinate space,
+  // and the preview's aspect-ratio CSS. All Transform coordinates are
+  // stored in this space — designs saved at one aspect won't auto-migrate
+  // to another if the source is swapped (out of scope for v1).
+  canvasWidth: number;
+  canvasHeight: number;
+
   // Volatile UI state
   currentTime: number;
   playing: boolean;
@@ -79,7 +88,14 @@ export type EditorStore = {
     templateId: string;
     styleSpec: Record<string, any>;
     transcriptText: string;
+    // Source's intrinsic pixel dimensions. When omitted, the canvas
+    // stays at its current dims (defaults to 1080×1920). Pass these
+    // when loading a job/upload that has widthPx/heightPx metadata so
+    // the editor opens in the matching aspect.
+    canvasWidth?: number;
+    canvasHeight?: number;
   }): void;
+  setCanvasDims(w: number, h: number): void;
 
   // Template / styleSpec / transcript edits
   setTemplateId(id: string): void;
@@ -162,6 +178,11 @@ export const useEditor = create<EditorStore>()(
       designName: 'Untitled design',
       source: null,
 
+      // Default to the legacy vertical canvas; loadDesign overrides when
+      // the source's intrinsic dims are known.
+      canvasWidth: CANVAS_W,
+      canvasHeight: CANVAS_H,
+
       currentTime: 0,
       playing: false,
       selectedId: null,
@@ -180,7 +201,22 @@ export const useEditor = create<EditorStore>()(
         templateId,
         styleSpec,
         transcriptText,
+        canvasWidth,
+        canvasHeight,
       }) {
+        // Resolve canvas dims with fallback so callers that don't pass
+        // dims (legacy designs, stock clips without metadata) keep the
+        // historical 1080×1920 behavior. When the caller supplies just
+        // one of (w, h) treat it as both missing — partial dims are
+        // ambiguous (no defensible aspect to assume).
+        const w =
+          canvasWidth && canvasHeight && canvasWidth > 0 && canvasHeight > 0
+            ? canvasWidth
+            : CANVAS_W;
+        const h =
+          canvasWidth && canvasHeight && canvasWidth > 0 && canvasHeight > 0
+            ? canvasHeight
+            : CANVAS_H;
         set({
           tracks: persisted.tracks,
           groupStyles: persisted.groupStyles,
@@ -196,12 +232,18 @@ export const useEditor = create<EditorStore>()(
           source,
           designId,
           designName,
+          canvasWidth: w,
+          canvasHeight: h,
           currentTime: 0,
           playing: false,
           selectedId: null,
           selectedWord: null,
           selectedDirectorGroupId: null,
         });
+      },
+      setCanvasDims(w, h) {
+        if (!(w > 0 && h > 0)) return;
+        set({ canvasWidth: Math.round(w), canvasHeight: Math.round(h) });
       },
 
       setTemplateId(id) { set({ templateId: id }); },

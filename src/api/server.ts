@@ -19,10 +19,16 @@ import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { db } from '../db.js';
 import {
+  deleteObject,
+  ensureUploadCors,
   fetchOutputStream,
+  getUploadBucket,
+  headObject,
   parseS3Uri,
   presignOutputUrl,
+  presignPutUrl,
 } from '../lib/s3Outputs.js';
+import { ffprobe } from '../stages/ffprobe.js';
 import { StyleSpecSchema, type StyleSpec } from '../shared/styleSpec.js';
 import { PRESETS, mergeStyleSpec, type Preset, type TemplateId } from '../shared/presets.js';
 
@@ -50,6 +56,8 @@ import {
   createSession,
   revokeSession,
 } from '../auth/sessions.js';
+import { createApiKey, listApiKeys, revokeApiKey } from '../auth/apiKeys.js';
+import { mountMcp } from '../mcp/server.js';
 
 const STORAGE_DIR = resolve(process.env.STORAGE_DIR ?? './storage');
 
@@ -130,8 +138,8 @@ if (WEB_DIST_AVAILABLE) {
 
 // Prepared statements — better-sqlite3 caches and reuses these.
 const insertJob = db.prepare(`
-  insert into jobs (id, userId, inputPath, templateId, styleSpec, keepInputUntil, hidden)
-  values (@id, @userId, @inputPath, @templateId, @styleSpec, @keepInputUntil, @hidden)
+  insert into jobs (id, userId, inputPath, templateId, styleSpec, keepInputUntil, hidden, userVideoId, widthPx, heightPx)
+  values (@id, @userId, @inputPath, @templateId, @styleSpec, @keepInputUntil, @hidden, @userVideoId, @widthPx, @heightPx)
   returning id, status, createdAt
 `);
 const selectJob = db.prepare(`select * from jobs where id = ?`);
@@ -361,6 +369,53 @@ const updateDesignerSessionFields = db.prepare(`
 `);
 const deleteDesignerSessionForUser = db.prepare(
   `delete from designer_sessions where id = ? and userId = ?`,
+);
+
+// user_videos: persistent uploads on S3, independent of any single job.
+// The init/finalize handshake is two-step: insertUserVideo on /uploads/init
+// (status='pending'), then markUserVideoReady on /uploads/:id/finalize once
+// the browser confirms its presigned PUT landed.
+const insertUserVideo = db.prepare(`
+  insert into user_videos
+    (id, userId, displayName, originalFilename, s3Bucket, s3Key, sizeBytes, mimeType, status)
+  values
+    (@id, @userId, @displayName, @originalFilename, @s3Bucket, @s3Key, @sizeBytes, @mimeType, 'pending')
+  returning id, userId, displayName, originalFilename, s3Bucket, s3Key, sizeBytes, mimeType, status, createdAt
+`);
+const markUserVideoReady = db.prepare(`
+  update user_videos
+     set status      = 'ready',
+         sizeBytes   = coalesce(@sizeBytes, sizeBytes),
+         durationSec = coalesce(@durationSec, durationSec),
+         widthPx     = coalesce(@widthPx, widthPx),
+         heightPx    = coalesce(@heightPx, heightPx),
+         updatedAt   = datetime('now')
+   where id = @id and userId = @userId
+`);
+const selectUserVideoForUser = db.prepare(
+  `select * from user_videos where id = ? and userId = ?`,
+);
+const listUserVideosForUser = db.prepare(
+  `select id, displayName, originalFilename, sizeBytes, durationSec, mimeType, status, createdAt
+     from user_videos
+    where userId = ? and status = 'ready'
+    order by createdAt desc`,
+);
+const renameUserVideo = db.prepare(
+  `update user_videos
+      set displayName = @displayName,
+          updatedAt   = datetime('now')
+    where id = @id and userId = @userId`,
+);
+const deleteUserVideoForUser = db.prepare(
+  `delete from user_videos where id = ? and userId = ?`,
+);
+// Block delete if there's still an active job using this upload — the
+// worker is mid-render, deleting the source would crash it.
+const countActiveJobsForUserVideo = db.prepare(
+  `select count(*) as n from jobs
+    where userVideoId = ?
+      and status in ('queued', 'running')`,
 );
 
 type DesignerSessionRow = {
@@ -635,6 +690,35 @@ app.post('/auth/logout', async (req, reply) => {
 });
 
 app.get('/auth/me', { preHandler: requireAuth }, async (req) => ({ user: req.user }));
+
+// ─── API keys (for MCP clients) ──────────────────────────────────────────
+//
+// All three endpoints are session-gated (NOT api-key-gated) — a user mints
+// keys from the web app's Settings page and pastes them into their MCP
+// client. The plaintext token is returned by POST exactly once and never
+// stored on the server.
+app.get('/keys', { preHandler: requireAuth }, async (req) => ({
+  keys: listApiKeys(req.user!.id),
+}));
+
+app.post('/keys', { preHandler: requireAuth }, async (req, reply) => {
+  const body = (req.body ?? {}) as { name?: unknown };
+  const name = typeof body.name === 'string' ? body.name : '';
+  if (!name.trim()) return reply.code(400).send({ error: 'name is required' });
+  try {
+    const { plaintext, key } = await createApiKey({ userId: req.user!.id, name });
+    return { key, plaintext };
+  } catch (err) {
+    return reply.code(400).send({ error: (err as Error).message });
+  }
+});
+
+app.delete('/keys/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const ok = revokeApiKey({ id, userId: req.user!.id });
+  if (!ok) return reply.code(404).send({ error: 'key not found or already revoked' });
+  return { ok: true };
+});
 
 // JSON endpoints consumed by the viewer. All are session-gated; data is
 // scoped to the authenticated user.
@@ -1156,8 +1240,13 @@ app.post('/designs/:id/render', { preHandler: requireAuth }, async (req, reply) 
     return reply.code(404).send({ error: 'not found' });
   }
 
-  // Resolve source path on disk.
+  // Resolve source path. Three flavors:
+  //   - stock clip → on local disk under remotion/public/stock
+  //   - job with local inputPath (legacy multipart upload)
+  //   - job with s3:// inputPath (new user-video flow) — passed through
+  //     untouched, the worker downloads to its workDir at render time.
   let sourceAbs: string;
+  let sourceIsS3 = false;
   if (row.sourceKind === 'stock') {
     const detail = readStockClipDetail(row.sourceId);
     if (!detail) return reply.code(400).send({ error: `stock clip missing: ${row.sourceId}` });
@@ -1167,20 +1256,28 @@ app.post('/designs/:id/render', { preHandler: requireAuth }, async (req, reply) 
     if (!job || job.userId !== req.user!.id || !job.inputPath) {
       return reply.code(400).send({ error: `source job missing or expired: ${row.sourceId}` });
     }
-    if (!existsSync(job.inputPath)) {
+    sourceIsS3 = parseS3Uri(job.inputPath) !== null;
+    if (!sourceIsS3 && !existsSync(job.inputPath)) {
       return reply.code(400).send({ error: 'source job input file no longer on disk' });
     }
     sourceAbs = job.inputPath;
   }
 
-  // Copy the source into the inputs dir so this render's cleanup doesn't
-  // touch the original (stock clips MUST NOT be deleted; another design
-  // could be sharing the source job).
+  // For s3:// sources we don't need to copy — the canonical asset lives
+  // on S3 forever (until the user deletes the upload) and the worker's
+  // ensureLocalInput downloads it into the per-job workDir at render time.
+  // For local sources (stock, legacy job) we still copy into the inputs
+  // dir so this render's cleanup doesn't touch the original.
   const newJobId = randomUUID();
-  const inputsDir = join(STORAGE_DIR, 'inputs');
-  await mkdir(inputsDir, { recursive: true });
-  const newInputPath = join(inputsDir, `${newJobId}${extname(sourceAbs) || '.mp4'}`);
-  await pipeline(createReadStream(sourceAbs), createWriteStream(newInputPath));
+  let newInputPath: string;
+  if (sourceIsS3) {
+    newInputPath = sourceAbs;
+  } else {
+    const inputsDir = join(STORAGE_DIR, 'inputs');
+    await mkdir(inputsDir, { recursive: true });
+    newInputPath = join(inputsDir, `${newJobId}${extname(sourceAbs) || '.mp4'}`);
+    await pipeline(createReadStream(sourceAbs), createWriteStream(newInputPath));
+  }
 
   // Derive transcript + captionPlan from the design's caption track. The
   // design also carries the user's chosen templateId + base styleSpec, set
@@ -1309,6 +1406,110 @@ app.post('/themes/preview', { preHandler: requireAuth }, async (req, reply) => {
 });
 
 app.post('/jobs', { preHandler: requireAuth }, async (req, reply) => {
+  // JSON path: { userVideoId, styleSpec?, templateId?, preset?, keepInputMinutes?, hidden? }.
+  // Used by the new upload flow — the browser already PUT the file to S3
+  // via /uploads/init + /uploads/:id/finalize, so this call is metadata-only.
+  // The multipart path below is preserved for legacy clients / tests.
+  if (!req.isMultipart()) {
+    const body = (req.body ?? {}) as {
+      userVideoId?: unknown;
+      styleSpec?: unknown;
+      templateId?: unknown;
+      preset?: unknown;
+      keepInputMinutes?: unknown;
+      hidden?: unknown;
+    };
+    const userVideoId = typeof body.userVideoId === 'string' ? body.userVideoId : null;
+    if (!userVideoId) {
+      return reply.code(400).send({ error: 'userVideoId is required' });
+    }
+    const uv = selectUserVideoForUser.get(userVideoId, req.user!.id) as
+      | {
+          id: string;
+          s3Bucket: string;
+          s3Key: string;
+          status: string;
+          widthPx: number | null;
+          heightPx: number | null;
+        }
+      | undefined;
+    if (!uv) return reply.code(404).send({ error: 'upload not found' });
+    if (uv.status !== 'ready') {
+      return reply.code(409).send({ error: 'upload not finalized', status: uv.status });
+    }
+
+    // Backfill dims at job-creation time if the upload still has NULL
+    // widthPx/heightPx (uploaded before the server-side probe fallback,
+    // or a probe failure that wasn't retried). This means horizontal
+    // sources open in the right canvas even for older uploads.
+    if (uv.widthPx == null || uv.heightPx == null) {
+      const probed = await probeUserVideoDims(uv.s3Bucket, uv.s3Key);
+      if (probed) {
+        markUserVideoReady.run({
+          id: uv.id,
+          userId: req.user!.id,
+          sizeBytes: null,
+          durationSec: null,
+          widthPx: probed.widthPx,
+          heightPx: probed.heightPx,
+        });
+        uv.widthPx = probed.widthPx;
+        uv.heightPx = probed.heightPx;
+      }
+    }
+
+    const styleSpecRaw =
+      body.styleSpec && typeof body.styleSpec === 'object'
+        ? (body.styleSpec as Record<string, unknown>)
+        : {};
+    const presetId = typeof body.preset === 'string' ? body.preset : null;
+    const templateIdField = typeof body.templateId === 'string' ? body.templateId : null;
+    const keepInputMinutesRaw = Number(body.keepInputMinutes);
+    const keepInputMinutes =
+      Number.isFinite(keepInputMinutesRaw) && keepInputMinutesRaw > 0
+        ? Math.min(keepInputMinutesRaw, 60 * 24)
+        : null;
+    const hidden = body.hidden === true || body.hidden === 'true' || body.hidden === 1 ? 1 : 0;
+
+    let mergedStyle: Record<string, unknown> = styleSpecRaw;
+    let resolvedTemplateId = templateIdField ?? 'pop-words';
+    if (presetId) {
+      const preset = findPresetById(presetId, req.user!.id);
+      if (!preset) {
+        return reply.code(400).send({
+          error: `unknown preset: ${presetId}`,
+          available: listAllPresets(req.user!.id).map((p) => p.id),
+        });
+      }
+      mergedStyle = mergeStyleSpec(preset.styleSpec, styleSpecRaw);
+      resolvedTemplateId = templateIdField ?? preset.templateId;
+    }
+
+    const parsed = StyleSpecSchema.safeParse(mergedStyle);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: 'invalid styleSpec', details: parsed.error.flatten() });
+    }
+
+    const keepInputUntil =
+      keepInputMinutes != null
+        ? new Date(Date.now() + keepInputMinutes * 60_000).toISOString().replace('T', ' ').slice(0, 19)
+        : null;
+
+    const job = insertJob.get({
+      id: randomUUID(),
+      userId: req.user!.id,
+      inputPath: `s3://${uv.s3Bucket}/${uv.s3Key}`,
+      templateId: resolvedTemplateId,
+      styleSpec: JSON.stringify(parsed.data),
+      keepInputUntil,
+      hidden,
+      userVideoId: uv.id,
+      widthPx: uv.widthPx,
+      heightPx: uv.heightPx,
+    });
+    return job;
+  }
+
   let videoPath: string | null = null;
   let styleSpecRaw: Record<string, unknown> = {};
   let templateIdField: string | null = null;
@@ -1393,6 +1594,12 @@ app.post('/jobs', { preHandler: requireAuth }, async (req, reply) => {
     styleSpec: JSON.stringify(parsed.data),
     keepInputUntil,
     hidden,
+    userVideoId: null,
+    // Multipart legacy path — dims are populated by the worker via
+    // ffprobe at render-time. Editor falls back to 1080×1920 for legacy
+    // jobs and that's been correct historically.
+    widthPx: null,
+    heightPx: null,
   });
   return job;
 });
@@ -1658,6 +1865,7 @@ app.post('/agent/chat', { preHandler: requireAuth }, async (req, reply) => {
   try {
     const result = await runAgentChat({
       threadId: body.threadId,
+      userId: req.user!.id,
       message: body.message.trim(),
       currentSpec: body.currentSpec ?? {},
       templateId: body.templateId,
@@ -1741,6 +1949,281 @@ app.post('/director/plan', { preHandler: requireAuth }, async (req, reply) => {
   }
 });
 
+// ─── User uploads (persistent S3-backed source videos) ────────────────────
+//
+// The browser uploads bytes straight to S3 via a presigned PUT and only talks
+// to us for metadata. Three-step flow:
+//
+//   1. POST /uploads/init     → reserve a row + presigned PUT URL
+//   2. (browser) PUT to S3    → bytes never touch the Fastify container
+//   3. POST /uploads/:id/finalize → verify object landed, flip status to 'ready'
+//
+// The created user_video can then be used as a source for many render jobs
+// via POST /jobs (JSON body) without re-uploading. The user-videos/ S3 prefix
+// has a 90-day lifecycle safety net; intended retention is controlled by the
+// user_videos row (rows persist indefinitely, deleted only via DELETE /uploads/:id).
+
+const VIDEO_EXT_RE = /\.(mp4|mov|m4v|webm|mkv|avi|qt|3gp)$/i;
+const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
+
+function sniffMime(filename: string, declared: string | undefined): string {
+  if (declared && /^video\//.test(declared)) return declared;
+  const m = filename.toLowerCase().match(VIDEO_EXT_RE);
+  if (!m) return 'application/octet-stream';
+  const ext = m[1];
+  if (ext === 'mp4' || ext === 'm4v') return 'video/mp4';
+  if (ext === 'mov' || ext === 'qt') return 'video/quicktime';
+  if (ext === 'webm') return 'video/webm';
+  if (ext === 'mkv') return 'video/x-matroska';
+  if (ext === 'avi') return 'video/x-msvideo';
+  if (ext === '3gp') return 'video/3gpp';
+  return 'application/octet-stream';
+}
+
+function userVideoView(row: Record<string, unknown>): Record<string, unknown> {
+  // Drop internal-only fields before returning to the client. The bucket /
+  // key are server-side details; the browser only ever sees presigned URLs.
+  const { s3Bucket: _b, s3Key: _k, ...rest } = row as { s3Bucket: string; s3Key: string };
+  return rest;
+}
+
+// Server-side ffprobe fallback for source video dimensions. ffprobe is happy
+// to read HTTP URLs — it only fetches the moov atom header bytes, not the
+// whole file, so this completes in ~500ms even for 2 GB inputs. Used when
+// the browser-side probe failed (HEVC .mov from iPhone is the common
+// offender — the <video> element's videoWidth stays 0 even after
+// loadedmetadata for some codecs/browsers, leaving widthPx NULL on the row).
+//
+// Returns null when ffprobe fails so callers can keep going with NULL dims
+// (the editor falls back to its 1080×1920 default in that case).
+async function probeUserVideoDims(
+  bucket: string,
+  s3Key: string,
+): Promise<{ widthPx: number; heightPx: number; durationSec: number } | null> {
+  try {
+    const url = await presignOutputUrl(`s3://${bucket}/${s3Key}`, 600);
+    const meta = await ffprobe(url);
+    if (!(meta.width > 0 && meta.height > 0)) return null;
+    return {
+      widthPx: Math.round(meta.width),
+      heightPx: Math.round(meta.height),
+      durationSec: meta.duration > 0 ? meta.duration : 0,
+    };
+  } catch (err) {
+    console.warn(
+      `server probe failed for ${s3Key}: ${(err as Error).message}`,
+    );
+    return null;
+  }
+}
+
+app.post('/uploads/init', { preHandler: requireAuth }, async (req, reply) => {
+  const body = (req.body ?? {}) as {
+    filename?: unknown;
+    mimeType?: unknown;
+    sizeBytes?: unknown;
+  };
+  const filename = typeof body.filename === 'string' ? body.filename.trim() : '';
+  if (!filename) return reply.code(400).send({ error: 'filename is required' });
+  if (!VIDEO_EXT_RE.test(filename)) {
+    return reply.code(400).send({ error: 'filename must end in a video extension' });
+  }
+  const sizeBytes =
+    typeof body.sizeBytes === 'number' && Number.isFinite(body.sizeBytes)
+      ? Math.floor(body.sizeBytes)
+      : null;
+  if (sizeBytes != null && sizeBytes > MAX_UPLOAD_BYTES) {
+    return reply.code(413).send({
+      error: `file too large (max ${MAX_UPLOAD_BYTES} bytes)`,
+      sizeBytes,
+      max: MAX_UPLOAD_BYTES,
+    });
+  }
+  const declaredMime = typeof body.mimeType === 'string' ? body.mimeType : undefined;
+  const mimeType = sniffMime(filename, declaredMime);
+
+  let bucket: string;
+  try {
+    bucket = getUploadBucket();
+  } catch (err) {
+    req.log.error({ err }, 'upload bucket not configured');
+    return reply
+      .code(500)
+      .send({ error: 'upload not configured', message: (err as Error).message });
+  }
+
+  const id = randomUUID();
+  const extMatch = filename.toLowerCase().match(VIDEO_EXT_RE);
+  const ext = extMatch ? `.${extMatch[1]}` : '.mp4';
+  const s3Key = `user-videos/${id}${ext}`;
+
+  let putUrl: string;
+  try {
+    putUrl = await presignPutUrl(bucket, s3Key, mimeType);
+  } catch (err) {
+    req.log.error({ err }, 'presign PUT failed');
+    return reply
+      .code(502)
+      .send({ error: 'could not sign upload URL', message: (err as Error).message });
+  }
+
+  const row = insertUserVideo.get({
+    id,
+    userId: req.user!.id,
+    displayName: filename,
+    originalFilename: filename,
+    s3Bucket: bucket,
+    s3Key,
+    sizeBytes,
+    mimeType,
+  }) as Record<string, unknown>;
+
+  return {
+    uploadId: id,
+    putUrl,
+    // Echoed back so the browser knows which Content-Type to send on the
+    // PUT — presigned URLs lock the header in at sign time, so mismatched
+    // requests are rejected by S3 with a SignatureDoesNotMatch error.
+    contentType: mimeType,
+    expiresInSec: 900,
+    upload: userVideoView(row),
+  };
+});
+
+app.post('/uploads/:id/finalize', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const body = (req.body ?? {}) as {
+    durationSec?: unknown;
+    widthPx?: unknown;
+    heightPx?: unknown;
+  };
+  const row = selectUserVideoForUser.get(id, req.user!.id) as
+    | { id: string; s3Bucket: string; s3Key: string; status: string }
+    | undefined;
+  if (!row) return reply.code(404).send({ error: 'upload not found' });
+  if (row.status === 'ready') {
+    // Idempotent — finalize is safe to call twice (browser retry, reload mid-PUT).
+    const fresh = selectUserVideoForUser.get(id, req.user!.id) as Record<string, unknown>;
+    return userVideoView(fresh);
+  }
+
+  let head: { contentLength?: number; contentType?: string } | null;
+  try {
+    head = await headObject(row.s3Bucket, row.s3Key);
+  } catch (err) {
+    req.log.error({ err }, `head object failed for ${row.s3Key}`);
+    return reply
+      .code(502)
+      .send({ error: 'could not verify upload', message: (err as Error).message });
+  }
+  if (!head) {
+    return reply.code(409).send({ error: 'upload not received yet' });
+  }
+
+  const numOrNull = (v: unknown): number | null =>
+    typeof v === 'number' && Number.isFinite(v) && v > 0 ? v : null;
+  let durationSec = numOrNull(body.durationSec);
+  // Round dims to integers — ffprobe stores them as int, and decimal
+  // pixel counts (which some browsers report for cropped sources) would
+  // make the calculateMetadata math noisy.
+  let widthPx = numOrNull(body.widthPx);
+  let heightPx = numOrNull(body.heightPx);
+
+  // Server-side fallback: if the browser-side probe didn't return dims
+  // (HEVC iPhone .mov is the canonical case), run ffprobe against the
+  // just-uploaded S3 object. Header-only — ~500ms even for 2 GB inputs.
+  // We probe duration too if the client missed it, but we ONLY override
+  // it when the client value is missing — the client probe is canonical
+  // when present (it reads the file the user actually picked).
+  if (widthPx == null || heightPx == null) {
+    const probed = await probeUserVideoDims(row.s3Bucket, row.s3Key);
+    if (probed) {
+      widthPx ??= probed.widthPx;
+      heightPx ??= probed.heightPx;
+      durationSec ??= probed.durationSec || null;
+    }
+  }
+
+  markUserVideoReady.run({
+    id,
+    userId: req.user!.id,
+    sizeBytes: typeof head.contentLength === 'number' ? head.contentLength : null,
+    durationSec,
+    widthPx: widthPx != null ? Math.round(widthPx) : null,
+    heightPx: heightPx != null ? Math.round(heightPx) : null,
+  });
+  const fresh = selectUserVideoForUser.get(id, req.user!.id) as Record<string, unknown>;
+  return userVideoView(fresh);
+});
+
+app.get('/uploads', { preHandler: requireAuth }, async (req) => {
+  const rows = listUserVideosForUser.all(req.user!.id) as Array<Record<string, unknown>>;
+  return rows;
+});
+
+app.get('/uploads/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const row = selectUserVideoForUser.get(id, req.user!.id) as
+    | (Record<string, unknown> & { s3Bucket: string; s3Key: string; status: string })
+    | undefined;
+  if (!row) return reply.code(404).send({ error: 'upload not found' });
+  if (row.status !== 'ready') {
+    return reply.code(409).send({ error: 'upload not finalized', status: row.status });
+  }
+  let videoUrl: string;
+  try {
+    videoUrl = await presignOutputUrl(`s3://${row.s3Bucket}/${row.s3Key}`);
+  } catch (err) {
+    req.log.error({ err }, `presign GET failed for ${row.s3Key}`);
+    return reply
+      .code(502)
+      .send({ error: 'could not sign upload URL', message: (err as Error).message });
+  }
+  return { ...userVideoView(row), videoUrl };
+});
+
+app.patch('/uploads/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const body = (req.body ?? {}) as { displayName?: unknown };
+  const next = typeof body.displayName === 'string' ? body.displayName.trim() : '';
+  if (!next) return reply.code(400).send({ error: 'displayName is required' });
+  if (next.length > 200) {
+    return reply.code(400).send({ error: 'displayName too long (max 200 chars)' });
+  }
+  const row = selectUserVideoForUser.get(id, req.user!.id);
+  if (!row) return reply.code(404).send({ error: 'upload not found' });
+  renameUserVideo.run({ id, userId: req.user!.id, displayName: next });
+  const fresh = selectUserVideoForUser.get(id, req.user!.id) as Record<string, unknown>;
+  return userVideoView(fresh);
+});
+
+app.delete('/uploads/:id', { preHandler: requireAuth }, async (req, reply) => {
+  const { id } = req.params as { id: string };
+  const row = selectUserVideoForUser.get(id, req.user!.id) as
+    | { id: string; s3Bucket: string; s3Key: string }
+    | undefined;
+  if (!row) return reply.code(404).send({ error: 'upload not found' });
+  const active = countActiveJobsForUserVideo.get(id) as { n: number };
+  if (active.n > 0) {
+    return reply.code(409).send({
+      error: 'upload has active jobs',
+      message: `${active.n} job(s) are still running against this upload — wait for them to finish or fail before deleting.`,
+    });
+  }
+  // S3 delete first, DB row second. If S3 fails we'd rather keep the row
+  // (so the user can retry) than orphan the object.
+  try {
+    await deleteObject(row.s3Bucket, row.s3Key);
+  } catch (err) {
+    req.log.error({ err }, `s3 delete failed for ${row.s3Key}`);
+    return reply
+      .code(502)
+      .send({ error: 'could not delete upload from storage', message: (err as Error).message });
+  }
+  deleteUserVideoForUser.run(id, req.user!.id);
+  return reply.code(204).send();
+});
+
 // Heads-up if existing rows are still unowned after the auth migration.
 // First-time setup is: create an admin via `npm run admin:create -- ...`
 // then run `npm run admin:claim -- ...` to assign legacy rows.
@@ -1753,6 +2236,30 @@ if (orphanJobsCount > 0) {
     `${orphanJobsCount} job(s) have no userId. Run \`npm run admin:claim -- <email>\` to assign them.`,
   );
 }
+
+// Browser PUTs to S3 are cross-origin. Install a CORS rule on the upload
+// bucket so the user-uploads flow works without manual AWS console steps.
+// Idempotent + non-fatal — if AWS creds are missing or the bucket isn't
+// configured yet, the upload endpoints return a clear error on first use.
+// `WEB_ORIGIN` (optional) lets the operator pass the production origin
+// alongside the dev defaults the helper bakes in.
+try {
+  const bucket = getUploadBucket();
+  const extraOrigins = process.env.WEB_ORIGIN
+    ? process.env.WEB_ORIGIN.split(',').map((s) => s.trim()).filter(Boolean)
+    : [];
+  await ensureUploadCors(bucket, extraOrigins);
+} catch (err) {
+  app.log.warn(
+    { err: (err as Error).message },
+    'upload bucket / cors not configured — /uploads/* will 500 until fixed',
+  );
+}
+
+// MCP server (single chat tool, delegates to Atelier). Auth happens inside
+// mountMcp via the requireApiKey middleware — bearer tokens for MCP clients,
+// session cookies for browser-side testing.
+mountMcp(app);
 
 const port = Number(process.env.PORT ?? 3000);
 await app.listen({ port, host: '0.0.0.0' });

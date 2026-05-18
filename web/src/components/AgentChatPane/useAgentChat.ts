@@ -49,6 +49,43 @@ export type UIAgentMessage = {
 
 export type UIMessage = UIUserMessage | UIAgentMessage;
 
+type ChunkOverrideEntry = {
+  range: [number, number];
+  overrides: Record<string, unknown>;
+};
+
+// Merge director-derived chunkOverrides into the list already on the spec.
+// Same-range entries: shallow-merge the override field maps so director-set
+// styling (reel/font/layout/animation/color) wins on the keys it writes, but
+// fields the director never touches — chiefly `visibility` from
+// set_caption_visibility(mode:'selective') — are preserved. Without this,
+// the director's apply step wipes the visibility rescues and the global
+// visibility:'hidden' silently hides everything.
+function mergeChunkOverrides(
+  existing: ChunkOverrideEntry[],
+  next: ChunkOverrideEntry[],
+): ChunkOverrideEntry[] {
+  const keyOf = (e: ChunkOverrideEntry) => `${e.range[0]}-${e.range[1]}`;
+  const byKey = new Map(existing.map((e) => [keyOf(e), e]));
+  const handled = new Set<string>();
+  const out: ChunkOverrideEntry[] = [];
+  for (const n of next) {
+    const key = keyOf(n);
+    const prior = byKey.get(key);
+    if (prior) {
+      out.push({ range: n.range, overrides: { ...prior.overrides, ...n.overrides } });
+      handled.add(key);
+    } else {
+      out.push(n);
+    }
+  }
+  // Carry through any existing entries whose range no director group covers.
+  for (const e of existing) {
+    if (!handled.has(keyOf(e))) out.push(e);
+  }
+  return out;
+}
+
 function uuid() {
   // crypto.randomUUID is available in all modern browsers + Node 19+.
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
@@ -230,11 +267,19 @@ export function useAgentChat(opts: UseAgentChatOpts = {}) {
             setTemplateId(res.patch.templateId);
             applied = true;
           }
-          if (res.patch.scope === 'global' && res.patch.styleSpec) {
+          // Apply styleSpec and chunkOverride independently of `scope`. The
+          // server-side draftPatch accumulates fields across multiple tool
+          // calls in one turn — the final `scope` reflects only the last
+          // tool, so gating these on scope drops earlier contributions
+          // (e.g. apply_style_patch followed by add_chunk_override lost the
+          // styleSpec; apply_director_script followed by add_chunk_override
+          // lost the directorScript). Now every field that's present is
+          // applied, regardless of scope.
+          if (res.patch.styleSpec) {
             applyThemePatch(res.patch.styleSpec);
             applied = true;
           }
-          if (res.patch.scope === 'chunk' && res.patch.chunkOverride) {
+          if (res.patch.chunkOverride) {
             const current = (useEditor.getState().styleSpec.chunkOverrides as
               | Array<{ range: [number, number]; overrides: Record<string, unknown> }>
               | undefined) ?? [];
@@ -262,11 +307,23 @@ export function useAgentChat(opts: UseAgentChatOpts = {}) {
             //    mirrors the renderer's fallback chunker.
             const latest = useEditor.getState().styleSpec;
             const maxPerLine = (latest.layout?.maxWordsPerLine as number | undefined) ?? 4;
-            const chunkOverrides = directorScriptToChunkOverrides(
+            const directorOverrides = directorScriptToChunkOverrides(
               res.patch.directorScript,
               maxPerLine,
             );
-            updateStyleSpecPath('chunkOverrides', chunkOverrides);
+            // Merge with overrides already on the spec — specifically the
+            // visibility:'visible' rescues from set_caption_visibility(
+            // mode:'selective') that may have been written by the same turn's
+            // styleSpec patch. A naive replace here drops those rescues, so
+            // global visibility:'hidden' wins and the user sees no captions
+            // at all (the symptom from session c25f1ed7…).
+            const existing = (latest.chunkOverrides as
+              | Array<{ range: [number, number]; overrides: Record<string, unknown> }>
+              | undefined) ?? [];
+            updateStyleSpecPath(
+              'chunkOverrides',
+              mergeChunkOverrides(existing, directorOverrides),
+            );
             applied = true;
           }
         }

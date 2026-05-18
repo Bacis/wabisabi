@@ -201,3 +201,78 @@ create table if not exists designer_sessions (
 
 create index if not exists designer_sessions_user_idx
   on designer_sessions (userId, updatedAt);
+
+-- User-uploaded source videos. A user_video is a persistent asset on S3,
+-- independent of any render job; one upload can back many jobs over time.
+-- The browser uploads bytes straight to S3 via a presigned PUT and the
+-- server only stores the metadata + key. status='pending' until the client
+-- calls /uploads/:id/finalize after the PUT succeeds; failed/abandoned rows
+-- get garbage-collected by the worker (s3 lifecycle has a 90d safety net).
+create table if not exists user_videos (
+  id               text primary key,
+  userId           text not null references users(id) on delete cascade,
+  displayName      text not null,
+  originalFilename text not null,
+  s3Bucket         text not null,
+  s3Key            text not null,                          -- e.g. user-videos/<id>.mp4
+  sizeBytes        integer,
+  durationSec      real,
+  widthPx          integer,                                -- intrinsic source width  (nullable until probed)
+  heightPx         integer,                                -- intrinsic source height (nullable until probed)
+  mimeType         text,
+  status           text not null default 'pending',        -- pending|ready|failed
+  createdAt        text not null default (datetime('now')),
+  updatedAt        text not null default (datetime('now'))
+);
+
+create index if not exists user_videos_user_idx
+  on user_videos (userId, createdAt desc);
+
+-- Per-user MCP API keys. A user mints one or more from Settings → API Keys
+-- and pastes the plaintext into their MCP client (Claude Desktop, Cursor,
+-- etc.). The plaintext token is shown exactly once at creation; we store
+-- only the scrypt hash. `keyPrefix` (first 12 chars, e.g. "wsk_live_ab")
+-- is displayed in the listing so users can identify which key is which
+-- without revealing it. `revokedAt` is soft-delete: revoked rows stay for
+-- audit + so that requests bearing a revoked key get a clear 401 rather
+-- than the misleading "key not found".
+create table if not exists api_keys (
+  id          text primary key,
+  userId      text not null references users(id) on delete cascade,
+  name        text not null,
+  keyHash     text not null,                                -- scrypt hash of the plaintext token
+  keyPrefix   text not null,                                -- "wsk_live_xxxx" (display only)
+  createdAt   text not null default (datetime('now')),
+  lastUsedAt  text,
+  revokedAt   text
+);
+
+create index if not exists api_keys_user_idx on api_keys (userId, createdAt desc);
+-- Unique on the prefix because it doubles as the lookup id: a key has the
+-- form `wsk_live_<prefix12>_<secret40>`, the prefix12 part identifies the
+-- row, and the secret40 part is scrypt-verified against keyHash. Without
+-- this index, auth would O(N) scan every key in the table.
+create unique index if not exists api_keys_prefix_idx on api_keys (keyPrefix);
+
+-- Per-user, per-thread index for the Atelier LangGraph conversations. The
+-- actual conversation history is owned by the SqliteSaver checkpointer
+-- (separate tables it manages itself); this index table is what we use to
+-- enforce per-user ownership of a threadId and (later) to surface a "your
+-- recent conversations" UI without scanning checkpoint blobs.
+create table if not exists agent_threads (
+  id           text primary key,                            -- the threadId itself (caller-supplied UUID)
+  userId       text not null references users(id) on delete cascade,
+  createdAt    text not null default (datetime('now')),
+  lastUsedAt   text not null default (datetime('now')),
+  lastSummary  text,                                        -- last user message (truncated), best-effort label
+  -- Running styleSpec accumulator for MCP threads. In the web app the
+  -- browser store holds this between turns; for MCP we have no client
+  -- store, so the chat handler reads this before each call and writes
+  -- the patched result back after. Format: JSON, same shape as a
+  -- styleSpec passed to /jobs.
+  styleSpec    text,                                        -- JSON | null
+  templateId   text                                         -- override, e.g. 'pop-words'
+);
+
+create index if not exists agent_threads_user_idx
+  on agent_threads (userId, lastUsedAt desc);

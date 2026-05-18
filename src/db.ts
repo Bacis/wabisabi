@@ -70,6 +70,29 @@ ensureColumn('custom_presets', 'showcaseClipId', 'TEXT');
 // and new rows can round-trip the whole-video scene plan on resume.
 ensureColumn('designer_sessions', 'directorScript', 'TEXT');
 
+// Persistent user uploads (S3-backed). When a job is created from a
+// user_video, we record the parent here so deletes cascade-cleanup and the
+// /uploads/:id DELETE endpoint can refuse to drop a source that's still
+// referenced by an in-flight render.
+ensureColumn('jobs', 'userVideoId', 'TEXT REFERENCES user_videos(id) ON DELETE SET NULL');
+
+// Source intrinsic dimensions. Carried on each job (so the renderer +
+// editor can read them without joining to user_videos) and on each
+// user_video (so re-using an upload for a new job is a single read).
+// NULL for legacy rows: the editor falls back to the default 1080×1920
+// vertical canvas and the renderer ffprobe's the file before render.
+ensureColumn('jobs', 'widthPx', 'INTEGER');
+ensureColumn('jobs', 'heightPx', 'INTEGER');
+ensureColumn('user_videos', 'widthPx', 'INTEGER');
+ensureColumn('user_videos', 'heightPx', 'INTEGER');
+
+// MCP: persist the accumulating styleSpec across chat turns since there's
+// no browser store to round-trip it. The chat handler reads these on
+// every call and writes back the new running spec after each turn.
+ensureColumn('agent_threads', 'styleSpec', 'TEXT');
+ensureColumn('agent_threads', 'templateId', 'TEXT');
+
 db.exec(`create index if not exists jobs_userId_idx on jobs(userId)`);
+db.exec(`create index if not exists jobs_userVideoId_idx on jobs(userVideoId)`);
 db.exec(`create index if not exists custom_presets_userId_idx on custom_presets(userId)`);
 db.exec(`create index if not exists custom_presets_published_idx on custom_presets(publishedAt) where isPublished = 1`);

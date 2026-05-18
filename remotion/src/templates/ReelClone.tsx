@@ -2,6 +2,14 @@ import React from 'react';
 import { AbsoluteFill, OffthreadVideo, staticFile, useCurrentFrame, useVideoConfig } from 'remotion';
 import { evalEnter, getSpec, type AnimPreset } from '../lib/animationPresets';
 import { loadFont } from '@remotion/google-fonts/Inter';
+// Extra display + editorial fonts so per-tier fontFamily overrides
+// actually render the requested font instead of silently falling back
+// to sans-serif. The homepage's "Design / cinematic / by talking."
+// cocktail uses Instrument Serif (italic) + Onest (bold); we load both
+// here so the IMAX preset (and any preset that wants this mix) renders
+// at parity with the marketing surface.
+import { loadFont as loadInstrumentSerif } from '@remotion/google-fonts/InstrumentSerif';
+import { loadFont as loadOnest } from '@remotion/google-fonts/Onest';
 import type { FaceData } from '../lib/positioning';
 import type {
   CaptionPlan,
@@ -94,6 +102,13 @@ loadFont('italic', {
   weights: ['400', '700', '900'],
   subsets: ['latin'],
 });
+// Instrument Serif: editorial serif. Italic 400 is the recipe used on
+// the homepage hero title for the "Design / cinematic / captions" run.
+loadInstrumentSerif('italic', { weights: ['400'], subsets: ['latin'] });
+loadInstrumentSerif('normal', { weights: ['400'], subsets: ['latin'] });
+// Onest: clean geometric display. Heavy weights for the bold-sans
+// "by talking." lane.
+loadOnest('normal', { weights: ['700', '800', '900'], subsets: ['latin'] });
 
 type Props = {
   videoFile: string;
@@ -214,6 +229,13 @@ export const ReelClone: React.FC<Props> = ({
     fill?: TierFill;
     fontFamily?: string;
     fontWeight?: number;
+    // Force this tier's words to a specific font-style regardless of
+    // italicVocabulary / italicAccentRate detection. Lets the agent
+    // express recipes like "palette[0] is yellow ITALIC serif" alongside
+    // "palette[1] is bold UPRIGHT sans" — without this override,
+    // palette-tier words always inherit fontStyle from the italic
+    // detection, which makes mixed italic/upright tier sets impossible.
+    fontStyle?: 'normal' | 'italic';
     sizeMultiplier?: number;
     strokeColor?: string;
     strokeWidth?: number;
@@ -293,7 +315,14 @@ export const ReelClone: React.FC<Props> = ({
     return (
       <AbsoluteFill style={{ backgroundColor: '#000' }}>
         {videoFile && (
-          <OffthreadVideo src={videoFile.startsWith('http') ? videoFile : staticFile(videoFile)} />
+          // objectFit: cover so horizontal source clips fill the 9:16
+          // canvas (cropping left/right) instead of letterboxing
+          // top-aligned with a black tail. Vertical 9:16 sources are
+          // unaffected since they already match the canvas aspect.
+          <OffthreadVideo
+            src={videoFile.startsWith('http') ? videoFile : staticFile(videoFile)}
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+          />
         )}
       </AbsoluteFill>
     );
@@ -301,6 +330,21 @@ export const ReelClone: React.FC<Props> = ({
 
   const activeChunk = chunks[activeChunkIdx]!;
   const emphasisColor = palette[activeChunkIdx % palette.length] ?? fillColor;
+
+  // Fast-speech adaptive clamp: cap the per-word entry animation at ~35% of
+  // the current chunk's on-screen time so even short chunks resolve before
+  // the next one rolls in. Computed from word timings — preset durations
+  // are a CEILING, never extended. Floor of 0.04s prevents zero-duration
+  // animations on degenerate (single-frame) chunks.
+  const chunkAnimFitFraction = 0.35;
+  const chunkAnimFloorSec = 0.04;
+  const chunkOnScreenSec =
+    activeChunk.words.length > 0
+      ? activeChunk.words[activeChunk.words.length - 1]!.end +
+        tailMs / 1000 -
+        activeChunk.words[0]!.start
+      : 0;
+  const maxEntryDurSec = Math.max(chunkAnimFloorSec, chunkOnScreenSec * chunkAnimFitFraction);
 
   // Emphasis flags
   const hasAnyEmphasis = activeChunk.emphasis.some((e) => e === true);
@@ -345,7 +389,10 @@ export const ReelClone: React.FC<Props> = ({
   return (
     <AbsoluteFill style={{ backgroundColor: '#000' }}>
       {videoFile && (
-        <OffthreadVideo src={videoFile.startsWith('http') ? videoFile : staticFile(videoFile)} />
+        <OffthreadVideo
+          src={videoFile.startsWith('http') ? videoFile : staticFile(videoFile)}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
       )}
       {directorScript && (
         <CueLayer
@@ -362,10 +409,14 @@ export const ReelClone: React.FC<Props> = ({
           captionTransform
             ? {
                 position: 'absolute',
-                left: `${(captionTransform.x / 1080) * 100}%`,
-                top: `${(captionTransform.y / 1920) * 100}%`,
-                width: `${(captionTransform.w / 1080) * 100}%`,
-                height: `${(captionTransform.h / 1920) * 100}%`,
+                // Use the composition's actual width/height (set by
+                // calculateMetadata from props.videoMeta) so horizontal
+                // sources don't get caption positions clamped against
+                // the legacy 1080×1920 baseline.
+                left: `${(captionTransform.x / frameWidth) * 100}%`,
+                top: `${(captionTransform.y / frameHeight) * 100}%`,
+                width: `${(captionTransform.w / frameWidth) * 100}%`,
+                height: `${(captionTransform.h / frameHeight) * 100}%`,
                 transform: `rotate(${captionTransform.rot}deg)`,
                 transformOrigin: 'center',
                 display: 'flex',
@@ -471,7 +522,7 @@ export const ReelClone: React.FC<Props> = ({
                     // per-character specs we offset by charIndex × stagger
                     // inside the per-letter render path below.
                     const entryAnchorSec = entryFrame / fps;
-                    const wordEntry = evalEnter(animSpec, t, entryAnchorSec);
+                    const wordEntry = evalEnter(animSpec, t, entryAnchorSec, maxEntryDurSec);
                     const opacity = wordEntry.opacity;
                     const entryTransform = wordEntry.transform === 'none' ? '' : wordEntry.transform;
                     const entryFilter = wordEntry.filter;
@@ -526,7 +577,7 @@ export const ReelClone: React.FC<Props> = ({
                     // Italic overrides any color emphasis — reference reels render
                     // italic accent words in plain white, with italic carrying the
                     // visual emphasis instead of color.
-                    const fontStyle: 'italic' | 'normal' = wordIsItalic ? 'italic' : 'normal';
+                    const detectedFontStyle: 'italic' | 'normal' = wordIsItalic ? 'italic' : 'normal';
                     const baseFinalColor = wordIsItalic ? fillColor : resolvedColor;
 
                     // Tier override resolution. Italic tier wins over palette
@@ -540,6 +591,12 @@ export const ReelClone: React.FC<Props> = ({
                     const tierFontFamily = tier?.fontFamily ?? fontFamily;
                     const tierFontWeight =
                       typeof tier?.fontWeight === 'number' ? tier.fontWeight : baseWordWeight;
+                    // Tier's explicit fontStyle wins over the italicVocab
+                    // detection so recipes can mix italic + upright tiers.
+                    const fontStyle: 'italic' | 'normal' =
+                      tier?.fontStyle === 'italic' || tier?.fontStyle === 'normal'
+                        ? tier.fontStyle
+                        : detectedFontStyle;
                     const tierSizeMul =
                       typeof tier?.sizeMultiplier === 'number' ? tier.sizeMultiplier : 1.0;
                     const tierStrokeColor = tier?.strokeColor ?? strokeColor;
@@ -710,7 +767,7 @@ export const ReelClone: React.FC<Props> = ({
                         >
                           {chars.map((ch, ci) => {
                             const charAnchor = entryAnchorSec + ci * charStaggerSec;
-                            const cf = evalEnter(animSpec, t, charAnchor);
+                            const cf = evalEnter(animSpec, t, charAnchor, maxEntryDurSec);
                             return (
                               <span
                                 key={ci}

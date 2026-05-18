@@ -1,11 +1,14 @@
+import { createWriteStream } from 'node:fs';
 import { mkdir, rm } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { join, resolve, extname } from 'node:path';
+import { pipeline as streamPipeline } from 'node:stream/promises';
 import { db } from '../db.js';
 import { extractAudio } from '../stages/extractAudio.js';
 import { transcribe } from '../stages/transcribe.js';
 import { enrichTranscript } from '../stages/enrichTranscript.js';
 import { detectFaces } from '../stages/detectFaces.js';
 import { renderCaptions } from '../stages/render.js';
+import { fetchOutputStream, parseS3Uri } from '../lib/s3Outputs.js';
 import type { StyleSpec } from '../shared/styleSpec.js';
 
 const STORAGE_DIR = resolve(process.env.STORAGE_DIR ?? './storage');
@@ -52,15 +55,40 @@ function setStage(jobId: string, stage: string) {
   setStageStmt.run(stage, jobId);
 }
 
+// Resolve `inputPath` to a path on the local filesystem. Local inputs are
+// returned as-is. s3:// URIs (new user-videos flow) are streamed into the
+// per-job work dir so the stages — extractAudio, detectFaces, the renderer
+// — see a regular file. The downloaded copy lives inside `workDir` and is
+// removed together with the work dir on pipeline completion; the canonical
+// asset on S3 is untouched.
+async function ensureLocalInput(
+  inputPath: string,
+  workDir: string,
+  jobId: string,
+): Promise<string> {
+  const s3 = parseS3Uri(inputPath);
+  if (!s3) return resolve(inputPath);
+  const ext = extname(s3.key) || '.mp4';
+  const localPath = join(workDir, `source${ext}`);
+  console.log(`[job ${jobId}] downloading s3 input ${inputPath} → ${localPath}`);
+  const { body } = await fetchOutputStream(inputPath);
+  await streamPipeline(body, createWriteStream(localPath));
+  return localPath;
+}
+
 export async function runPipeline(jobId: string): Promise<void> {
   const row = selectJobStmt.get(jobId) as JobRow | undefined;
   if (!row) throw new Error(`job ${jobId} not found`);
 
   const styleSpec = JSON.parse(row.styleSpec) as StyleSpec;
-  const inputAbs = resolve(row.inputPath);
+  const inputIsS3 = parseS3Uri(row.inputPath) !== null;
 
   const workDir = join(STORAGE_DIR, 'work', jobId);
   await mkdir(workDir, { recursive: true });
+
+  // For s3:// inputs (user-videos uploads) we download a per-job copy into
+  // workDir. For local inputs `inputAbs` is just the absolute filesystem path.
+  const inputAbs = await ensureLocalInput(row.inputPath, workDir, row.id);
 
   // Caption Designer renders (and any other job that was created with a
   // pre-authored transcript + captionPlan) skip the transcribe / enrich /
@@ -181,13 +209,22 @@ export async function runPipeline(jobId: string): Promise<void> {
   // still in the future, leave the input on disk so the editor's still-frame
   // preview (and Phase 2's @remotion/player) can keep using it. The retention
   // sweeper checks the same column, so the file will eventually be reaped.
-  const keepUntilStr = row.keepInputUntil;
-  const keepUntilMs = keepUntilStr ? Date.parse(keepUntilStr.replace(' ', 'T') + 'Z') : NaN;
-  if (Number.isFinite(keepUntilMs) && keepUntilMs > Date.now()) {
-    console.log(`[job ${jobId}] keeping input until ${keepUntilStr} (editor opt-in)`);
+  //
+  // s3:// inputs (user-videos) are NOT cleaned up here — the canonical asset
+  // belongs to a user_video row, not the job, and is managed by the
+  // /uploads/:id DELETE flow. The local copy lived inside workDir, which we
+  // already removed above.
+  if (inputIsS3) {
+    console.log(`[job ${jobId}] s3 input (user-video) — leaving canonical asset in place`);
   } else {
-    await rm(inputAbs, { force: true }).catch((err) =>
-      console.warn(`[job ${jobId}] cleanup input failed:`, (err as Error).message),
-    );
+    const keepUntilStr = row.keepInputUntil;
+    const keepUntilMs = keepUntilStr ? Date.parse(keepUntilStr.replace(' ', 'T') + 'Z') : NaN;
+    if (Number.isFinite(keepUntilMs) && keepUntilMs > Date.now()) {
+      console.log(`[job ${jobId}] keeping input until ${keepUntilStr} (editor opt-in)`);
+    } else {
+      await rm(inputAbs, { force: true }).catch((err) =>
+        console.warn(`[job ${jobId}] cleanup input failed:`, (err as Error).message),
+      );
+    }
   }
 }

@@ -13,7 +13,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Moveable from 'react-moveable';
 import type { Transform } from '@/lib/api';
 import { useEditor } from '@/lib/editor/store';
-import { canvasToScreenRect, scaleFromRect, screenDeltaToCanvas, CANVAS_W, CANVAS_H, type StageRect } from '@/lib/editor/coords';
+import { canvasToScreenRect, scaleFromRect, screenDeltaToCanvas, useCanvasDims, CANVAS_W, CANVAS_H, type StageRect } from '@/lib/editor/coords';
 import type { Track } from '@/lib/editor/types';
 
 type HitZone =
@@ -24,14 +24,26 @@ type HitZone =
 const CAPTION_BLOCK_ID = '__caption_block__';
 
 // Sensible default position for a caption block when the user hasn't set
-// one. Roughly the bottom third, centered horizontally.
-export const DEFAULT_CAPTION_TRANSFORM: Transform = {
-  x: Math.round(CANVAS_W * 0.1),
-  y: Math.round(CANVAS_H * 0.62),
-  w: Math.round(CANVAS_W * 0.8),
-  h: Math.round(CANVAS_H * 0.18),
-  rot: 0,
-};
+// one. Roughly the bottom third, centered horizontally. Computed from
+// the active canvas dims so horizontal sources get a default that's on
+// the canvas instead of off-frame at vertical-baseline y-coords.
+export function defaultCaptionTransform(canvasW: number, canvasH: number): Transform {
+  return {
+    x: Math.round(canvasW * 0.1),
+    y: Math.round(canvasH * 0.62),
+    w: Math.round(canvasW * 0.8),
+    h: Math.round(canvasH * 0.18),
+    rot: 0,
+  };
+}
+
+// Legacy export at the default vertical baseline. New callsites should
+// use `defaultCaptionTransform(canvasW, canvasH)` instead so they adapt
+// to horizontal sources. Kept for any imports we haven't migrated yet.
+export const DEFAULT_CAPTION_TRANSFORM: Transform = defaultCaptionTransform(
+  CANVAS_W,
+  CANVAS_H,
+);
 
 function buildHitZones(
   tracks: Track[],
@@ -40,6 +52,8 @@ function buildHitZones(
   templateId: string,
   styleSpec: Record<string, any>,
   defaultBlock: Transform | null,
+  canvasW: number,
+  canvasH: number,
 ): HitZone[] {
   const out: HitZone[] = [];
 
@@ -79,7 +93,8 @@ function buildHitZones(
   // a transform yet, the caller supplies a measured fallback from the
   // rendered caption container's DOM bbox so the gizmo overlays the real
   // text instead of a generic bottom-third box.
-  const t: Transform = styleSpec?.captionTransform ?? defaultBlock ?? DEFAULT_CAPTION_TRANSFORM;
+  const t: Transform =
+    styleSpec?.captionTransform ?? defaultBlock ?? defaultCaptionTransform(canvasW, canvasH);
   out.push({
     kind: 'caption-block',
     id: CAPTION_BLOCK_ID,
@@ -102,6 +117,7 @@ export function SelectionLayer({ rect }: { rect: StageRect }) {
   const updateOverlayTransform = useEditor((s) => s.updateOverlayTransform);
   const setCaptionTransform = useEditor((s) => s.setCaptionTransform);
   const shiftHeld = useEditor((s) => s.shiftHeld);
+  const { canvasW, canvasH } = useCanvasDims();
 
   // Measured bbox of the rendered caption container (templates that mark
   // their wrapper with `data-caption-container`). Used as the gizmo's
@@ -124,7 +140,7 @@ export function SelectionLayer({ rect }: { rect: StageRect }) {
     if (!el) return;
     const b = el.getBoundingClientRect();
     if (b.width === 0 || b.height === 0) return;
-    const { sx, sy } = scaleFromRect(rect);
+    const { sx, sy } = scaleFromRect(rect, canvasW, canvasH);
     const next: Transform = {
       x: (b.left - rect.left) / sx,
       y: (b.top - rect.top) / sy,
@@ -152,6 +168,8 @@ export function SelectionLayer({ rect }: { rect: StageRect }) {
     templateId,
     styleSpec,
     measuredBlock,
+    canvasW,
+    canvasH,
   );
 
   // refs by zone id so Moveable can target the selected one's DOM node.
@@ -213,7 +231,7 @@ export function SelectionLayer({ rect }: { rect: StageRect }) {
         }}
       />
       {zones.map((zone) => {
-        const screen = canvasToScreenRect(rect, zone.transform);
+        const screen = canvasToScreenRect(rect, zone.transform, canvasW, canvasH);
         const isSelected = zone.id === selectedZoneId;
         const color = zone.kind === 'group' ? zone.color : '#f97316';
         return (
@@ -262,14 +280,14 @@ export function SelectionLayer({ rect }: { rect: StageRect }) {
           onDragStart={() => setDragStart(selectedZone.transform)}
           onDrag={({ beforeTranslate }) => {
             if (!dragStart) return;
-            const { dx, dy } = screenDeltaToCanvas(rect, beforeTranslate[0], beforeTranslate[1]);
+            const { dx, dy } = screenDeltaToCanvas(rect, beforeTranslate[0], beforeTranslate[1], canvasW, canvasH);
             commit({ ...dragStart, x: dragStart.x + dx, y: dragStart.y + dy });
           }}
           onResizeStart={() => setDragStart(selectedZone.transform)}
           onResize={({ width, height, drag }) => {
             if (!dragStart) return;
-            const sx = rect.width / 1080;
-            const sy = rect.height / 1920;
+            const sx = rect.width / canvasW;
+            const sy = rect.height / canvasH;
             commit({
               ...dragStart,
               x: dragStart.x + drag.beforeTranslate[0] / sx,

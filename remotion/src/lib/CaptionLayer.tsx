@@ -179,7 +179,7 @@ type Props = {
 
 export const CaptionLayer: React.FC<Props> = ({ transcript, captionPlan, faces, styleSpec }) => {
   const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
+  const { fps, width: frameWidth, height: frameHeight } = useVideoConfig();
   const t = frame / fps;
 
   const baseResolved = resolveStyle(styleSpec);
@@ -236,6 +236,18 @@ export const CaptionLayer: React.FC<Props> = ({ transcript, captionPlan, faces, 
 
   if (!activeChunk) return null;
 
+  // Fast-speech adaptive clamp: cap the per-word entry animation at ~35% of
+  // the active chunk's on-screen time. Matches the clamp in ReelClone so
+  // PopWords / SingleWord / CaptionDesigner all respect the same fast-speech
+  // budget. Preset durations are a CEILING, never extended.
+  const chunkOnScreenSec =
+    activeChunk.words.length > 0
+      ? activeChunk.words[activeChunk.words.length - 1]!.end +
+        tailSec -
+        activeChunk.words[0]!.start
+      : 0;
+  const maxEntryDurSec = Math.max(0.04, chunkOnScreenSec * 0.35);
+
   // Optional editor-controlled bounding box. When set, position the
   // caption container at this transform instead of using positionStyle's
   // top/bottom anchor.
@@ -249,10 +261,14 @@ export const CaptionLayer: React.FC<Props> = ({ transcript, captionPlan, faces, 
         captionTransform
           ? {
               position: 'absolute',
-              left: `${(captionTransform.x / 1080) * 100}%`,
-              top: `${(captionTransform.y / 1920) * 100}%`,
-              width: `${(captionTransform.w / 1080) * 100}%`,
-              height: `${(captionTransform.h / 1920) * 100}%`,
+              // Frame dims come from useVideoConfig (set by
+              // calculateMetadata from props.videoMeta) so horizontal
+              // sources position captions against the actual canvas
+              // instead of the legacy 1080×1920 baseline.
+              left: `${(captionTransform.x / frameWidth) * 100}%`,
+              top: `${(captionTransform.y / frameHeight) * 100}%`,
+              width: `${(captionTransform.w / frameWidth) * 100}%`,
+              height: `${(captionTransform.h / frameHeight) * 100}%`,
               transform: `rotate(${captionTransform.rot}deg)`,
               transformOrigin: 'center',
               display: 'flex',
@@ -346,7 +362,7 @@ export const CaptionLayer: React.FC<Props> = ({ transcript, captionPlan, faces, 
                 >
                   {chars.map((ch, ci) => {
                     const anchor = w.start + ci * charStaggerSec;
-                    const f: RenderFrame = evalEnter(spec, t, anchor);
+                    const f: RenderFrame = evalEnter(spec, t, anchor, maxEntryDurSec);
                     return (
                       <span
                         key={ci}
@@ -367,7 +383,7 @@ export const CaptionLayer: React.FC<Props> = ({ transcript, captionPlan, faces, 
             }
 
             const anchor = isWhole ? wholeAnchor : w.start;
-            const f: RenderFrame = evalEnter(spec, t, anchor);
+            const f: RenderFrame = evalEnter(spec, t, anchor, maxEntryDurSec);
             return (
               <span
                 key={i}

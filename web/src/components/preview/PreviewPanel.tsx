@@ -5,7 +5,7 @@ import { useEditor } from '@/lib/editor/store';
 import { buildTranscriptFromText } from '@shared/buildTranscript';
 import { SelectionLayer } from './SelectionLayer';
 import { useStageRect } from './useStageRect';
-import { CANVAS_W, CANVAS_H } from '@/lib/editor/coords';
+import { useCanvasDims } from '@/lib/editor/coords';
 import { FPS } from '@/lib/editor/snap';
 
 export function PreviewPanel({ hideSelection = false }: { hideSelection?: boolean } = {}) {
@@ -21,6 +21,7 @@ export function PreviewPanel({ hideSelection = false }: { hideSelection?: boolea
   const transcriptText = useEditor((s) => s.transcriptText);
   const transcriptOverridden = useEditor((s) => s.transcriptOverridden);
   const directorScript = useEditor((s) => s.directorScript);
+  const { canvasW, canvasH } = useCanvasDims();
 
   const playerRef = useRef<PlayerRef>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -115,8 +116,8 @@ export function PreviewPanel({ hideSelection = false }: { hideSelection?: boolea
     return {
       videoFile,
       videoMeta: {
-        width: CANVAS_W,
-        height: CANVAS_H,
+        width: canvasW,
+        height: canvasH,
         durationInFrames,
         fps: FPS,
       },
@@ -141,12 +142,20 @@ export function PreviewPanel({ hideSelection = false }: { hideSelection?: boolea
     captionWords,
     captionGroups,
     directorScript,
+    canvasW,
+    canvasH,
   ]);
 
   const Composition = getComposition(templateId);
 
   return (
-    <div className="aspect-[9/16] h-full max-h-full max-w-full flex-shrink-0">
+    <div
+      // Aspect derives from the active canvas dims so horizontal source
+      // clips open at 16:9 (or whatever the source is) instead of being
+      // letterboxed inside a forced 9:16 box.
+      style={{ aspectRatio: `${canvasW} / ${canvasH}` }}
+      className="h-full max-h-full max-w-full flex-shrink-0"
+    >
       <div
         ref={stageRef}
         className="relative h-full w-full rounded-lg overflow-hidden border border-ink-700 bg-black"
@@ -157,8 +166,8 @@ export function PreviewPanel({ hideSelection = false }: { hideSelection?: boolea
             component={Composition}
             inputProps={inputProps}
             durationInFrames={durationInFrames}
-            compositionWidth={CANVAS_W}
-            compositionHeight={CANVAS_H}
+            compositionWidth={canvasW}
+            compositionHeight={canvasH}
             fps={FPS}
             clickToPlay={false}
             // Director plans can wire 10+ audio cues (one per scene

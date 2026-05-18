@@ -11,21 +11,33 @@
 // "/designer/new" page in between.
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AgentDesigner } from '@/components/AgentDesigner';
+import { WorkspaceSkeleton } from '@/components/AgentDesigner/WorkspaceSkeleton';
+import { HeaderActions } from '@/components/AgentDesigner/HeaderActions';
+import skelStyles from '@/components/AgentChatPane/AgentChatPane.module.css';
 import { useEditor } from '@/lib/editor/store';
 import { useUnauthenticatedHandler } from '@/lib/auth';
 import {
   createDesignerSession,
+  createJobFromUpload,
   fetchStockClips,
   fetchThemes,
+  getUpload,
+  listUploads,
   patchDesignerSession,
   UnauthenticatedError,
   type StockClipSummary,
   type Theme,
+  type UserVideo,
 } from '@/lib/api';
-import { DEFAULT_STARTER, type CuratedStarter } from '@/data/curatedStarters';
+import {
+  DEFAULT_STARTER,
+  type CuratedStarter,
+  type UploadStarter,
+} from '@/data/curatedStarters';
 import { PROMPT_STARTERS } from '@/data/promptStarters';
+import { useUploadVideo } from '@/lib/useUploadVideo';
 import type { EditorSource } from '@/lib/useEditableSource';
 import styles from './StartPage.module.css';
 
@@ -40,6 +52,13 @@ const STAR_POSITIONS = Array.from({ length: 60 }, (_, i) => {
 function fmtDuration(sec: number): string {
   if (!isFinite(sec) || sec <= 0) return '0.00s';
   return `${sec.toFixed(2)}s`;
+}
+
+function fmtBytes(n: number): string {
+  if (!isFinite(n) || n <= 0) return '0 KB';
+  if (n >= 1024 * 1024 * 1024) return `${(n / 1024 / 1024 / 1024).toFixed(1)} GB`;
+  if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(0)} MB`;
+  return `${Math.round(n / 1024)} KB`;
 }
 
 // Convert a server-side stock clip into the CuratedStarter shape the composer
@@ -61,10 +80,35 @@ function stockClipAsStarter(c: StockClipSummary): CuratedStarter {
   };
 }
 
+// Convert a finalized user_video into a composer starter. Aspect is
+// derived from the intrinsic dims (probed client-side at upload). When
+// dims aren't known yet (older uploads pre-dating the columns) fall
+// back to 9:16, which matches the historical baseline.
+function uploadAsStarter(v: UserVideo): UploadStarter {
+  return {
+    id: v.id,
+    sourceKind: 'upload',
+    filename: v.displayName,
+    durationSec: v.durationSec ?? 0,
+    aspect: pickAspect(v.widthPx, v.heightPx),
+  };
+}
+
+function pickAspect(
+  w: number | null | undefined,
+  h: number | null | undefined,
+): '9:16' | '1:1' | '16:9' {
+  if (!w || !h || w <= 0 || h <= 0) return '9:16';
+  if (w >= h * 1.4) return '16:9';
+  if (h >= w * 1.4) return '9:16';
+  return '1:1';
+}
+
 type ComposerTab = 'caption' | 'starter';
 
 export function StartPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const onAuthError = useUnauthenticatedHandler();
   const [prompt, setPrompt] = useState('');
   const [activeTab, setActiveTab] = useState<ComposerTab>('caption');
@@ -81,6 +125,41 @@ export function StartPage() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [themes, setThemes] = useState<Theme[] | null>(null);
+
+  // Wire the existing "Attach clip" composer button to the user-uploads
+  // flow. pickFile() only STAGES the file locally — the actual upload
+  // doesn't fire until the user submits. Lets them change their mind
+  // (or pick a different file) without burning bandwidth.
+  const upload = useUploadVideo();
+  useEffect(() => {
+    if (upload.error) setError(upload.error);
+  }, [upload.error]);
+
+  // /library deep-link: ?upload=<id> selects an existing upload as the
+  // starter and strips the query param so reload doesn't re-fetch.
+  const uploadParam = searchParams.get('upload');
+  useEffect(() => {
+    if (!uploadParam) return;
+    let cancelled = false;
+    getUpload(uploadParam)
+      .then((v) => {
+        if (cancelled) return;
+        setStarter(uploadAsStarter(v));
+        const next = new URLSearchParams(searchParams);
+        next.delete('upload');
+        setSearchParams(next, { replace: true });
+      })
+      .catch((err) => {
+        onAuthError(err);
+        if (!cancelled) {
+          setError(`Could not load upload: ${(err as Error).message}`);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploadParam]);
 
   useEffect(() => {
     let cancelled = false;
@@ -100,14 +179,28 @@ export function StartPage() {
     };
   }, []);
 
-  // If the curated starter list is empty, fall back to the longest available
-  // stock clip so authed users can submit immediately on first visit. The
-  // user can override later by adding entries to curatedStarters.ts.
+  // Default starter discovery, in priority order:
+  //   1. Curated starter from data/curatedStarters.ts (if configured)
+  //   2. User's most-recent upload (so the composer reflects their own
+  //      content on return visits)
+  //   3. Longest stock clip (out-of-box fallback for first-time users)
+  //   4. undefined (terminal "no clips available" state)
+  // Skipped entirely when ?upload=<id> was supplied — that effect sets
+  // the starter directly and shouldn't be raced.
   useEffect(() => {
     if (DEFAULT_STARTER) return;
+    if (uploadParam) return;
     let cancelled = false;
-    fetchStockClips()
-      .then((clips) => {
+    (async () => {
+      try {
+        const uploads = await listUploads();
+        if (cancelled) return;
+        if (uploads.length > 0) {
+          // listUploads returns rows ordered by createdAt desc.
+          setStarter(uploadAsStarter(uploads[0]));
+          return;
+        }
+        const clips = await fetchStockClips();
         if (cancelled) return;
         if (clips.length === 0) {
           setStarter(undefined);
@@ -117,30 +210,68 @@ export function StartPage() {
           a.durationSec >= b.durationSec ? a : b,
         );
         setStarter(stockClipAsStarter(longest));
-      })
-      .catch((err) => {
+      } catch (err) {
         onAuthError(err);
         if (!cancelled) setStarter(undefined);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uploadParam]);
 
-  const canSend = !!prompt.trim() && !!starter && !submitted;
+  // Submit is enabled even while the eager upload is mid-flight — the
+  // background bytes will be awaited inside onSubmit. Only block on the
+  // post-submit `submitted` latch to avoid double-fires.
+  const canSend =
+    !!prompt.trim() && (!!starter || !!upload.staged) && !submitted;
 
-  function onSubmit(e?: React.FormEvent) {
+  // True while we're inside an awaited onSubmit (covers the brief gap
+  // between hitting send and the SubmittingHandoff render). UI uses this
+  // to show "uploading…" on the send button when the user submits before
+  // the eager upload has finished.
+  const [submitting, setSubmitting] = useState(false);
+
+  async function onSubmit(e?: React.FormEvent) {
     e?.preventDefault();
     const text = prompt.trim();
-    if (!text || !starter) return;
+    if (!text) return;
+    if (!starter && !upload.staged) return;
+    if (submitted || submitting) return;
     setError(null);
-    setSubmitted({ text, starter });
+    setSubmitting(true);
+
+    let resolvedStarter = starter ?? null;
+    if (upload.staged) {
+      try {
+        // Eager upload may already be done — run() resolves instantly in
+        // that case. Otherwise it awaits the in-flight S3 PUT + finalize.
+        const video = await upload.run();
+        if (!video) {
+          setSubmitting(false);
+          return;
+        }
+        resolvedStarter = uploadAsStarter(video);
+        setStarter(resolvedStarter);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Upload failed.');
+        setSubmitting(false);
+        return;
+      }
+    }
+    if (!resolvedStarter) {
+      setSubmitting(false);
+      return;
+    }
+    setSubmitted({ text, starter: resolvedStarter });
+    setSubmitting(false);
   }
 
   function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (canSend) onSubmit();
+      if (canSend) void onSubmit();
     }
   }
 
@@ -431,7 +562,36 @@ export function StartPage() {
                 </button>
               </div>
 
-              {starter ? (
+              {upload.staged ? (
+                <span className={styles.clipChip}>
+                  <span className={styles.thumb} />
+                  <span className={styles.name}>{upload.staged.name}</span>
+                  <span className={styles.meta}>
+                    {upload.busy
+                      ? upload.progress != null
+                        ? `· uploading ${Math.round(upload.progress * 100)}%`
+                        : '· uploading…'
+                      : `· ${fmtBytes(upload.staged.size)} · ready — sends on submit`}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => upload.clear()}
+                    title={upload.busy ? 'Cancel upload' : 'Discard staged clip'}
+                    style={{
+                      marginLeft: 8,
+                      background: 'none',
+                      border: 'none',
+                      color: 'inherit',
+                      opacity: 0.6,
+                      cursor: 'pointer',
+                      fontSize: 14,
+                      lineHeight: 1,
+                    }}
+                  >
+                    ×
+                  </button>
+                </span>
+              ) : starter ? (
                 <span className={styles.clipChip}>
                   <span className={styles.thumb} />
                   <span className={styles.name}>{starter.filename}</span>
@@ -473,20 +633,42 @@ export function StartPage() {
 
               <div className={styles.composerFoot}>
                 <div className={styles.cfLeft}>
+                  <input {...upload.inputProps} />
                   <button
                     type="button"
                     className={styles.cfBtn}
-                    title="Attach clip"
+                    title={
+                      upload.busy
+                        ? `Uploading… ${upload.progress != null ? Math.round(upload.progress * 100) + '%' : ''}`
+                        : upload.staged
+                          ? `${upload.staged.name} (will upload on submit) — click to replace`
+                          : 'Attach clip'
+                    }
+                    onClick={upload.pickFile}
+                    disabled={upload.busy || !!submitted}
                   >
-                    <svg
-                      className={styles.ico}
-                      width="14"
-                      height="14"
-                      viewBox="0 0 16 16"
-                      strokeWidth={1.5}
-                    >
-                      <path d="M8 3v10M3 8h10" />
-                    </svg>
+                    {upload.busy ? (
+                      <svg
+                        className={styles.ico}
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        strokeWidth={1.5}
+                      >
+                        <circle cx="8" cy="8" r="5" />
+                        <path d="M8 3a5 5 0 015 5" />
+                      </svg>
+                    ) : (
+                      <svg
+                        className={styles.ico}
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        strokeWidth={1.5}
+                      >
+                        <path d="M8 3v10M3 8h10" />
+                      </svg>
+                    )}
                   </button>
                   <button
                     type="button"
@@ -563,18 +745,38 @@ export function StartPage() {
                     type="submit"
                     className={styles.sendBtn}
                     disabled={!canSend}
-                    title="Send (↵)"
+                    title={
+                      submitting && upload.busy
+                        ? `Sending after upload completes (${upload.progress != null ? Math.round(upload.progress * 100) + '%' : '…'})`
+                        : 'Send (↵)'
+                    }
                     aria-label="Send"
                   >
-                    <svg
-                      className={styles.ico}
-                      width="14"
-                      height="14"
-                      viewBox="0 0 16 16"
-                      strokeWidth={1.6}
-                    >
-                      <path d="M8 13V3M4 7l4-4 4 4" />
-                    </svg>
+                    {submitting && upload.busy ? (
+                      // While waiting for the eager upload to finish,
+                      // show a small spinner instead of the arrow so the
+                      // user sees the click registered.
+                      <svg
+                        className={styles.ico}
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        strokeWidth={1.6}
+                      >
+                        <circle cx="8" cy="8" r="5" />
+                        <path d="M8 3a5 5 0 015 5" />
+                      </svg>
+                    ) : (
+                      <svg
+                        className={styles.ico}
+                        width="14"
+                        height="14"
+                        viewBox="0 0 16 16"
+                        strokeWidth={1.6}
+                      >
+                        <path d="M8 13V3M4 7l4-4 4 4" />
+                      </svg>
+                    )}
                   </button>
                 </div>
               </div>
@@ -761,6 +963,11 @@ export function StartPage() {
 // stays at "/" while the agent picks up the prompt. AgentDesigner's
 // chatOpts mint the session on the first turn and navigate(replace) to
 // /designer/:id once the first reply lands.
+//
+// For upload-kind starters we need to mint a job first (the editor needs
+// a transcript and only the worker pipeline can produce one). The brief
+// "minting…" state runs server-side; the editor opens against the new job
+// as soon as createJobFromUpload returns.
 function SubmittingHandoff({
   text,
   starter,
@@ -775,10 +982,67 @@ function SubmittingHandoff({
   const pendingSessionIdRef = useRef<string | null>(null);
   const navigatedRef = useRef<boolean>(false);
 
-  const editorSource: EditorSource = useMemo(
-    () => ({ kind: 'stock', clipId: starter.id }),
-    [starter.id],
-  );
+  // For 'upload' starters we need to mint a job before the AgentDesigner
+  // can open. For 'stock' starters the editor opens directly against the
+  // stock clip and the designer-session row is minted on first turn.
+  const [resolved, setResolved] = useState<
+    | { kind: 'stock'; clipId: string }
+    | { kind: 'job'; jobId: string; userVideoId: string }
+    | null
+  >(starter.sourceKind === 'stock' ? { kind: 'stock', clipId: starter.id } : null);
+
+  useEffect(() => {
+    if (resolved || starter.sourceKind !== 'upload') return;
+    let cancelled = false;
+    createJobFromUpload({
+      userVideoId: starter.id,
+      preset: 'reel-clone-default',
+      // Editor opt-in retention applies to local inputs; for s3-backed
+      // user_videos the source persists indefinitely until the user
+      // deletes it, but we still pass keepInputMinutes so a future
+      // /jobs/:id/input fetch can find the asset.
+      keepInputMinutes: 60 * 24,
+    })
+      .then((j) => {
+        if (!cancelled) {
+          setResolved({ kind: 'job', jobId: j.id, userVideoId: starter.id });
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) onError(err);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [starter, resolved, onError]);
+
+  const editorSource: EditorSource | null = useMemo(() => {
+    if (!resolved) return null;
+    if (resolved.kind === 'stock') return { kind: 'stock', clipId: resolved.clipId };
+    return { kind: 'job', jobId: resolved.jobId };
+  }, [resolved]);
+
+  if (!editorSource || !resolved) {
+    // Render the same skeleton AgentDesigner uses during source load so
+    // the user sees a continuous "preparing your video" state from
+    // submit → job creation → transcript ready, instead of a "Preparing
+    // your upload…" placeholder followed by a different loading screen.
+    // Map the starter's aspect tag to a CSS aspect-ratio string so the
+    // shimmer matches the eventual canvas (horizontal uploads start
+    // landscape immediately rather than morphing from 9:16).
+    const starterAspect =
+      starter.aspect === '16:9' ? '16 / 9' : starter.aspect === '1:1' ? '1 / 1' : '9 / 16';
+    return (
+      <div className={skelStyles.root}>
+        <HeaderActions />
+        <WorkspaceSkeleton initialPrompt={text} canvasAspect={starterAspect} />
+      </div>
+    );
+  }
+
+  const sessionSourceKind: 'stock' | 'job' = resolved.kind;
+  const sessionSourceId =
+    resolved.kind === 'stock' ? resolved.clipId : resolved.jobId;
 
   return (
     <AgentDesigner
@@ -790,8 +1054,8 @@ function SubmittingHandoff({
             const styleSpec = useEditor.getState().styleSpec;
             const session = await createDesignerSession({
               templateId: 'reel-clone',
-              sourceKind: 'stock',
-              sourceId: starter.id,
+              sourceKind: sessionSourceKind,
+              sourceId: sessionSourceId,
               styleSpec: styleSpec as Record<string, unknown>,
               firstMessage,
               messages: [],

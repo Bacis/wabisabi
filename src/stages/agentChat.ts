@@ -5,10 +5,10 @@
 // the staged patch — the *client* applies it via the editor store's
 // applyThemePatch() so all mutation paths stay in one place.
 //
-// Conversation history lives server-side in a MemorySaver keyed by threadId,
-// so requests only send the latest user turn. This shrinks the wire payload
-// on long chats and lets us swap in a SQLite checkpointer later for durable
-// history without changing the wire shape.
+// Conversation history lives server-side in a SqliteSaver keyed by a
+// namespaced thread_id (`${userId}:${threadId}`). Durable across server
+// restarts and isolated per-user, so two MCP clients picking the same UUID
+// thread on different accounts never collide.
 //
 // Prompt caching: SYSTEM_PROMPT is a top-level const and is wrapped in a
 // SystemMessage with cache_control ephemeral. Anything dynamic
@@ -25,6 +25,8 @@ import {
   type ValidatorResult,
 } from './agentTools.js';
 import { diffFromDefaults, summarizeSpec } from './agentSpecDigest.js';
+import { initClipUpload, registerClipFromPath, registerClipFromUrl } from '../lib/clipIngest.js';
+import { awaitClipReady, createRenderJob, findRecentJobForClip, pollRender } from '../lib/renderControl.js';
 import {
   directorScriptSchema,
   type DirectorScript,
@@ -68,6 +70,12 @@ export type AgentToolCall = {
 
 export type RunAgentChatArgs = {
   threadId: string;
+  /**
+   * Owning user. The checkpointer key is namespaced to (userId, threadId)
+   * so two different users using the same UUID threadId — possible across
+   * MCP clients — never see each other's conversation history.
+   */
+  userId: string;
   message: string;
   currentSpec: Record<string, unknown>;
   templateId: string;
@@ -153,10 +161,15 @@ When they say "effect", "vibe on the keywords", or name a filter id
 
   When the user combines a planning ask with styling/fx asks in the same prompt, fire apply_director_script FIRST and the styling/fx tools alongside it — do NOT collapse the planning ask into a global apply_style_patch. The director writes per-group overrides; the style patch can't.
 
-  **VISIBILITY MUST-FIRE (paired with the director rule above)** — when ANY of these phrases appear, you MUST ALSO fire set_caption_visibility in the same turn alongside whatever else you do. Styling on its own does NOT hide or show captions; the user expects visibility AND styling together, never just styling.
-    - "hide all" / "remove captions" / "no captions" — set_caption_visibility({ mode: "none" })
-    - "show all" / "captions everywhere" / "bring captions back" — set_caption_visibility({ mode: "all" })
-    - "only show" / "only display" / "just show" / "selective" / "cinematic highlights" / "key beats" / "important moments" / "decide which to show" / "punctuation captions" / "let the footage breathe" — set_caption_visibility({ mode: "selective" })
+  **VISIBILITY MUST-FIRE (paired with the director rule above)** — fire set_caption_visibility ONLY when the user has expressed a CLEAR reduce-or-toggle intent. Do NOT fire it just because the user mentions "title cards" / "banner moments" / "chapter beats" — those name parts of a plan, they don't ask to hide anything.
+    - "hide all" / "remove captions" / "no captions" → set_caption_visibility({ mode: "none" })
+    - "show all" / "captions everywhere" / "bring captions back" → set_caption_visibility({ mode: "all" })
+    - "only show X" / "only display X" / "just show X" / "selective captions" / "hide most" / "hide everything except" / "punctuation-style captions" / "caption just the key beats" / "let the footage breathe" → set_caption_visibility({ mode: "selective" })
+
+  **DO NOT fire set_caption_visibility(selective) when:**
+    - The user describes "banner moments" / "title cards" / "stat callouts" / "pull-quotes" / "chapter cards" as PARTS OF A PLAN (not as the only things to show). Those describe the planner's segmentation, not a hide instruction.
+    - The user says captions should be "huge / dominant / fill the screen / never small / never whispered / everywhere". That is an EXPLICIT do-not-hide signal — visibility stays 'visible'.
+    - The user just wants a maximalist / IMAX / Hormozi / cinematic look. Those are STYLING asks, not visibility asks.
 
   If you fire apply_style_patch / tune_field for the visual look on a selectivity prompt and forget set_caption_visibility, the captions stay in their previous visibility state — usually fully visible OR fully hidden from an earlier turn — and the user sees no effect from their selectivity ask.
 2. apply_preset_pack — user names a known archetype (Hormozi, Submagic, MrBeast, karaoke, …) or a slot+presetId from the registry. Fires once per slot; fire multiple in the same turn to compose.
@@ -173,9 +186,9 @@ When they say "effect", "vibe on the keywords", or name a filter id
 apply_director_script({ intent }) — builds a whole-video DirectorScript by delegating to the dedicated Director planner. Pass ONLY 'intent' — a one-sentence paraphrase of the desired plan shape. You do NOT see the timed transcript on your turn and you MUST NOT ask the user for it; the planner has access server-side. The planner segments the transcript by FUNCTIONAL ROLE from the closed set: intro-hook | hero-title-card | backstory-beat | enumerated-list | stat-callout | pull-quote | pov-shift | comparison-pair | cta-overlay | outro. Use ONLY for scaffold-sized requests like "build me a reel from this clip" or "make this cinematic". For per-tweak edits ("make the yellow brighter"), DO NOT fire this tool — use the lower-priority tools instead.
 
 apply_preset_pack({ slot, presetId }) — composes a slotted preset pack onto the draft. Slots and ids:
-  theme   : cinematicCascade | popMinimal
-  font    : interBlack | impactBold
-  palette : yellowRed | whiteOnly
+  theme   : cinematicCascade | popMinimal | editorialMix | concertPoster | designerStudio | boutiqueCouture | manifesto | personalDiary | retroArcade | opEd | lateNightNeon | architect
+  font    : interBlack | impactBold | fraunces | bricolageGrotesque | spaceGrotesk | unboundedDisplay | hankenGrotesk | recursive | instrumentSans | montserratBold | poppinsBold | playfairBlack | cormorantSerif | cinzelCaps | antonCondensed | bebasCondensed | archivoBlack | permanentMarker | pressStart2P | pacificoScript
+  palette : yellowRed | whiteOnly | editorialCream | posterRedBlack | studioNeonLime | coutureRose | manifestoRed | diaryNavyRose | arcadeNeon | opEdInkRed | vegasPinkCyan | architectNavyGold
   motion  : progressiveReveal | snappyPop
   accent  : subtleItalic | neonGlow
   fx      : shockwaveEmphasis | sambaLetters
@@ -209,8 +222,16 @@ hormozi-cascade — aliases: "hormozi", "alex hormozi", "yellow keyword stack", 
   apply_preset_pack(motion, progressiveReveal)
   apply_preset_pack(accent, subtleItalic)
 
+imax-maximal — aliases: "imax", "maximalism", "cinematic premium", "epic punch", "blockbuster", "hero opener"
+  apply_preset_pack(theme, cinematicCascade)
+  apply_preset_pack(font, montserratBold)
+  apply_preset_pack(palette, posterRedBlack)
+  apply_preset_pack(motion, progressiveReveal)
+  apply_preset_pack(accent, subtleItalic)
+
 submagic-pop — aliases: "submagic", "tiktok pop", "word pop", "default tiktok caption"
   apply_preset_pack(theme, popMinimal)
+  apply_preset_pack(font, poppinsBold)
   apply_preset_pack(palette, whiteOnly)
   apply_preset_pack(motion, snappyPop)
   set_effect(p0, shockwave, { intensity: 0.4 })
@@ -222,10 +243,59 @@ mr-beast-pop — aliases: "beast", "mrbeast", "thick stroke white"
   apply_preset_pack(motion, snappyPop)
   tune_field("color.strokeWidth", 12)
 
-netflix-minimal — aliases: "netflix", "minimal", "subtle", "let the footage breathe"
+netflix-doc — aliases: "netflix", "documentary", "minimal serif", "subtle", "soft", "warm", "ember", "instrument serif", "let the footage breathe"
   apply_preset_pack(theme, popMinimal)
-  apply_preset_pack(palette, whiteOnly)
+  apply_preset_pack(font, fraunces)
+  apply_preset_pack(palette, editorialCream)
   tune_field("animation.preset", "soft-blur-in")
+
+editorial-magazine — aliases: "editorial", "magazine", "op-ed", "newspaper", "broadsheet", "serif headlines", "playfair"
+  apply_preset_pack(theme, opEd)
+  apply_preset_pack(font, playfairBlack)
+  apply_preset_pack(palette, opEdInkRed)
+  apply_preset_pack(motion, progressiveReveal)
+
+boutique-couture — aliases: "couture", "boutique", "fashion", "elegant serif", "book serif", "high-end", "luxury"
+  apply_preset_pack(theme, boutiqueCouture)
+  apply_preset_pack(font, cormorantSerif)
+  apply_preset_pack(palette, coutureRose)
+  apply_preset_pack(motion, snappyPop)
+
+manifesto-brutalist — aliases: "manifesto", "brutalist", "political", "agitprop", "punk", "underground", "protest"
+  apply_preset_pack(theme, manifesto)
+  apply_preset_pack(font, archivoBlack)
+  apply_preset_pack(palette, manifestoRed)
+  apply_preset_pack(motion, snappyPop)
+
+personal-diary — aliases: "diary", "personal", "handwritten", "marker", "scrapbook", "cozy", "intimate", "journal"
+  apply_preset_pack(theme, personalDiary)
+  apply_preset_pack(font, permanentMarker)
+  apply_preset_pack(palette, diaryNavyRose)
+
+retro-arcade — aliases: "arcade", "retro game", "8-bit", "pixel", "crt", "vaporwave", "synthwave", "press start"
+  apply_preset_pack(theme, retroArcade)
+  apply_preset_pack(font, pressStart2P)
+  apply_preset_pack(palette, arcadeNeon)
+
+late-night-vegas — aliases: "vegas", "neon marquee", "late night", "casino", "miami", "drive thru", "vibe"
+  apply_preset_pack(theme, lateNightNeon)
+  apply_preset_pack(font, bebasCondensed)
+  apply_preset_pack(palette, vegasPinkCyan)
+
+concert-poster — aliases: "concert poster", "gig poster", "indie poster", "DIY", "zine", "punk gig"
+  apply_preset_pack(theme, concertPoster)
+  apply_preset_pack(font, antonCondensed)
+  apply_preset_pack(palette, posterRedBlack)
+
+designer-studio — aliases: "studio", "designer", "portfolio", "minimal grid", "swiss", "branded", "agency"
+  apply_preset_pack(theme, designerStudio)
+  apply_preset_pack(font, hankenGrotesk)
+  apply_preset_pack(palette, studioNeonLime)
+
+architect-classical — aliases: "architect", "classical", "monument", "library", "academic", "stoic", "marble"
+  apply_preset_pack(theme, architect)
+  apply_preset_pack(font, cinzelCaps)
+  apply_preset_pack(palette, architectNavyGold)
 
 karaoke-fill — aliases: "karaoke", "highlight as said"
   apply_preset_pack(motion, progressiveReveal)
@@ -236,6 +306,35 @@ shockwave-emphasis — aliases: "shockwave", "explosive", "burst", "slam"
 
 samba-letters — aliases: "samba", "letter sway"
   apply_preset_pack(fx, sambaLetters)
+
+# Font variety rule (CRITICAL — read before every turn)
+
+The agent has historically defaulted to font.interBlack for almost every cinematic
+request. This made every clip look identical. To produce visible variety, follow
+these rules in order:
+
+1. If the user EXPLICITLY names a font ("Inter", "Fraunces", "Bebas", "Playfair", etc.),
+   use that font's pack.
+2. If the user names an archetype above (hormozi, vegas, op-ed, etc.), use THAT
+   archetype's recipe verbatim. Do NOT swap its font for variety — the recipe
+   was tuned as a coherent look.
+3. Otherwise, when the user gives a generic "cinematic" / "make this look good" /
+   "improve the captions" prompt with no aesthetic cue, you MUST pick ONE
+   apply_preset_pack(font, …) from this rotation (NEVER default to interBlack
+   silently):
+     • fraunces             — expressive serif, editorial weight
+     • bricolageGrotesque   — modern variable display sans
+     • spaceGrotesk         — tech-forward humanist
+     • montserratBold       — energetic social-media workhorse
+     • poppinsBold          — warm/friendly geometric
+     • hankenGrotesk        — clean refined sans (Inter alternative)
+     • instrumentSans       — editorial sans with a slight quirk
+     • unboundedDisplay     — wide geometric poster
+     • recursive            — expressive variable
+   Vary the pick across turns within a session — don't fire the same font twice
+   in a row unless the user asked for it.
+4. font.interBlack is reserved for: hormozi-cascade, explicit "Inter" requests,
+   and "keep the current look" follow-ups. It is NOT the default.
 
 # Composability
 
@@ -267,10 +366,22 @@ Effects (single-call) —
   "jitter" / "wobble" / "shake"                            → set_effect(p0, resonance, { intensity: 0.6 })
 
 Vibes (multi-call recipes — see # Archetypes for the full list) —
-  "cinematic" / "reel" / "instagram" / "premium" / "epic"  → apply_preset_pack(theme, cinematicCascade) [+ font/palette if a full hormozi-cascade is implied]
-  "minimal" / "clean" / "subtle"                           → apply_preset_pack(theme, popMinimal) + apply_preset_pack(palette, whiteOnly)
-  "neon" / "glow"                                          → apply_preset_pack(accent, neonGlow)
-  "karaoke"                                                → apply_preset_pack(motion, progressiveReveal)
+  "imax" / "maximalism" / "blockbuster" / "epic punch"      → imax-maximal recipe
+  "hormozi" / "yellow cascade" / "alex hormozi"             → hormozi-cascade recipe
+  "cinematic" / "reel" / "instagram" / "premium"            → cinematicCascade family + a font from the variety rotation (NEVER default to interBlack)
+  "netflix" / "documentary" / "ember" / "instrument serif"  → netflix-doc recipe
+  "editorial" / "magazine" / "newspaper" / "op-ed"          → editorial-magazine recipe
+  "couture" / "fashion" / "elegant" / "book serif"          → boutique-couture recipe
+  "manifesto" / "brutalist" / "punk" / "agitprop"           → manifesto-brutalist recipe
+  "diary" / "marker" / "handwritten" / "scrapbook"          → personal-diary recipe
+  "arcade" / "retro game" / "8-bit" / "pixel" / "crt"       → retro-arcade recipe
+  "vegas" / "neon marquee" / "miami" / "casino"             → late-night-vegas recipe
+  "concert poster" / "gig" / "indie" / "zine"               → concert-poster recipe
+  "studio" / "swiss" / "portfolio" / "agency"               → designer-studio recipe
+  "architect" / "classical" / "monument" / "marble"         → architect-classical recipe
+  "minimal" / "clean" / "subtle"                            → submagic-pop recipe (or netflix-doc if a serif cue is present)
+  "neon" / "glow" (effect only)                             → apply_preset_pack(accent, neonGlow)
+  "karaoke"                                                 → karaoke-fill recipe
 
 Custom dials (fall back to apply_style_patch / tune_field) —
   "single-word display" / "show only one word at a time" / "reduce to single word"
@@ -382,6 +493,29 @@ Selection is a HINT, not a constraint. Read the user's language:
 - Don't invent presetIds. The complete list is above; if it's not there, use apply_style_patch or tune_field.
 - Don't bump only font.size when the user wants uniformly large captions. The cascade + size multipliers will keep ~half the words small. Flatten cascadeTopRatio/cascadeBottomRatio to 1 and reset filler/emphasisSizeMultiplier to 1 in the SAME patch. See "Caption size" in Custom dials.
 
+# MCP / external-client flow (clip ingest + render)
+
+You may be called from an external AI editor (Claude Desktop, Cursor, …) via MCP. In that case the user may want you to ingest a clip and render — not just stage style. Four ingest/render tools cover this end-to-end:
+
+- **register_clip_from_path({path})** — preferred when the user mentions a filesystem path (e.g. "/Users/me/clip.mp4" or a Claude Desktop sandbox path). The wabisabi server reads the file off its own disk and uploads to S3. Works whenever wabisabi runs on the same machine as the user's AI client (localhost dev). Returns clipId.
+- **register_clip_from_url({url})** — when the user gives you a public http(s) URL (Drive share, S3 link, web URL). Returns a clipId. Use immediately on first mention of a URL.
+- **request_clip_upload({filename, sizeBytes?})** — last resort for when wabisabi is remote AND the user can't give you a URL. Returns clipId + a presigned uploadUrl. You MUST repeat the uploadUrl verbatim in your reply. WARNING: most AI clients (including Claude Desktop) cannot PUT bytes to a URL on their own — try register_clip_from_path or register_clip_from_url first.
+- **render({clipId, templateId?, waitMs?})** — kicks off render and long-polls (default 30s). Returns either {status:"done", outputUrl} or {status:"queued"|"running"}. ALWAYS surface the outputUrl in your reply when done. If still pending, tell the user to ask back.
+
+Pick order when the user mentions a video:
+  1. Filesystem path → register_clip_from_path
+  2. http(s) URL → register_clip_from_url
+  3. Only a filename or "I want to upload" → BEFORE calling request_clip_upload, ASK the upstream caller for the absolute path. Sample reply: "I can read the file off disk directly — what's the absolute path of the attachment? (e.g. /Users/you/Library/.../uploads/clip.mp4)". Many AI clients (Claude Desktop's local agent mode in particular) run in sandboxes that block S3 egress, so the presigned-PUT flow silently fails; the path approach almost always works.
+  4. Only fall back to request_clip_upload if the user has *explicitly confirmed* they cannot share a path or URL.
+
+When the upstream caller reports an upload failure (sandbox egress block, "I can't PUT", 403 from S3, "blocked-by-allowlist", curl not available), DON'T offer them curl. Ask for the absolute filesystem path and use register_clip_from_path instead.
+
+Order of operations: ingest first → apply style → render. If the user describes both style and rendering in one turn ("ingest this clip and give it Hormozi-style"), do all the steps in one ReAct loop and report final state.
+
+**CRITICAL — the render pipeline auto-transcribes.** When you call \`render({clipId})\`, the worker pipeline runs: ingest → **Whisper transcription** → caption-plan enrichment → face detection → Remotion render. You do NOT need a transcript before calling render. You do NOT need to ask the user for SRT/VTT. You do NOT need to "sculpt captions" or markup emphasis tiers — the pipeline handles all of that. NEVER tell a user "I can't transcribe" or "I need captions first" — that's flat wrong. The styling tools you have (apply_preset_pack, set_effect, set_layout_strategy, etc.) describe HOW captions should look once the pipeline generates them; the pipeline always generates them.
+
+Same applies to emphasis tier assignment (p0/p1/etc) — the enrichment stage of the pipeline picks emphasis words automatically from the transcript. Your styling tools control how each tier *looks*, not which words land in which tier (the planner handles that based on the audio).
+
 # Voice — assistantMessage
 
 ONE short sentence after tool use. No prose, no bullets, no explanation of what the tool does.
@@ -393,6 +527,12 @@ ONE short sentence after tool use. No prose, no bullets, no explanation of what 
 // ---------------------------------------------------------------------------
 // Module-level singletons: the checkpointer + LLM are reused across requests
 // so the cache hits and the conversation persists by threadId.
+//
+// The checkpointer is SqliteSaver bound to the project's main DB (the same
+// connection src/db.ts opens). It manages its own `checkpoints` / `writes`
+// tables — we don't predefine them. Persisting checkpoints means agent
+// threads survive server restarts (required for MCP clients across multiple
+// machines, and a nice-to-have for the web app too).
 
 let _checkpointer: unknown = null;
 let _model: unknown = null;
@@ -401,11 +541,12 @@ let _systemMessage: unknown = null;
 
 async function getDeps(modelId: string) {
   // Lazy import — keeps API boot clean if the package is missing in some env.
-  const { MemorySaver } = await import('@langchain/langgraph');
+  const { SqliteSaver } = await import('@langchain/langgraph-checkpoint-sqlite');
   const { ChatAnthropic } = await import('@langchain/anthropic');
   const { SystemMessage } = await import('@langchain/core/messages');
+  const { db } = await import('../db.js');
 
-  if (!_checkpointer) _checkpointer = new MemorySaver();
+  if (!_checkpointer) _checkpointer = new SqliteSaver(db);
   if (!_systemMessage) {
     _systemMessage = new SystemMessage({
       content: SYSTEM_PROMPT,
@@ -440,6 +581,29 @@ async function getDeps(modelId: string) {
     _modelId = modelId;
   }
   return { model: _model, checkpointer: _checkpointer, systemMessage: _systemMessage };
+}
+
+// Upsert into agent_threads index. Insert on first message, bump
+// lastUsedAt + lastSummary on every subsequent message. Returns nothing —
+// failures here are non-fatal (the checkpointer owns the actual history).
+async function touchAgentThread(args: {
+  threadId: string;
+  userId: string;
+  lastSummary: string;
+}): Promise<void> {
+  try {
+    const { db } = await import('../db.js');
+    db.prepare(
+      `insert into agent_threads (id, userId, lastSummary)
+       values (?, ?, ?)
+       on conflict(id) do update set
+         lastUsedAt = datetime('now'),
+         lastSummary = excluded.lastSummary
+       where agent_threads.userId = excluded.userId`,
+    ).run(args.threadId, args.userId, args.lastSummary);
+  } catch (err) {
+    console.warn('agent_threads upsert failed:', (err as Error).message);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -496,7 +660,10 @@ export async function runAgentChat(args: RunAgentChatArgs): Promise<RunAgentChat
           error: `patch failed validation: ${check.error.message.slice(0, 200)}`,
         });
       }
-      draftPatch = { scope: 'global', styleSpec };
+      // Spread prior draftPatch so directorScript / chunkOverride / templateId
+      // from earlier tools in this turn survive — wholesale replacement
+      // silently dropped them.
+      draftPatch = { ...(draftPatch ?? {}), scope: 'global', styleSpec };
       toolTrace.push({ name: 'apply_style_patch', input: { styleSpec } });
       return JSON.stringify({ ok: true, applied: 'global' });
     },
@@ -514,7 +681,14 @@ export async function runAgentChat(args: RunAgentChatArgs): Promise<RunAgentChat
 
   const addChunkOverride = tool(
     (input: { range: [number, number]; overrides: Record<string, unknown> }) => {
+      // Preserve fields a prior tool call wrote — directorScript, styleSpec,
+      // and templateId are turn-scoped accumulators. The original write here
+      // replaced draftPatch wholesale, which silently dropped the
+      // apply_director_script result whenever add_chunk_override fired after
+      // it in the same turn (the agent's typical "build a reel and tune the
+      // opening chunk" pattern).
       draftPatch = {
+        ...(draftPatch ?? {}),
         scope: 'chunk',
         chunkOverride: { range: input.range, overrides: input.overrides },
       };
@@ -567,9 +741,11 @@ export async function runAgentChat(args: RunAgentChatArgs): Promise<RunAgentChat
         .filter((o) => Object.keys(o.overrides).length > 0);
 
       if (input.mode === 'all') {
+        // Spread prior draftPatch (directorScript / chunkOverride / templateId)
+        // before overwriting scope+styleSpec.
         draftPatch = {
+          ...(draftPatch ?? {}),
           scope: 'global',
-          ...(draftPatch?.styleSpec ? { styleSpec: draftPatch.styleSpec } : {}),
           styleSpec: {
             ...(draftPatch?.styleSpec ?? {}),
             visibility: 'visible',
@@ -582,8 +758,8 @@ export async function runAgentChat(args: RunAgentChatArgs): Promise<RunAgentChat
 
       if (input.mode === 'none') {
         draftPatch = {
+          ...(draftPatch ?? {}),
           scope: 'global',
-          ...(draftPatch?.styleSpec ? { styleSpec: draftPatch.styleSpec } : {}),
           styleSpec: {
             ...(draftPatch?.styleSpec ?? {}),
             visibility: 'hidden',
@@ -667,8 +843,8 @@ export async function runAgentChat(args: RunAgentChatArgs): Promise<RunAgentChat
       }
 
       draftPatch = {
+        ...(draftPatch ?? {}),
         scope: 'global',
-        ...(draftPatch?.styleSpec ? { styleSpec: draftPatch.styleSpec } : {}),
         styleSpec: {
           ...(draftPatch?.styleSpec ?? {}),
           visibility: 'hidden',
@@ -750,9 +926,12 @@ export async function runAgentChat(args: RunAgentChatArgs): Promise<RunAgentChat
     }
     const base = stageStylePatch(draftPatch?.styleSpec) as StylepackPartial;
     const merged = composePartial(base, result.patch) as Record<string, unknown>;
+    // Spread prior draftPatch so directorScript / chunkOverride survive when
+    // set_effect / apply_preset_pack / tune_field / set_layout_strategy fire
+    // after apply_director_script or add_chunk_override in the same turn.
     draftPatch = {
+      ...(draftPatch ?? {}),
       scope: 'global',
-      ...(draftPatch?.templateId ? { templateId: draftPatch.templateId } : {}),
       styleSpec: merged,
     };
     toolTrace.push({ name, input: input as Record<string, unknown> });
@@ -842,9 +1021,8 @@ export async function runAgentChat(args: RunAgentChatArgs): Promise<RunAgentChat
           return JSON.stringify({ ok: false, error: `directorScript validation failed: ${issues}` });
         }
         draftPatch = {
+          ...(draftPatch ?? {}),
           scope: 'global',
-          ...(draftPatch?.styleSpec ? { styleSpec: draftPatch.styleSpec } : {}),
-          ...(draftPatch?.templateId ? { templateId: draftPatch.templateId } : {}),
           directorScript: parsed.data,
         };
         toolTrace.push({
@@ -881,9 +1059,8 @@ export async function runAgentChat(args: RunAgentChatArgs): Promise<RunAgentChat
         });
       }
       draftPatch = {
+        ...(draftPatch ?? {}),
         scope: 'global',
-        ...(draftPatch?.styleSpec ? { styleSpec: draftPatch.styleSpec } : {}),
-        ...(draftPatch?.templateId ? { templateId: draftPatch.templateId } : {}),
         directorScript: result.script,
       };
       toolTrace.push({
@@ -920,6 +1097,244 @@ export async function runAgentChat(args: RunAgentChatArgs): Promise<RunAgentChat
     },
   );
 
+  // ── MCP-supporting tools ─────────────────────────────────────────────
+  //
+  // These three exist primarily for the MCP entry point: external clients
+  // hit a single `chat` tool that delegates here, and Atelier orchestrates
+  // ingest + render through these internal tools by mentioning the
+  // resulting URLs / status in its natural-language reply. They're also
+  // safe to fire from the web app's chat path — getClipSourceUri /
+  // createRenderJob are owner-scoped.
+
+  const requestClipUploadTool = tool(
+    async (input: { filename: string; sizeBytes?: number; mimeType?: string }) => {
+      try {
+        const init = await initClipUpload({
+          userId: args.userId,
+          filename: input.filename,
+          sizeBytes: input.sizeBytes,
+          mimeType: input.mimeType,
+        });
+        toolTrace.push({ name: 'request_clip_upload', input });
+        return JSON.stringify({
+          ok: true,
+          clipId: init.clipId,
+          uploadUrl: init.uploadUrl,
+          contentType: init.contentType,
+          expiresInSec: init.expiresInSec,
+          instructions:
+            `PUT the file bytes to uploadUrl with Content-Type: ${init.contentType}. ` +
+            `The URL expires in ${init.expiresInSec}s. ` +
+            `Once uploaded, the clip is ready to use — pass clipId to render().`,
+        });
+      } catch (err) {
+        return JSON.stringify({ ok: false, error: (err as Error).message });
+      }
+    },
+    {
+      name: 'request_clip_upload',
+      description:
+        'Reserve a presigned S3 PUT URL the user can upload a local video to. Returns clipId + uploadUrl. Use when the user has a local file (not a public URL). Always pass back the uploadUrl verbatim in your reply so the user can PUT to it.',
+      schema: z.object({
+        filename: z
+          .string()
+          .describe('Source filename including extension (e.g. "intro.mp4")'),
+        sizeBytes: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe('Optional size in bytes; lets us reject oversize early'),
+        mimeType: z
+          .string()
+          .optional()
+          .describe('Optional content-type override; defaults to a sniff from extension'),
+      }),
+    },
+  );
+
+  const registerClipFromPathTool = tool(
+    (input: { path: string }) => {
+      try {
+        const result = registerClipFromPath({
+          userId: args.userId,
+          path: input.path,
+        });
+        toolTrace.push({ name: 'register_clip_from_path', input });
+        return JSON.stringify({
+          ok: true,
+          clipId: result.clipId,
+          sizeBytes: result.sizeBytes,
+          status: result.status,
+          message:
+            `Clip registered (${(result.sizeBytes / 1e6).toFixed(1)} MB). Upload to S3 is running in the background — render() will automatically wait for it to complete before starting. You can apply styles now in parallel.`,
+        });
+      } catch (err) {
+        return JSON.stringify({ ok: false, error: (err as Error).message });
+      }
+    },
+    {
+      name: 'register_clip_from_path',
+      description:
+        'Register a video file that is already on the wabisabi server\'s filesystem (the localhost dev case where Claude Desktop / Cursor and wabisabi share the same Mac). Pass an absolute path. Returns clipId. Prefer this over request_clip_upload when the user mentions a file path — there\'s no AI-client primitive to PUT bytes at a presigned URL, but the server can read the file directly.',
+      schema: z.object({
+        path: z
+          .string()
+          .describe(
+            'Absolute filesystem path on the wabisabi server (e.g. "/Users/me/clips/intro.mp4"). Must end in a video extension.',
+          ),
+      }),
+    },
+  );
+
+  const registerClipFromUrlTool = tool(
+    async (input: { url: string; filename?: string }) => {
+      try {
+        const result = await registerClipFromUrl({
+          userId: args.userId,
+          url: input.url,
+          filename: input.filename,
+        });
+        toolTrace.push({ name: 'register_clip_from_url', input });
+        return JSON.stringify({
+          ok: true,
+          clipId: result.clipId,
+          sizeBytes: result.sizeBytes,
+          message: 'Clip downloaded and registered. Ready to render.',
+        });
+      } catch (err) {
+        return JSON.stringify({ ok: false, error: (err as Error).message });
+      }
+    },
+    {
+      name: 'register_clip_from_url',
+      description:
+        'Download a video from a public http(s) URL and register it as a clip. Returns clipId. Use when the user provides a URL (Drive share, S3 link, plain web URL).',
+      schema: z.object({
+        url: z.string().describe('Public http(s) URL of the source video'),
+        filename: z
+          .string()
+          .optional()
+          .describe('Optional override for the stored display name'),
+      }),
+    },
+  );
+
+  const renderTool = tool(
+    async (input: { clipId: string; templateId?: string; waitMs?: number }) => {
+      try {
+        // Hard cap at 25s — MCP clients (mcp-remote, Claude Desktop)
+        // default to a 60s request timeout. With model thinking time +
+        // tool result serialization + transport overhead, anything over
+        // ~30s server-side reliably trips the upstream timeout. 25s
+        // leaves headroom; a clip that needs longer comes back via a
+        // follow-up "ready yet?" turn.
+        const totalWaitMs = Math.min(Math.max(input.waitMs ?? 20_000, 500), 25_000);
+        const deadlineMs = Date.now() + totalWaitMs;
+
+        // Phase 1: wait for the background upload to finish. Background
+        // uploads from register_clip_from_path can take minutes for big
+        // files, so up to 80% of the budget goes here. If the upload
+        // isn't done by then, return a clean "still uploading" status —
+        // the next chat turn will resume the wait.
+        const uploadDeadline = Date.now() + Math.floor(totalWaitMs * 0.8);
+        const readyStatus = await awaitClipReady({
+          clipId: input.clipId,
+          userId: args.userId,
+          deadlineMs: Math.min(uploadDeadline, deadlineMs),
+        });
+        if (readyStatus === 'missing') {
+          return JSON.stringify({
+            ok: false,
+            error: `clip ${input.clipId} not found — re-ingest before retrying`,
+          });
+        }
+        if (readyStatus === 'failed') {
+          return JSON.stringify({
+            ok: false,
+            error: `clip ${input.clipId} upload failed; ask the user to verify the file or share a different source`,
+          });
+        }
+        if (readyStatus === 'uploading') {
+          toolTrace.push({ name: 'render', input: { clipId: input.clipId, waiting: 'upload' } });
+          return JSON.stringify({
+            ok: true,
+            status: 'uploading',
+            message:
+              `Clip is still uploading to S3 — large file over a slow uplink. Tell the user to ask back in a moment ("ready yet?") and you'll resume the render. The styleSpec is already staged on the thread; no need to redo it.`,
+          });
+        }
+
+        // Phase 2: clip is ready. Dedupe — if a render job for this
+        // clip already exists (done, running, or queued), reuse it.
+        // Without this, every "ready yet?" turn creates a new job and
+        // the worker queue grows unboundedly. Only spin a fresh job if
+        // the existing one failed.
+        const existing = findRecentJobForClip({
+          userId: args.userId,
+          clipId: input.clipId,
+        });
+        let jobId: string;
+        if (existing && existing.status !== 'failed') {
+          jobId = existing.jobId;
+        } else {
+          const styleSpec =
+            (draftPatch?.styleSpec as Record<string, unknown> | undefined) ?? args.currentSpec;
+          const templateId =
+            input.templateId ?? (draftPatch?.templateId as string | undefined) ?? args.templateId;
+          ({ jobId } = createRenderJob({
+            userId: args.userId,
+            clipId: input.clipId,
+            styleSpec,
+            templateId,
+          }));
+        }
+        const remainingMs = Math.max(deadlineMs - Date.now(), 1_000);
+        const status = await pollRender({
+          jobId,
+          userId: args.userId,
+          waitMs: remainingMs,
+        });
+        toolTrace.push({ name: 'render', input: { clipId: input.clipId, jobId } });
+        return JSON.stringify({
+          ok: true,
+          jobId,
+          status: status.status,
+          stage: status.stage,
+          outputUrl: status.outputUrl,
+          progressPct: status.progressPct,
+          error: status.error,
+          message:
+            status.status === 'done'
+              ? `Render done. Output URL valid 1h: ${status.outputUrl}`
+              : status.status === 'failed'
+                ? `Render failed: ${status.error}`
+                : `Render still in progress (${status.stage ?? 'queued'}). Call render again on the same clipId or tell the user to ask back in a moment.`,
+        });
+      } catch (err) {
+        return JSON.stringify({ ok: false, error: (err as Error).message });
+      }
+    },
+    {
+      name: 'render',
+      description:
+        'Render a clip with the current styleSpec. Long-polls up to waitMs (default 30s, cap 120s) — returns output URL if done, otherwise reports in-progress status and the caller should retry. ALWAYS surface the output URL in your reply when one is returned.',
+      schema: z.object({
+        clipId: z.string().describe('Clip id from register_clip_from_url or request_clip_upload'),
+        templateId: z
+          .string()
+          .optional()
+          .describe('Optional template override; defaults to the current template'),
+        waitMs: z
+          .number()
+          .int()
+          .positive()
+          .optional()
+          .describe('Server-side long-poll window in ms (default 20000, max 25000 — capped so MCP transport doesn\'t time out). Long uploads/renders return "uploading"/"queued" status; caller polls back.'),
+      }),
+    },
+  );
+
   const agent = createReactAgent({
     // ChatAnthropic implements the LanguageModelLike interface used by
     // createReactAgent — the cast is for the cache between getDeps()
@@ -929,6 +1344,7 @@ export async function runAgentChat(args: RunAgentChatArgs): Promise<RunAgentChat
       applyStylePatch, addChunkOverride, setCaptionVisibility, switchTemplate, acknowledgeNoChange,
       applyPresetTool, setEffectTool, setLayoutStrategyTool, tuneFieldTool,
       applyDirectorScriptTool,
+      requestClipUploadTool, registerClipFromPathTool, registerClipFromUrlTool, renderTool,
     ],
     prompt: systemMessage as Parameters<typeof createReactAgent>[0]['prompt'],
     checkpointer: checkpointer as Parameters<typeof createReactAgent>[0]['checkpointer'],
@@ -955,11 +1371,22 @@ Overrides (diff vs ${args.templateId}-default): ${JSON.stringify(overrides)}${wo
 
 User: ${args.message}`;
 
+  // Namespace the checkpointer key by userId so two users can use the same
+  // UUID threadId without colliding. The agent_threads index row is kept
+  // up-to-date alongside so we can later list a user's recent threads
+  // without scanning the checkpointer's opaque blobs.
+  const namespacedThreadId = `${args.userId}:${args.threadId}`;
+  await touchAgentThread({
+    threadId: args.threadId,
+    userId: args.userId,
+    lastSummary: args.message.slice(0, 240),
+  });
+
   const start = Date.now();
   const result = await agent.invoke(
     { messages: [new HumanMessage(userContent)] },
     {
-      configurable: { thread_id: args.threadId },
+      configurable: { thread_id: namespacedThreadId },
       recursionLimit: 8,
     },
   );

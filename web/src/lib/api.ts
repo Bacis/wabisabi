@@ -142,6 +142,12 @@ export type JobDetail = {
   // live overlay <Player> can't load the source — we fall back to a plain
   // <video> of the rendered output mp4 instead.
   inputAvailable: boolean;
+  // Source intrinsic dimensions, populated for jobs created from a
+  // user_video (and forward-fill from upload metadata). NULL for legacy
+  // jobs that predate the schema column — those fall back to the default
+  // 1080×1920 vertical canvas.
+  widthPx: number | null;
+  heightPx: number | null;
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
@@ -670,4 +676,169 @@ export async function renderDesign(id: string): Promise<{ id: string }> {
     throw new Error(`POST /designs/${id}/render ${r.status}: ${body.error ?? 'unknown'}`);
   }
   return r.json();
+}
+
+// ─── User uploads (persistent S3-backed source videos) ────────────────────
+//
+// Three-step upload: init → PUT directly to S3 → finalize. The browser
+// never streams bytes through our Fastify container; the API hands out
+// presigned URLs and verifies the object landed on finalize. See
+// src/api/server.ts → /uploads/* for the server side.
+
+export type UserVideo = {
+  id: string;
+  displayName: string;
+  originalFilename: string;
+  sizeBytes: number | null;
+  durationSec: number | null;
+  widthPx: number | null;
+  heightPx: number | null;
+  mimeType: string | null;
+  status: 'pending' | 'ready' | 'failed';
+  createdAt: string;
+};
+
+export type UserVideoDetail = UserVideo & {
+  videoUrl: string;
+};
+
+export type UploadInitResponse = {
+  uploadId: string;
+  putUrl: string;
+  contentType: string;
+  expiresInSec: number;
+  upload: UserVideo;
+};
+
+export async function initUpload(input: {
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+}): Promise<UploadInitResponse> {
+  const r = await api('/uploads/init', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(body.error ?? `POST /uploads/init ${r.status}`);
+  }
+  return r.json();
+}
+
+export async function finalizeUpload(
+  uploadId: string,
+  body: { durationSec?: number; widthPx?: number; heightPx?: number } = {},
+): Promise<UserVideo> {
+  const r = await api(`/uploads/${encodeURIComponent(uploadId)}/finalize`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!r.ok) {
+    const detail = await r.json().catch(() => ({}));
+    throw new Error(detail.error ?? `POST /uploads/${uploadId}/finalize ${r.status}`);
+  }
+  return r.json();
+}
+
+export async function listUploads(): Promise<UserVideo[]> {
+  const r = await api('/uploads');
+  if (!r.ok) throw new Error(`GET /uploads ${r.status}`);
+  return r.json();
+}
+
+export async function getUpload(uploadId: string): Promise<UserVideoDetail> {
+  const r = await api(`/uploads/${encodeURIComponent(uploadId)}`);
+  if (!r.ok) {
+    const detail = await r.json().catch(() => ({}));
+    throw new Error(detail.error ?? `GET /uploads/${uploadId} ${r.status}`);
+  }
+  return r.json();
+}
+
+export async function renameUpload(
+  uploadId: string,
+  displayName: string,
+): Promise<UserVideo> {
+  const r = await api(`/uploads/${encodeURIComponent(uploadId)}`, {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ displayName }),
+  });
+  if (!r.ok) {
+    const detail = await r.json().catch(() => ({}));
+    throw new Error(detail.error ?? `PATCH /uploads/${uploadId} ${r.status}`);
+  }
+  return r.json();
+}
+
+export async function deleteUpload(uploadId: string): Promise<void> {
+  const r = await api(`/uploads/${encodeURIComponent(uploadId)}`, { method: 'DELETE' });
+  if (!r.ok) {
+    const detail = await r.json().catch(() => ({}));
+    throw new Error(detail.error ?? `DELETE /uploads/${uploadId} ${r.status}`);
+  }
+}
+
+// Submit a new render job sourced from a persistent user_video. Mirrors
+// `uploadForEditing` but uses the JSON branch of POST /jobs — the upload
+// already lives on S3, so no multipart payload is needed.
+export async function createJobFromUpload(input: {
+  userVideoId: string;
+  preset?: string;
+  templateId?: string;
+  styleSpec?: Record<string, any>;
+  keepInputMinutes?: number;
+  hidden?: boolean;
+}): Promise<{ id: string }> {
+  const r = await api('/jobs', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(`POST /jobs ${r.status}: ${body.error ?? 'failed'}`);
+  }
+  return r.json();
+}
+
+// ─── MCP API keys ────────────────────────────────────────────────────────
+export type ApiKey = {
+  id: string;
+  name: string;
+  keyPrefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+};
+
+export async function listMcpKeys(): Promise<ApiKey[]> {
+  const r = await api('/keys');
+  if (!r.ok) throw new Error(`GET /keys ${r.status}`);
+  const body = (await r.json()) as { keys: ApiKey[] };
+  return body.keys;
+}
+
+export async function createMcpKey(name: string): Promise<{ key: ApiKey; plaintext: string }> {
+  const r = await api('/keys', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(body.error ?? `POST /keys ${r.status}`);
+  }
+  return r.json();
+}
+
+export async function revokeMcpKey(id: string): Promise<void> {
+  const r = await api(`/keys/${id}`, { method: 'DELETE' });
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(body.error ?? `DELETE /keys/${id} ${r.status}`);
+  }
 }

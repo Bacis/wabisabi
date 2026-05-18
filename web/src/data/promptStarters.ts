@@ -45,10 +45,10 @@ export const PROMPT_STARTERS: PromptStarter[] = [
   },
   {
     id: 'imax',
-    title: 'IMAX-grade, max maximalism',
-    description: 'focus-blur-resolve · ferro halo · shockwave slams · glitch slice',
+    title: 'Editorial cocktail · serif italic meets bold sans',
+    description: 'instrument serif italic · warm yellow accent · onest bold drop',
     icon: 'wave',
     prompt:
-      "Build the most cinematic, IMAX-grade version of this clip possible. Massive captions that dominate the frame, every word feeling carved. Bold black sans, white fill with a warm vertical gradient so even filler words feel premium, thick stroke around each letter, and a sun-flare yellow halo behind the keywords. Use a focus-blur-resolve entry on the hero beats — heavy 14px blur snapping into crisp text — and shimmer-sweep glides on the title cards so each chapter feels like a premium opener. Cycle emphasis colors across yellow / red / orange / white so every chunk feels different. Stack the effects in tiers: slam-impact shockwaves on the main keyword tier (intensity 0.7) synced to a real audio hit, a spiky ferro halo on the italic accent words, and a subtle resonance ripple on long-emphasis words. Land a hard glitch slice break on the final closing word for a cinematic punctuation. Plan the whole clip as a sequence of banner moments — title cards, stat call-outs, pull-quotes with a low rumble drone — ending with a hard drop. Captions should never whisper from the bottom; they fill the screen.",
+      "Treat the captions like our homepage hero — three voices taking turns inside the frame. Most lines in Instrument Serif italic, off-white, big and breathing. On the standout word of each beat, switch to the warm yellow gradient — the same sun-amber wash we use on the word 'cinematic' on the homepage. Then at the punchlines and the closer, hard-pivot into Onest bold sans, upright, white — short, declarative, IMAX-loud. Stage it as a back-and-forth: open quietly in the serif italic voice, drop one yellow word for the gut moment, then slam the bold-sans hit and let it sit. Position middle of the frame, captions large enough to dominate. Layer a shimmer-sweep across the serif titles for a premium-opener feel, a focus-blur snap-into-crisp entry on the bold-sans hits, and a single slam-impact on the closing word.",
   },
 ];
