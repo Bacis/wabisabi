@@ -1,0 +1,678 @@
+/* Caption Lab — Composer chrome.
+   Three-panel grid (Layers · Canvas · Properties) under a toolbar strip.
+   All colors, radii, and font tokens come from the Atelier root sheet
+   (--ink, --cream, --violet, --lime, --r-tile, --display, --sans, --mono).
+
+   The canvas pane fills its grid cell and lets .lab-caption (from
+   animations.css) stretch to its bounds. react-moveable renders its
+   handles into document.body by default; they'll overlay the page,
+   which is fine — selection state guarantees one target at a time. */
+
+/* ============================================================
+   Outer layout
+   ============================================================ */
+
+.composer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap, 14px);
+  flex: 1;
+  min-height: 0;
+}
+
+.composerGrid {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 320px;
+  gap: var(--gap, 14px);
+  flex: 1;
+  min-height: 0;
+}
+
+/* ============================================================
+   Toolbar
+   ============================================================ */
+
+.toolbar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 18px;
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: var(--r-tile, 24px);
+}
+.toolbarTitle {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: var(--display);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.toolbarBrand {
+  font-weight: 700;
+  font-size: 18px;
+}
+.toolbarSep {
+  opacity: 0.45;
+  font-size: 14px;
+}
+.toolbarMode {
+  font-weight: 600;
+  font-size: 12px;
+  opacity: 0.7;
+}
+.toolbarBadges {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-self: center;
+}
+.toolbarBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(14, 12, 22, 0.06);
+  border-radius: var(--r-pill, 999px);
+  padding: 5px 12px;
+}
+.toolbarBadgeValue {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  max-width: 16ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toolbarActions {
+  display: inline-flex;
+  gap: 8px;
+}
+
+/* Atelier's `ghost` Button variant is cream-on-ink — invisible on this
+   toolbar's cream surface. Force ink-on-cream when applied here. */
+.toolbarGhost {
+  color: var(--ink) !important;
+  box-shadow: inset 0 0 0 1.5px rgba(14, 12, 22, 0.18) !important;
+}
+.toolbarGhost:hover:not(:disabled) {
+  box-shadow:
+    inset 0 0 0 1.5px var(--ink),
+    4px 4px 0 var(--ink) !important;
+}
+
+/* ============================================================
+   Shared panel head
+   ============================================================ */
+
+.panelHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid rgba(14, 12, 22, 0.08);
+}
+.panelTitle {
+  margin: 0;
+}
+
+/* ============================================================
+   Layer tree (left)
+   ============================================================ */
+
+.layerTree {
+  display: flex;
+  flex-direction: column;
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: var(--r-tile, 24px);
+  overflow: hidden;
+  min-height: 0;
+}
+.layerList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+.layerRow {
+  display: grid;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  color: var(--ink);
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: 10px;
+  padding: 8px 10px;
+  cursor: pointer;
+  font-family: var(--sans);
+  font-size: 13px;
+  text-align: left;
+  transition:
+    background 0.12s ease,
+    border-color 0.12s ease;
+}
+.layerRow:hover {
+  background: rgba(14, 12, 22, 0.05);
+}
+.layerRowActive {
+  background: rgba(198, 242, 60, 0.22);
+  border-left-color: var(--lime);
+}
+.layerRowActive:hover {
+  background: rgba(198, 242, 60, 0.3);
+}
+.layerRowBlock {
+  grid-template-columns: 14px auto 1fr;
+  font-family: var(--display);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
+.layerRowWord {
+  grid-template-columns: 20px 1fr auto auto;
+  font-size: 13px;
+}
+.layerCaret {
+  font-size: 10px;
+  opacity: 0.55;
+}
+.layerKind {
+  white-space: nowrap;
+}
+.layerHint {
+  font-family: var(--mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  opacity: 0.55;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+.layerChildren {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0 0 0 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.layerIdx {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  opacity: 0.55;
+}
+.layerText {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.layerPunch {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--violet);
+}
+.layerDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--violet);
+  box-shadow: 0 0 8px rgba(122, 69, 255, 0.5);
+}
+
+/* ============================================================
+   Canvas (center)
+   ============================================================ */
+
+.canvasWrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--cream);
+  color: var(--ink);
+  border-radius: var(--r-tile, 24px);
+  padding: 18px;
+  min-height: 0;
+  overflow: hidden;
+}
+.canvasStageHolder {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+}
+/* The .lab-caption stage already styles itself (border-radius, padding,
+   theme bg). Give it room to flex. */
+.canvasStageHolder > .lab-caption,
+.canvasStageHolder :global(.lab-caption) {
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================================
+   Properties (right)
+   ============================================================ */
+
+.properties {
+  display: flex;
+  flex-direction: column;
+  background: var(--violet);
+  color: var(--cream);
+  border-radius: var(--r-tile, 24px);
+  overflow: hidden;
+  min-height: 0;
+}
+.properties .panelHead {
+  border-bottom-color: rgba(255, 247, 230, 0.18);
+}
+
+.propBody {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px 18px;
+  overflow: auto;
+  flex: 1;
+  min-height: 0;
+}
+.propEmpty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px 4px;
+}
+.propEmptyHint {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  opacity: 0.72;
+}
+.propSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.propSectionTitle {
+  /* MonoLabel handles the typography; just space it. */
+}
+.propSectionBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.propWordRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.propWordText {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 18px;
+  letter-spacing: 0.01em;
+}
+.propPunchTag {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  background: rgba(255, 247, 230, 0.22);
+  padding: 3px 8px;
+  border-radius: var(--r-pill, 999px);
+}
+
+.sceneReadout {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.rollValue {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.rollMeta {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.55;
+}
+
+.pickerStack {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.themeSwatch {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px rgba(255, 247, 230, 0.18);
+}
+.themeBg {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  margin-left: 4px;
+  box-shadow: inset 0 0 0 1px rgba(255, 247, 230, 0.18);
+}
+.fxDescription {
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  opacity: 0.72;
+}
+
+/* Custom theme dropdown — native <select> can't render colored option rows,
+   so the trigger is a button and the menu is an absolutely-positioned list
+   below it. */
+.themePicker {
+  position: relative;
+}
+.themePickerButton {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: rgba(14, 12, 22, 0.32);
+  color: var(--cream);
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px 8px 12px;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s ease;
+}
+.themePickerButton:hover {
+  background: rgba(14, 12, 22, 0.45);
+}
+.themePickerButton[aria-expanded='true'] {
+  background: rgba(14, 12, 22, 0.5);
+}
+.themePickerName {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.themePickerSwatches {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+.themePickerCaret {
+  font-size: 10px;
+  opacity: 0.6;
+  font-family: var(--mono);
+}
+
+.themePickerList {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  max-height: 360px;
+  overflow: auto;
+  background: var(--ink);
+  border-radius: 10px;
+  box-shadow:
+    0 12px 28px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(255, 247, 230, 0.12);
+}
+.themePickerList li,
+.themePickerList ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.themePickerGroup + .themePickerGroup {
+  margin-top: 4px;
+}
+.themePickerGroupHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 10px 4px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--cream);
+  opacity: 0.55;
+  position: sticky;
+  top: 0;
+  background: var(--ink);
+  z-index: 1;
+}
+.themePickerGroupCount {
+  opacity: 0.7;
+  letter-spacing: 0.08em;
+}
+.themePickerOption {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  background: transparent;
+  color: var(--cream);
+  border: 0;
+  border-radius: 6px;
+  padding: 7px 10px;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.1s ease;
+}
+.themePickerOption:hover {
+  background: rgba(255, 247, 230, 0.08);
+}
+.themePickerOptionActive {
+  background: rgba(198, 242, 60, 0.16);
+}
+.themePickerOptionActive:hover {
+  background: rgba(198, 242, 60, 0.22);
+}
+
+.slotRow {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.slot {
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  border: 0;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px rgba(255, 247, 230, 0.2);
+  transition: transform 0.12s ease;
+}
+.slot:hover {
+  transform: translateY(-2px);
+}
+.slotActive {
+  box-shadow: inset 0 0 0 3px var(--cream);
+}
+
+.colorRow {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+.colorInput {
+  width: 44px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+.hexInput {
+  background: rgba(14, 12, 22, 0.32);
+  color: var(--cream);
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.hexInput::placeholder {
+  color: rgba(255, 247, 230, 0.45);
+}
+
+.fxSelect {
+  background: rgba(14, 12, 22, 0.32);
+  color: var(--cream);
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: var(--sans);
+  font-size: 12.5px;
+}
+
+/* Pairing dropdown — shares the .themePicker* popover shell (button + list)
+   but the row content is a stacked label + two font samples instead of color
+   swatches. */
+.pairingButtonStack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+}
+.pairingButtonLabel {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+/* Option rows stack sans + serif vertically so the full family names fit
+   without truncation; the button uses the compact side-by-side variant. */
+.pairingSamples {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  color: var(--cream);
+  overflow: hidden;
+}
+.pairingSamplesCompact {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  color: var(--cream);
+  overflow: hidden;
+}
+.pairingSampleSans {
+  font-size: 17px;
+  line-height: 1.15;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.pairingSamplesCompact .pairingSampleSans {
+  font-size: 15px;
+  line-height: 1.05;
+}
+.pairingSampleSerif {
+  font-size: 17px;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.pairingSamplesCompact .pairingSampleSerif {
+  font-size: 15px;
+  line-height: 1.1;
+}
+/* Pairing rows are taller than theme rows (two lines of content) — relax
+   the shared option's tight grid. */
+.pairingPickerOption {
+  grid-template-columns: 1fr;
+  padding: 9px 12px;
+}
+.pairingOptionStack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.xfRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.numberField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.numberFieldLabel {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.65;
+}
+.numberField input {
+  background: rgba(14, 12, 22, 0.32);
+  color: var(--cream);
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  width: 100%;
+}
+
+/* ============================================================
+   Responsive — collapse properties below 1180px (rare for /lab).
+   ============================================================ */
+
+@media (max-width: 1180px) {
+  .composerGrid {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(360px, auto) auto;
+  }
+}

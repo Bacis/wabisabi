@@ -185,6 +185,11 @@ export const StyleSpecSchema = z
     // cascade/multi-color/italic-vocab/wordReveal config from here. Kept open
     // (z.any) so new templates can add fields without schema churn.
     reel: z.record(z.string(), z.any()).optional(),
+    // Opaque payload for themes authored in the /lab composer — the full
+    // LabRoll + word overrides + block transform + punch override. The
+    // backend doesn't interpret this; the lab UI reads it back on theme
+    // reuse, and the /themes catalog reads it to render preview cards.
+    lab: z.record(z.string(), z.any()).optional(),
   })
   .default({});
 

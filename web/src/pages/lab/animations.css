@@ -1,0 +1,858 @@
+/* Caption-lab animations + role/punch styling. Direct port of the
+   captions-pack CSS in ae-packs-player.html (lines 847–1051). These selectors
+   live in a global stylesheet (not a CSS module) so the keyframe + role class
+   names match the strings the randomizer emits (.r1..r8, .we-stair, .r-punch).
+
+   Scoped to .lab-caption to avoid bleeding into other pages. The wrapping
+   .lab-caption element is the stage; .caption is the flex container the
+   words live inside.
+
+   To add a word effect:
+     1. Add a `.lab-caption .caption .w.we-<id> .lt { ... animation: ... }` rule
+        and a matching @keyframes block here.
+     2. Register the effect in data/effects.ts.
+*/
+
+.lab-caption {
+  container-type: inline-size;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6% 4%;
+  background: var(--lab-bg, #000);
+  color: var(--lab-ink, #fff);
+  border-radius: var(--r-tile, 24px);
+  overflow: hidden;
+  position: relative;
+}
+
+.lab-caption .caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  align-content: center;
+  column-gap: 0;
+  row-gap: 0.28em;
+  width: 100%;
+  transform-origin: center center;
+  transition: transform 0.18s ease-out;
+}
+
+.lab-caption .caption .w {
+  display: inline-block;
+  margin-right: 0.32em;
+  cursor: pointer;
+}
+
+/* Italic serifs slant rightward — their tail letters overshoot the bounding
+   box, so the following word visually butts up against the swash. Give
+   italic roles ~30% more right margin. */
+.lab-caption .caption .w.r2,
+.lab-caption .caption .w.r4,
+.lab-caption .caption .w.r6,
+.lab-caption .caption .w.r8 {
+  margin-right: 0.44em;
+}
+
+.lab-caption .caption .w .lt {
+  display: inline-block;
+  will-change: transform, opacity, filter;
+}
+
+/* Selection ring (per-word editor) */
+.lab-caption .caption .w.w-selected {
+  outline: 2px dashed var(--lab-ink, #fff);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+
+/* Block-level selection ring — composer mode. */
+.lab-caption .caption.caption-selected {
+  outline: 2px dashed var(--lab-ink, #fff);
+  outline-offset: 8px;
+  border-radius: 6px;
+}
+
+/* ============================================================
+   Word effects
+   ============================================================ */
+
+/* we-word — word-level reveal (no letter split). */
+.lab-caption .caption .w.we-word {
+  opacity: 0;
+  transform: translateY(0.32em);
+  animation: capWord 0.4s cubic-bezier(0.5, 1.2, 0.3, 1) forwards;
+  animation-delay: calc(var(--i, 0) * var(--word-step, 0.3s));
+}
+@keyframes capWord {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* we-stair — staircase reveal with overshoot, per letter. */
+.lab-caption .caption .w.we-stair .lt {
+  opacity: 0;
+  transform: translateY(0.9em) scaleY(1.4);
+  animation: capStair 0.55s cubic-bezier(0.16, 1.2, 0.3, 1) both;
+  animation-delay: calc(
+    var(--i, 0) * var(--word-step, 0.3s) + var(--j, 0) *
+      var(--letter-step, 28ms)
+  );
+}
+@keyframes capStair {
+  0% {
+    opacity: 0;
+    transform: translateY(0.9em) scaleY(1.4);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-0.06em) scaleY(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* we-varied — drop / blur / flip / slide cycled mod-4 per letter. */
+.lab-caption .caption .w.we-varied .lt {
+  opacity: 0;
+  animation-duration: 0.7s;
+  animation-fill-mode: both;
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  animation-delay: calc(
+    var(--i, 0) * var(--word-step, 0.3s) + var(--j, 0) *
+      var(--letter-step, 28ms)
+  );
+}
+.lab-caption .caption .w.we-varied .lt[data-m='0'] {
+  animation-name: capVDrop;
+}
+.lab-caption .caption .w.we-varied .lt[data-m='1'] {
+  animation-name: capVBlur;
+}
+.lab-caption .caption .w.we-varied .lt[data-m='2'] {
+  animation-name: capVFlip;
+  transform-origin: 50% 100%;
+}
+.lab-caption .caption .w.we-varied .lt[data-m='3'] {
+  animation-name: capVSlide;
+}
+@keyframes capVDrop {
+  0% {
+    opacity: 0;
+    transform: translateY(-0.9em) rotate(-6deg);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes capVBlur {
+  0% {
+    opacity: 0;
+    filter: blur(11px);
+    transform: scale(1.18);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
+}
+@keyframes capVFlip {
+  0% {
+    opacity: 0;
+    transform: rotateX(-90deg);
+  }
+  65% {
+    opacity: 1;
+    transform: rotateX(10deg);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes capVSlide {
+  0% {
+    opacity: 0;
+    transform: translateX(0.5em);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* we-color — letter enters in accent color, settles to role's natural color. */
+.lab-caption .caption .w.we-color .lt {
+  opacity: 0;
+  transform: translateY(0.4em) scale(1.3);
+  animation: capColor 1.15s cubic-bezier(0.5, 0, 0.2, 1) both;
+  animation-delay: calc(
+    var(--i, 0) * var(--word-step, 0.3s) + var(--j, 0) *
+      var(--letter-step, 28ms)
+  );
+}
+@keyframes capColor {
+  0% {
+    opacity: 0;
+    transform: translateY(0.4em) scale(1.3);
+    color: var(--color01);
+  }
+  22% {
+    opacity: 1;
+    transform: none;
+    color: var(--color01);
+  }
+  60% {
+    opacity: 1;
+    color: inherit;
+  }
+  100% {
+    opacity: 1;
+    color: inherit;
+  }
+}
+
+/* we-wobble — frame-stepped entrance + infinite stepped wobble loop. */
+.lab-caption .caption .w.we-wobble .lt {
+  opacity: 0;
+  animation-name: capWobIn, capWobLoop;
+  animation-duration: 0.35s, 0.5s;
+  animation-timing-function: steps(3, end), steps(4, end);
+  animation-iteration-count: 1, infinite;
+  animation-fill-mode: both, none;
+  animation-delay:
+    calc(
+      var(--i, 0) * var(--word-step, 0.3s) + var(--j, 0) *
+        var(--letter-step, 28ms)
+    ),
+    calc(
+      var(--i, 0) * var(--word-step, 0.3s) + var(--j, 0) *
+        var(--letter-step, 28ms) + 0.35s
+    );
+}
+@keyframes capWobIn {
+  0% {
+    opacity: 0;
+    transform: translateY(0.4em) rotate(-6deg) scale(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes capWobLoop {
+  0% {
+    transform: translate(-1px, 0) rotate(-1deg);
+  }
+  25% {
+    transform: translate(1px, -1px) rotate(0.8deg);
+  }
+  50% {
+    transform: translate(-1px, 1px) rotate(-0.6deg);
+  }
+  75% {
+    transform: translate(1px, 0) rotate(1.2deg);
+  }
+  100% {
+    transform: translate(-1px, 0) rotate(-1deg);
+  }
+}
+
+/* ============================================================
+   GSAP-vocabulary batch
+   Pure CSS ports of GSAP-named eases + stagger directions.
+   No GSAP runtime dep — eases mapped to cubic-bezier, stagger
+   delays computed from --i / --j / --word-len with calc().
+   ============================================================ */
+
+/* we-edges — letters spring in from BOTH word edges toward center.
+   Delay = (centerDist - distFromCenter) * letter-step, so edge letters
+   land first, center letter lands last. back.out(1.7) overshoot. */
+.lab-caption .caption .w.we-edges .lt {
+  opacity: 0;
+  transform: translateY(0.5em) scale(0.7);
+  animation: capEdges 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: calc(
+    var(--i, 0) * var(--word-step, 0.3s) +
+      (
+          (var(--word-len, 1) - 1) / 2 -
+            abs(var(--j, 0) - (var(--word-len, 1) - 1) / 2)
+        ) * var(--letter-step, 28ms)
+  );
+}
+@keyframes capEdges {
+  0% {
+    opacity: 0;
+    transform: translateY(0.5em) scale(0.7);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* we-center — letters fan OUT from the middle character.
+   Delay = distFromCenter * letter-step, so center letter goes first. */
+.lab-caption .caption .w.we-center .lt {
+  opacity: 0;
+  transform: scale(0.6);
+  animation: capCenter 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: calc(
+    var(--i, 0) * var(--word-step, 0.3s) +
+      abs(var(--j, 0) - (var(--word-len, 1) - 1) / 2) *
+      var(--letter-step, 28ms)
+  );
+}
+@keyframes capCenter {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* we-typewriter — binary per-letter reveal (steps(1, end)), 60ms cadence. */
+.lab-caption .caption .w.we-typewriter .lt {
+  opacity: 0;
+  animation: capType 0.001s steps(1, end) both;
+  animation-delay: calc(
+    var(--i, 0) * var(--word-step, 0.3s) + var(--j, 0) * 60ms
+  );
+}
+@keyframes capType {
+  to {
+    opacity: 1;
+  }
+}
+
+/* we-elastic — elastic.out(1, .3): multi-bounce Y settle with two damped
+   oscillations. Linear timing-function — the keyframes carry the curve. */
+.lab-caption .caption .w.we-elastic .lt {
+  opacity: 0;
+  transform: translateY(0.6em);
+  animation: capElastic 0.9s linear both;
+  animation-delay: calc(
+    var(--i, 0) * var(--word-step, 0.3s) + var(--j, 0) *
+      var(--letter-step, 28ms)
+  );
+}
+@keyframes capElastic {
+  0% {
+    opacity: 0;
+    transform: translateY(0.6em);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-0.2em);
+  }
+  55% {
+    transform: translateY(0.08em);
+  }
+  72% {
+    transform: translateY(-0.05em);
+  }
+  87% {
+    transform: translateY(0.02em);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* we-bounce — bounce.out: floor-drop with three decreasing peaks. */
+.lab-caption .caption .w.we-bounce .lt {
+  opacity: 0;
+  transform: translateY(-1em);
+  animation: capBounce 0.85s linear both;
+  animation-delay: calc(
+    var(--i, 0) * var(--word-step, 0.3s) + var(--j, 0) *
+      var(--letter-step, 28ms)
+  );
+}
+@keyframes capBounce {
+  0% {
+    opacity: 0;
+    transform: translateY(-1em);
+  }
+  38% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  56% {
+    transform: translateY(-0.32em);
+  }
+  72% {
+    transform: translateY(0);
+  }
+  84% {
+    transform: translateY(-0.12em);
+  }
+  92% {
+    transform: translateY(0);
+  }
+  97% {
+    transform: translateY(-0.04em);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* we-expo — expo.out word-scope slide-up with long tail deceleration. */
+.lab-caption .caption .w.we-expo {
+  opacity: 0;
+  transform: translateY(0.5em);
+  animation: capExpo 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: calc(var(--i, 0) * var(--word-step, 0.3s));
+}
+@keyframes capExpo {
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* we-wipe — DrawSVG-style clip-path inset opens L→R per letter. */
+.lab-caption .caption .w.we-wipe .lt {
+  clip-path: inset(0 100% 0 0);
+  animation: capWipe 0.45s cubic-bezier(0.65, 0, 0.35, 1) both;
+  animation-delay: calc(
+    var(--i, 0) * var(--word-step, 0.3s) + var(--j, 0) *
+      var(--letter-step, 28ms)
+  );
+}
+@keyframes capWipe {
+  0% {
+    clip-path: inset(0 100% 0 0);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+/* we-curtain — letters fall from above; top-clip mask peels open with
+   a landing squash on scaleY. */
+.lab-caption .caption .w.we-curtain .lt {
+  opacity: 0;
+  transform: translateY(-1em) scaleY(1.3);
+  clip-path: inset(0 0 100% 0);
+  animation: capCurtain 0.7s cubic-bezier(0.45, 0, 0.2, 1.2) both;
+  animation-delay: calc(
+    var(--i, 0) * var(--word-step, 0.3s) + var(--j, 0) *
+      var(--letter-step, 28ms)
+  );
+}
+@keyframes capCurtain {
+  0% {
+    opacity: 0;
+    transform: translateY(-1em) scaleY(1.3);
+    clip-path: inset(0 0 100% 0);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(0.08em) scaleY(0.92);
+    clip-path: inset(0);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+    clip-path: inset(0);
+  }
+}
+
+/* we-rgb-split — chromatic aberration converges to 0; brief horizontal jitter. */
+.lab-caption .caption .w.we-rgb-split .lt {
+  opacity: 0;
+  text-shadow:
+    -6px 0 #00e5ff,
+    6px 0 #ff007a;
+  animation: capRgbSplit 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(
+    var(--i, 0) * var(--word-step, 0.3s) + var(--j, 0) *
+      var(--letter-step, 28ms)
+  );
+}
+@keyframes capRgbSplit {
+  0% {
+    opacity: 0;
+    text-shadow:
+      -6px 0 #00e5ff,
+      6px 0 #ff007a;
+    transform: translateX(-0.06em);
+  }
+  35% {
+    opacity: 1;
+    text-shadow:
+      -4px 0 #00e5ff,
+      4px 0 #ff007a;
+    transform: translateX(0.04em);
+  }
+  60% {
+    text-shadow:
+      -2px 0 #00e5ff,
+      2px 0 #ff007a;
+    transform: translateX(-0.02em);
+  }
+  100% {
+    opacity: 1;
+    text-shadow:
+      0 0 transparent,
+      0 0 transparent;
+    transform: none;
+  }
+}
+
+/* we-glitch — RoughEase: 8-step jitter on translate, mod-4 offset vectors. */
+.lab-caption .caption .w.we-glitch .lt {
+  opacity: 0;
+  animation: capGlitch 0.5s steps(8, end) both;
+  animation-delay: calc(
+    var(--i, 0) * var(--word-step, 0.3s) + var(--j, 0) *
+      var(--letter-step, 28ms)
+  );
+}
+.lab-caption .caption .w.we-glitch .lt[data-m='0'] {
+  --glitch-x: -3px;
+  --glitch-y: 2px;
+}
+.lab-caption .caption .w.we-glitch .lt[data-m='1'] {
+  --glitch-x: 4px;
+  --glitch-y: -3px;
+}
+.lab-caption .caption .w.we-glitch .lt[data-m='2'] {
+  --glitch-x: -2px;
+  --glitch-y: -4px;
+}
+.lab-caption .caption .w.we-glitch .lt[data-m='3'] {
+  --glitch-x: 3px;
+  --glitch-y: 3px;
+}
+@keyframes capGlitch {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  15% {
+    opacity: 1;
+    transform: translate(var(--glitch-x, 3px), var(--glitch-y, -2px));
+  }
+  30% {
+    transform: translate(
+      calc(var(--glitch-x, 3px) * -1),
+      var(--glitch-y, -2px)
+    );
+  }
+  45% {
+    transform: translate(
+      var(--glitch-x, 3px),
+      calc(var(--glitch-y, -2px) * -1)
+    );
+  }
+  60% {
+    transform: translate(
+      calc(var(--glitch-x, 3px) * -0.5),
+      var(--glitch-y, -2px)
+    );
+  }
+  75% {
+    transform: translate(var(--glitch-x, 3px), 0);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* we-neon-pulse — word-scope: text-shadow glow flash with --color01,
+   decays to a steady soft halo. */
+.lab-caption .caption .w.we-neon-pulse {
+  opacity: 0;
+  animation: capNeon 0.9s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation-delay: calc(var(--i, 0) * var(--word-step, 0.3s));
+}
+@keyframes capNeon {
+  0% {
+    opacity: 0;
+    text-shadow: none;
+    transform: scale(0.9);
+  }
+  35% {
+    opacity: 1;
+    text-shadow:
+      0 0 8px var(--color01),
+      0 0 18px var(--color01),
+      0 0 32px var(--color01);
+    transform: scale(1.05);
+  }
+  70% {
+    text-shadow:
+      0 0 4px var(--color01),
+      0 0 10px var(--color01);
+    transform: scale(1);
+  }
+  100% {
+    opacity: 1;
+    text-shadow: 0 0 2px var(--color01);
+    transform: none;
+  }
+}
+
+/* we-wave — per-letter entrance, then infinite low-amplitude sine bob.
+   The infinite loop's animation-delay is shifted by --j so adjacent letters
+   are out of phase, producing the wave. */
+.lab-caption .caption .w.we-wave .lt {
+  opacity: 0;
+  animation-name: capWaveIn, capWave;
+  animation-duration: 0.5s, 1.8s;
+  animation-timing-function:
+    cubic-bezier(0.16, 1, 0.3, 1),
+    ease-in-out;
+  animation-iteration-count: 1, infinite;
+  animation-fill-mode: both, none;
+  animation-delay:
+    calc(
+      var(--i, 0) * var(--word-step, 0.3s) + var(--j, 0) *
+        var(--letter-step, 28ms)
+    ),
+    calc(
+      var(--i, 0) * var(--word-step, 0.3s) + var(--j, 0) * 90ms + 0.5s
+    );
+}
+@keyframes capWaveIn {
+  0% {
+    opacity: 0;
+    transform: translateY(0.4em);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes capWave {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.18em);
+  }
+}
+
+/* we-jelly — Physics2D punch: anisotropic scaleX/scaleY phase-shift settles
+   from squash to identity through over/undershoot. */
+.lab-caption .caption .w.we-jelly .lt {
+  opacity: 0;
+  transform-origin: 50% 100%;
+  animation: capJelly 0.75s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: calc(
+    var(--i, 0) * var(--word-step, 0.3s) + var(--j, 0) *
+      var(--letter-step, 28ms)
+  );
+}
+@keyframes capJelly {
+  0% {
+    opacity: 0;
+    transform: scaleX(1.4) scaleY(0.5);
+  }
+  30% {
+    opacity: 1;
+    transform: scaleX(0.7) scaleY(1.3);
+  }
+  50% {
+    transform: scaleX(1.15) scaleY(0.9);
+  }
+  70% {
+    transform: scaleX(0.94) scaleY(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ============================================================
+   Role classes — body (r1..r8), ink-fallback, punch
+   ============================================================ */
+
+.lab-caption .caption .r1,
+.lab-caption .caption .r3,
+.lab-caption .caption .r5,
+.lab-caption .caption .r7 {
+  font: 800 80px/1.1 var(--cap-sans);
+  font-size: clamp(
+    26px,
+    min(9.2cqw, calc(85cqw / var(--word-len, 1)), 22cqh),
+    92px
+  );
+  letter-spacing: 0.005em;
+}
+.lab-caption .caption .r1 {
+  color: var(--color01);
+}
+.lab-caption .caption .r3 {
+  color: var(--color02);
+}
+.lab-caption .caption .r5 {
+  color: var(--color03);
+}
+.lab-caption .caption .r7 {
+  color: var(--color04);
+}
+
+.lab-caption .caption .r2,
+.lab-caption .caption .r4,
+.lab-caption .caption .r6,
+.lab-caption .caption .r8 {
+  font: 700 italic 80px/1.18 var(--cap-serif);
+  font-size: clamp(
+    26px,
+    min(8.4cqw, calc(78cqw / var(--word-len, 1)), 20cqh),
+    84px
+  );
+  letter-spacing: -0.008em;
+}
+.lab-caption .caption .r2 {
+  color: var(--color01);
+}
+.lab-caption .caption .r4 {
+  color: var(--color02);
+}
+.lab-caption .caption .r6 {
+  color: var(--color03);
+}
+.lab-caption .caption .r8 {
+  color: var(--color04);
+}
+
+.lab-caption .caption .r-ink-sans {
+  font: 800 80px/1.1 var(--cap-sans);
+  font-size: clamp(
+    26px,
+    min(9.2cqw, calc(85cqw / var(--word-len, 1)), 22cqh),
+    92px
+  );
+  letter-spacing: 0.005em;
+  color: var(--lab-ink, #fff);
+}
+.lab-caption .caption .r-ink-serif {
+  font: 700 italic 80px/1.18 var(--cap-serif);
+  font-size: clamp(
+    26px,
+    min(8.4cqw, calc(78cqw / var(--word-len, 1)), 20cqh),
+    84px
+  );
+  letter-spacing: -0.008em;
+  color: var(--lab-ink, #fff);
+}
+
+/* Static punch sizing — same layout/typography as .r-punch but without the
+   capPunch entrance. Used when the user assigns a custom FX to a punch word
+   so the override owns the animation. */
+.lab-caption .caption .r-punch-static {
+  display: block;
+  width: 100%;
+  /* Inherit the block's text-align so the user's Left/Center/Right choice
+     applies — explicit `center` would lock punch words mid-line. */
+  text-align: inherit;
+  font: 800 80px/0.85 var(--cap-sans);
+  font-size: clamp(
+    56px,
+    min(28cqw, calc(90cqw / var(--punch-len, 1)), 38cqh),
+    260px
+  );
+  color: var(--color01);
+  letter-spacing: -0.015em;
+  text-transform: uppercase;
+  margin: 0.16em 0;
+}
+
+/* PUNCH — massive display word on its own full-width line, scale-pop entrance. */
+.lab-caption .caption .r-punch {
+  display: block;
+  width: 100%;
+  /* Inherit the block's text-align (Left/Center/Right). */
+  text-align: inherit;
+  font: 800 80px/0.85 var(--cap-sans);
+  font-size: clamp(
+    56px,
+    min(28cqw, calc(90cqw / var(--punch-len, 1)), 38cqh),
+    260px
+  );
+  color: var(--color01);
+  letter-spacing: -0.015em;
+  text-transform: uppercase;
+  margin: 0.16em 0;
+  opacity: 0;
+  transform: scale(0.6);
+  filter: blur(8px);
+  animation: capPunch 0.55s cubic-bezier(0.16, 1.5, 0.3, 1) forwards;
+  animation-delay: calc(var(--i, 0) * var(--word-step, 0.3s));
+}
+@keyframes capPunch {
+  0% {
+    opacity: 0;
+    transform: scale(0.6);
+    filter: blur(8px);
+  }
+  62% {
+    opacity: 1;
+    transform: scale(1.04);
+    filter: blur(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    filter: blur(0);
+  }
+}
+
+.lab-caption .caption .r-punch.punch-wobble {
+  animation:
+    capPunch 0.55s cubic-bezier(0.16, 1.5, 0.3, 1) forwards,
+    punchSway 2.4s ease-in-out infinite;
+  animation-delay:
+    calc(var(--i, 0) * var(--word-step, 0.3s)),
+    calc(var(--i, 0) * var(--word-step, 0.3s) + 0.55s);
+}
+@keyframes punchSway {
+  0%,
+  100% {
+    rotate: -1deg;
+  }
+  50% {
+    rotate: 1deg;
+  }
+}
+
+/* Pause: freeze all running animations on the caption stage. */
+.lab-caption[data-paused='true'] .caption,
+.lab-caption[data-paused='true'] .caption * {
+  animation-play-state: paused !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lab-caption .caption .w,
+  .lab-caption .caption .w *,
+  .lab-caption .caption .r-punch {
+    animation-duration: 0.001ms !important;
+    animation-delay: 0ms !important;
+  }
+}
